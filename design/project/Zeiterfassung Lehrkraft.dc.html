@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><link rel="stylesheet" href="organic.css"><script src="_ds/organic-2eaad762-da4c-4b80-8ed4-e4d658eebb87/_ds_bundle.js"></script><style>
+body{margin:0;background:#f0e6d2}
+.dv-turn{padding:44px 48px 36px;border-bottom:1px solid rgba(32,30,29,.1)}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 22px}
+.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#201e1d;color:#f5ead8;border-radius:999px;text-decoration:none}
+.dv-tname{font-family:var(--font-heading);font-size:15px;color:#201e1d}
+.dv-opts{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:10px}
+.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(32,30,29,.09);color:#201e1d;border-radius:999px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11.5px/1.35 var(--font-body);color:rgba(32,30,29,.58);max-width:420px}
+.dv-card{background:#f5ead8;border:1px solid rgba(32,30,29,.08);border-radius:28px;padding:22px;box-shadow:0 3px 10px rgba(46,43,37,.1)}
+.dv-opt:target .dv-oid{background:#c67139;color:#f5ead8}
+.dv-next{margin:26px 0 0;font:12px/1.6 var(--font-body);color:rgba(32,30,29,.5)}
+a{color:#8c491a}a:hover{color:#c67139}
+::-webkit-scrollbar{width:0;height:0}
+
+</style></helmet>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Zeitwaage — Arbeitszeit-Erfassung für Lehrkräfte (Hessen, 40 h / 25,5 Deputatsstunden)</span></div>
+
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Vollständiger Prototyp — fünf Reiter: Heute (Schnellerfassung, Live-Timer), Tagesband (Blöcke ziehbar), Woche mit Soll-Ist, Datenraum &amp; Sync, Mehr. Nachtrag fragt Beginn und Dauer. Alles klickbar.</div>
+<div class="dv-card">
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+  <div style="height:100%;display:flex;flex-direction:column;position:relative;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text);overflow:hidden">
+
+    <div style="flex:1;overflow:auto;padding:60px 20px 110px">
+
+      <sc-if value="{{ isHeute }}" hint-placeholder-val="{{ true }}">
+      <div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+          <div>
+            <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(32,30,29,.5);font-weight:700">{{ heuteDatum }}</div>
+            <h1 style="font-size:34px;margin:4px 0 0">Heute</h1>
+          </div>
+          <div style="display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:999px;background:var(--color-accent-2-200);font-size:12.5px;font-weight:700;color:var(--color-accent-2-800);white-space:nowrap">Woche {{ weekDiffLabel }}</div>
+        </div>
+
+        <div style="margin-top:22px;display:flex;align-items:center;gap:22px;background:var(--color-surface);border-radius:var(--radius-lg);padding:22px 24px">
+          <div style="width:104px;height:104px;border-radius:999px;flex:none;display:grid;place-items:center;background:conic-gradient(var(--color-accent) {{ todayPct }}%, var(--color-neutral-300) 0)">
+            <div style="width:80px;height:80px;border-radius:999px;background:var(--color-surface);display:grid;place-items:center;text-align:center">
+              <div>
+                <div style="font-family:var(--font-heading);font-size:21px;line-height:1">{{ todayTotalLabel }}</div>
+                <div style="font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:rgba(32,30,29,.5);font-weight:700">erfasst</div>
+              </div>
+            </div>
+          </div>
+          <div style="min-width:0">
+            <div style="font-size:13.5px;line-height:1.5;color:rgba(32,30,29,.62)">Tagesrichtwert <strong style="color:var(--color-text)">{{ tagesSollLabel }}</strong> bei {{ sollStundenLabel }} h Woche.</div>
+            <div style="margin-top:10px;font-size:13.5px;color:rgba(32,30,29,.62)">{{ entryCount }} Einträge · zuletzt {{ lastEntryLabel }}</div>
+          </div>
+        </div>
+
+        <sc-if value="{{ running }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:14px;border-radius:var(--radius-lg);padding:20px 22px;background:var(--color-accent-800);color:var(--color-accent-100);display:flex;align-items:center;gap:18px">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:9px;height:9px;border-radius:999px;background:var(--color-accent-300)"></div>
+              <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;opacity:.8">läuft · {{ runningCat }}</div>
+            </div>
+            <div style="font-family:var(--font-heading);font-size:44px;line-height:1.1;margin-top:6px;font-variant-numeric:tabular-nums">{{ runningClock }}</div>
+            <div style="font-size:12px;opacity:.7;margin-top:2px">gestartet {{ runningStart }}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button type="button" onClick="{{ onStop }}" style="border:0;cursor:pointer;padding:13px 20px;border-radius:999px;background:var(--color-accent-100);color:var(--color-accent-800);font-family:var(--font-heading);font-size:14px" style-hover="background:var(--color-accent-200)">Speichern</button>
+            <button type="button" onClick="{{ onDiscard }}" style="border:1px solid rgba(255,241,235,.35);cursor:pointer;padding:11px 20px;border-radius:999px;background:transparent;color:var(--color-accent-200);font-family:var(--font-body);font-size:12.5px" style-hover="background:rgba(255,241,235,.12)">Verwerfen</button>
+          </div>
+        </div>
+        </sc-if>
+
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin:26px 0 12px">
+          <h4 style="margin:0;font-size:18px">Schnell erfassen</h4>
+          <span style="font-size:11.5px;color:rgba(32,30,29,.5)">tippen = Timer startet</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+          <sc-for list="{{ quickTiles }}" as="t" hint-placeholder-count="6">
+            <button type="button" onClick="{{ t.onClick }}" style="cursor:pointer;border:1px solid rgba(32,30,29,.1);background:var(--color-neutral-100);border-radius:24px;padding:14px 10px 12px;display:flex;flex-direction:column;align-items:center;gap:9px;font-family:var(--font-body)" style-hover="background:var(--color-accent-100);border-color:var(--color-accent-300)" style-active="background:var(--color-accent-200)">
+              <div style="width:42px;height:42px;border-radius:999px;display:grid;place-items:center;font-family:var(--font-heading);font-size:17px;color:var(--color-bg);background:{{ t.color }}">{{ t.letter }}</div>
+              <div style="font-size:11.5px;font-weight:600;line-height:1.25;text-align:center;color:var(--color-text);text-wrap:pretty">{{ t.name }}</div>
+              <div style="font-size:10px;color:rgba(32,30,29,.45);font-weight:700;letter-spacing:.04em">{{ t.today }}</div>
+            </button>
+          </sc-for>
+        </div>
+
+        <button type="button" onClick="{{ onOpenAdd }}" style="cursor:pointer;margin-top:12px;width:100%;border:1px dashed rgba(32,30,29,.3);background:transparent;border-radius:999px;padding:14px;font-family:var(--font-heading);font-size:14.5px;color:var(--color-accent-700)" style-hover="background:var(--color-accent-100);border-color:var(--color-accent-400)">+ Block nachtragen</button>
+
+        <h4 style="margin:28px 0 10px;font-size:18px">Tagesprotokoll</h4>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ entries }}" as="e" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:13px;background:var(--color-neutral-100);border-radius:22px;padding:13px 16px">
+              <div style="width:12px;height:12px;border-radius:999px;flex:none;background:{{ e.color }}"></div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:14px;font-weight:600;line-height:1.3">{{ e.name }}</div>
+                <div style="font-size:11.5px;color:rgba(32,30,29,.5)">{{ e.time }} · {{ e.source }}</div>
+              </div>
+              <div style="font-family:var(--font-heading);font-size:16px;font-variant-numeric:tabular-nums">{{ e.dur }}</div>
+              <button type="button" onClick="{{ e.onDelete }}" style="border:0;background:transparent;cursor:pointer;color:rgba(32,30,29,.35);font-size:17px;padding:2px 4px;line-height:1" style-hover="color:var(--color-accent-700)">×</button>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isBand }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between">
+          <div>
+            <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(32,30,29,.5);font-weight:700">{{ heuteDatum }}</div>
+            <h1 style="font-size:32px;margin:4px 0 0">Tagesband</h1>
+            <div style="font-size:11.5px;color:rgba(32,30,29,.5);margin-top:3px">0 – 24 Uhr · Griff ziehen verschiebt</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:var(--font-heading);font-size:26px;line-height:1">{{ tlTotal }}</div>
+            <div style="font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:rgba(32,30,29,.45)">erfasst</div>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;display:flex;gap:10px;height:740px">
+          <div style="width:26px;position:relative;flex:none">
+            <sc-for list="{{ tlHours }}" as="h" hint-placeholder-count="13">
+              <div style="position:absolute;left:0;top:{{ h.top }}px;font-size:10.5px;font-weight:700;color:rgba(32,30,29,.4);font-variant-numeric:tabular-nums">{{ h.label }}</div>
+            </sc-for>
+          </div>
+          <div style="flex:1;position:relative;border-radius:24px;background:var(--color-neutral-100);overflow:hidden;touch-action:none">
+            <sc-for list="{{ tlNight }}" as="n" hint-placeholder-count="2">
+              <div style="position:absolute;left:0;right:0;top:{{ n.top }}px;height:{{ n.height }}px;background:var(--color-neutral-200)"></div>
+            </sc-for>
+            <sc-for list="{{ tlLines }}" as="h" hint-placeholder-count="25">
+              <div style="position:absolute;left:0;right:0;top:{{ h.line }}px;height:1px;background:{{ h.color }}"></div>
+            </sc-for>
+            <sc-for list="{{ tlBlocks }}" as="b" hint-placeholder-count="5">
+              <div style="position:absolute;left:10px;width:14px;top:{{ b.top }}px;height:{{ b.height }}px;border-radius:999px;background:{{ b.bar }}"></div>
+            </sc-for>
+            <sc-for list="{{ tlBlocks }}" as="b" hint-placeholder-count="5">
+              <div onPointerDown="{{ b.onDown }}" onPointerMove="{{ b.onMove }}" onPointerUp="{{ b.onUp }}" style="position:absolute;left:32px;right:10px;top:{{ b.labelTop }}px;height:30px;border-radius:15px;background:{{ b.bg }};border:{{ b.border }};cursor:grab;padding:0 11px 0 13px;display:flex;align-items:center;gap:8px;overflow:hidden;touch-action:none">
+                <div style="font-size:12.5px;font-weight:700;color:{{ b.fg }};line-height:1;white-space:nowrap">{{ b.name }}</div>
+                <div style="flex:1;font-size:10.5px;color:{{ b.subFg }};line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.range }}</div>
+                <div style="display:flex;flex-direction:column;gap:2px;flex:none">
+                  <div style="width:14px;height:1.5px;border-radius:999px;background:{{ b.grip }}"></div>
+                  <div style="width:14px;height:1.5px;border-radius:999px;background:{{ b.grip }}"></div>
+                  <div style="width:14px;height:1.5px;border-radius:999px;background:{{ b.grip }}"></div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;display:flex;align-items:center;gap:12px;background:var(--color-surface);border-radius:26px;padding:15px 18px">
+          <div style="flex:1;font-size:13px;line-height:1.4;color:rgba(32,30,29,.7)">{{ tlHint }}</div>
+          <button type="button" onClick="{{ tlFill }}" style="cursor:pointer;border:0;background:var(--color-accent);color:var(--color-bg);border-radius:999px;padding:12px 18px;font-family:var(--font-heading);font-size:13.5px;white-space:nowrap" style-hover="background:var(--color-accent-600)">Lücke füllen</button>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isWoche }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(32,30,29,.5);font-weight:700">KW 36 · 31. Aug – 6. Sep</div>
+        <h1 style="font-size:34px;margin:4px 0 0">Woche</h1>
+
+        <div style="margin-top:20px;background:var(--color-surface);border-radius:var(--radius-lg);padding:22px 24px">
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px">
+            <div>
+              <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:rgba(32,30,29,.5)">Ist</div>
+              <div style="font-family:var(--font-heading);font-size:38px;line-height:1.05">{{ weekTotalLabel }}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:rgba(32,30,29,.5)">Soll</div>
+              <div style="font-family:var(--font-heading);font-size:22px;line-height:1.4">{{ sollStundenLabel }}:00</div>
+            </div>
+          </div>
+          <div style="margin-top:14px;height:12px;border-radius:999px;background:var(--color-neutral-300);overflow:hidden">
+            <div style="height:100%;border-radius:999px;background:var(--color-accent);width:{{ weekPct }}%"></div>
+          </div>
+          <div style="margin-top:12px;display:inline-flex;align-items:center;gap:8px;padding:8px 15px;border-radius:999px;background:{{ diffBg }};color:{{ diffFg }};font-size:12.5px;font-weight:700">{{ weekDiffSentence }}</div>
+        </div>
+
+        <h4 style="margin:26px 0 12px;font-size:18px">Verlauf</h4>
+        <div style="background:var(--color-neutral-100);border-radius:var(--radius-lg);padding:20px 18px 14px">
+          <div style="display:flex;align-items:flex-end;gap:9px;height:150px">
+            <sc-for list="{{ bars }}" as="b" hint-placeholder-count="7">
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;height:100%;justify-content:flex-end">
+                <div style="font-size:10px;font-weight:700;color:rgba(32,30,29,.45);font-variant-numeric:tabular-nums">{{ b.h }}</div>
+                <div style="width:100%;border-radius:999px 999px 10px 10px;background:{{ b.color }};height:{{ b.px }}px"></div>
+                <div style="font-size:11px;font-weight:700;color:{{ b.labelColor }}">{{ b.label }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:rgba(32,30,29,.45);text-align:center">gestrichelte Linie = Tagesrichtwert {{ tagesSollLabel }}</div>
+        </div>
+
+        <h4 style="margin:26px 0 12px;font-size:18px">Verteilung</h4>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <sc-for list="{{ dist }}" as="d" hint-placeholder-count="6">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:13px">
+                <span style="font-weight:600">{{ d.name }}</span>
+                <span style="font-variant-numeric:tabular-nums;color:rgba(32,30,29,.6)">{{ d.label }} · {{ d.pctLabel }}</span>
+              </div>
+              <div style="margin-top:5px;height:9px;border-radius:999px;background:var(--color-neutral-200);overflow:hidden">
+                <div style="height:100%;border-radius:999px;background:{{ d.color }};width:{{ d.pct }}%"></div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isDaten }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(32,30,29,.5);font-weight:700">Erhebung Gesamtschule Nord</div>
+        <h1 style="font-size:34px;margin:4px 0 0">Datenraum</h1>
+
+        <div style="margin-top:20px;background:var(--color-accent-2-200);border-radius:var(--radius-lg);padding:20px 22px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px">
+            <div>
+              <div style="font-family:var(--font-heading);font-size:19px;color:var(--color-accent-2-900)">Teilnahme aktiv</div>
+              <div style="font-size:12.5px;color:var(--color-accent-2-800);margin-top:3px">Pseudonym <strong>LK-4F7A</strong> · kein Name, keine Fächer</div>
+            </div>
+            <button type="button" onClick="{{ onToggleParticipate }}" style="border:0;cursor:pointer;width:58px;height:34px;border-radius:999px;padding:4px;display:flex;justify-content:{{ switchJustify }};background:{{ switchBg }}">
+              <div style="width:26px;height:26px;border-radius:999px;background:var(--color-neutral-100)"></div>
+            </button>
+          </div>
+        </div>
+
+        <h4 style="margin:26px 0 10px;font-size:18px">Das verlässt dein Handy</h4>
+        <div style="background:var(--color-neutral-100);border-radius:var(--radius-lg);padding:6px 18px">
+          <sc-for list="{{ fields }}" as="f" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid rgba(32,30,29,.08)">
+              <div style="width:22px;height:22px;border-radius:999px;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--color-bg);background:{{ f.color }}">{{ f.mark }}</div>
+              <div style="flex:1;font-size:13.5px;line-height:1.35">{{ f.name }}</div>
+              <div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:{{ f.color }}">{{ f.state }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <button type="button" onClick="{{ onTogglePreview }}" style="cursor:pointer;margin-top:12px;width:100%;border:1px solid rgba(32,30,29,.15);background:var(--color-neutral-100);border-radius:999px;padding:13px;font-family:var(--font-heading);font-size:14px;color:var(--color-accent-700)" style-hover="background:var(--color-accent-100)">{{ previewLabel }}</button>
+
+        <sc-if value="{{ showPreview }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:12px;border-radius:22px;overflow:hidden;border:1px solid rgba(32,30,29,.12);font-variant-numeric:tabular-nums">
+          <div style="display:grid;grid-template-columns:1fr 1.4fr .7fr;background:var(--color-accent-800);color:var(--color-accent-100);font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">
+            <div style="padding:9px 12px">Datum</div><div style="padding:9px 12px">Kategorie</div><div style="padding:9px 12px;text-align:right">Min.</div>
+          </div>
+          <sc-for list="{{ previewRows }}" as="r" hint-placeholder-count="5">
+            <div style="display:grid;grid-template-columns:1fr 1.4fr .7fr;font-size:12px;background:var(--color-neutral-100);border-top:1px solid rgba(32,30,29,.07)">
+              <div style="padding:9px 12px;color:rgba(32,30,29,.6)">{{ r.date }}</div><div style="padding:9px 12px">{{ r.cat }}</div><div style="padding:9px 12px;text-align:right;font-weight:700">{{ r.min }}</div>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+
+        <h4 style="margin:26px 0 10px;font-size:18px">Übermittlungen</h4>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ packets }}" as="p" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:13px;background:var(--color-neutral-100);border-radius:22px;padding:13px 16px">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13.5px;font-weight:600">{{ p.date }}</div>
+                <div style="font-size:11.5px;color:rgba(32,30,29,.5)">{{ p.rows }} Zeilen · {{ p.note }}</div>
+              </div>
+              <div style="padding:6px 13px;border-radius:999px;font-size:11px;font-weight:700;background:{{ p.bg }};color:{{ p.fg }}">{{ p.status }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <button type="button" onClick="{{ onSync }}" style="cursor:pointer;margin-top:14px;width:100%;border:0;background:var(--color-accent);color:var(--color-bg);border-radius:999px;padding:15px;font-family:var(--font-heading);font-size:15px" style-hover="background:var(--color-accent-600)" style-active="background:var(--color-accent-700)">{{ syncLabel }}</button>
+        <div style="margin-top:10px;font-size:11.5px;line-height:1.5;color:rgba(32,30,29,.5);text-wrap:pretty">Die Zeilen werden ohne Gerätekennung an die Sammelstelle der Schule gesendet und dort in die zentrale Tabelle geschrieben. Auswertungen erst ab 5 teilnehmenden Personen.</div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isMehr }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(32,30,29,.5);font-weight:700">Konto LK-4F7A</div>
+        <h1 style="font-size:34px;margin:4px 0 0">Mehr</h1>
+
+        <div style="margin-top:20px;background:var(--color-surface);border-radius:var(--radius-lg);padding:20px 22px">
+          <div style="font-family:var(--font-heading);font-size:18px">Mein Deputat</div>
+          <div style="font-size:12.5px;color:rgba(32,30,29,.6);margin-top:3px">Hessen · Vollzeit = 25,5 Deputatsstunden = 40 Zeitstunden</div>
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <sc-for list="{{ deputatOpts }}" as="o" hint-placeholder-count="4">
+              <button type="button" onClick="{{ o.onClick }}" style="flex:1;cursor:pointer;border:1px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }};border-radius:999px;padding:11px 4px;font-family:var(--font-heading);font-size:13px">{{ o.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin:26px 0 4px">
+          <h4 style="margin:0;font-size:18px">Kategorien</h4>
+          <span style="font-size:11.5px;color:rgba(32,30,29,.5)">{{ catCountLabel }}</span>
+        </div>
+        <div style="font-size:11.5px;color:rgba(32,30,29,.5);margin-bottom:10px">Reihenfolge bestimmt die Kacheln auf „Heute" · tippen schaltet sichtbar</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ catRows }}" as="c" hint-placeholder-count="9">
+            <div style="border:1px solid {{ c.border }};background:{{ c.bg }};border-radius:22px;padding:10px 12px 10px 16px;display:flex;align-items:center;gap:10px">
+              <button type="button" onClick="{{ c.onToggle }}" style="flex:1;min-width:0;cursor:pointer;text-align:left;border:0;background:transparent;display:flex;align-items:center;gap:13px;font-family:var(--font-body);padding:0">
+                <div style="width:30px;height:30px;border-radius:999px;flex:none;display:grid;place-items:center;font-family:var(--font-heading);font-size:14px;color:var(--color-bg);background:{{ c.color }}">{{ c.letter }}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:14px;font-weight:600;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.name }}</div>
+                  <div style="font-size:11.5px;color:rgba(32,30,29,.5)">{{ c.weekLabel }} · {{ c.state }}</div>
+                </div>
+              </button>
+              <div style="display:flex;align-items:center;gap:2px;flex:none">
+                <button type="button" onClick="{{ c.onUp }}" style="cursor:pointer;border:0;background:transparent;width:30px;height:30px;border-radius:999px;font-size:14px;line-height:1;color:{{ c.upFg }}" style-hover="background:rgba(32,30,29,.07)">▲</button>
+                <button type="button" onClick="{{ c.onDown }}" style="cursor:pointer;border:0;background:transparent;width:30px;height:30px;border-radius:999px;font-size:14px;line-height:1;color:{{ c.downFg }}" style-hover="background:rgba(32,30,29,.07)">▼</button>
+                <button type="button" onClick="{{ c.onDelete }}" style="cursor:pointer;border:0;background:transparent;width:30px;height:30px;border-radius:999px;font-size:17px;line-height:1;color:rgba(32,30,29,.35)" style-hover="background:var(--color-accent-100);color:var(--color-accent-700)">×</button>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="margin-top:12px;background:var(--color-surface);border-radius:26px;padding:18px">
+          <div style="font-family:var(--font-heading);font-size:17px">Neue Kategorie</div>
+          <div style="font-size:12px;color:rgba(32,30,29,.6);margin-top:2px">{{ addCatHint }}</div>
+          <input value="{{ newCatName }}" onChange="{{ onNewName }}" placeholder="z. B. Klassenleitung" style="margin-top:12px;width:100%;border:1px solid rgba(32,30,29,.16);background:var(--color-neutral-100);border-radius:999px;padding:13px 18px;font-family:var(--font-body);font-size:14px;color:var(--color-text)" />
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <sc-for list="{{ palette }}" as="p" hint-placeholder-count="9">
+              <button type="button" onClick="{{ p.onClick }}" style="cursor:pointer;width:32px;height:32px;border-radius:999px;background:{{ p.color }};border:{{ p.ring }};padding:0"></button>
+            </sc-for>
+          </div>
+          <button type="button" onClick="{{ onAddCat }}" disabled="{{ addCatDisabled }}" style="cursor:pointer;margin-top:14px;width:100%;border:0;background:{{ addCatBg }};color:{{ addCatFg }};border-radius:999px;padding:14px;font-family:var(--font-heading);font-size:14.5px">Kategorie hinzufügen</button>
+        </div>
+
+        <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ mehrLinks }}" as="m" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:12px;background:var(--color-neutral-100);border-radius:22px;padding:14px 16px;font-size:14px">
+              <div style="flex:1">{{ m.label }}</div>
+              <div style="color:rgba(32,30,29,.35);font-size:16px">›</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+    </div>
+
+    <div style="position:absolute;left:0;right:0;bottom:0;height:96px;padding:10px 12px 30px;display:flex;background:rgba(245,234,216,.93);backdrop-filter:blur(14px);border-top:1px solid rgba(32,30,29,.1)">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4">
+        <button type="button" onClick="{{ t.onClick }}" style="flex:1;cursor:pointer;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:6px;font-family:var(--font-body);padding:4px 0 0">
+          <div style="width:26px;height:6px;border-radius:999px;background:{{ t.mark }}"></div>
+          <div style="font-size:10.5px;font-weight:700;color:{{ t.fg }};white-space:nowrap">{{ t.label }}</div>
+        </button>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ showAdd }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:rgba(32,30,29,.4);display:flex;align-items:flex-end;z-index:70">
+      <div style="width:100%;background:var(--color-bg);border-radius:32px 32px 0 0;padding:24px 22px 40px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between">
+          <h3 style="margin:0;font-size:23px">Block nachtragen</h3>
+          <button type="button" onClick="{{ onCloseAdd }}" style="border:0;background:transparent;cursor:pointer;font-size:22px;color:rgba(32,30,29,.4);line-height:1">×</button>
+        </div>
+        <div style="font-size:12.5px;color:rgba(32,30,29,.55);margin-top:2px">{{ heuteDatum }}</div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:18px">
+          <sc-for list="{{ addChips }}" as="c" hint-placeholder-count="9">
+            <button type="button" onClick="{{ c.onClick }}" style="cursor:pointer;border:1px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};border-radius:999px;padding:9px 15px;font-size:12.5px;font-weight:600;font-family:var(--font-body)">{{ c.name }}</button>
+          </sc-for>
+        </div>
+
+        <div style="margin-top:20px;background:var(--color-neutral-100);border-radius:26px;padding:16px 18px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px">
+            <div>
+              <div style="font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;font-weight:700;color:rgba(32,30,29,.45)">Beginn</div>
+              <div style="font-family:var(--font-heading);font-size:30px;line-height:1.1;font-variant-numeric:tabular-nums">{{ addFromLabel }}</div>
+              <div style="font-size:11.5px;color:rgba(32,30,29,.5)">endet {{ addToLabel }}</div>
+            </div>
+            <div style="display:flex;gap:10px">
+              <button type="button" onClick="{{ onMinusFrom }}" style="cursor:pointer;border:1px solid rgba(32,30,29,.15);background:var(--color-bg);width:46px;height:46px;border-radius:999px;font-size:20px;line-height:1;font-family:var(--font-heading);color:var(--color-text)" style-hover="background:var(--color-accent-100)">−</button>
+              <button type="button" onClick="{{ onPlusFrom }}" style="cursor:pointer;border:1px solid rgba(32,30,29,.15);background:var(--color-bg);width:46px;height:46px;border-radius:999px;font-size:20px;line-height:1;font-family:var(--font-heading);color:var(--color-text)" style-hover="background:var(--color-accent-100)">+</button>
+            </div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:14px">
+            <sc-for list="{{ addFromQuick }}" as="q" hint-placeholder-count="4">
+              <button type="button" onClick="{{ q.onClick }}" style="cursor:pointer;border:1px solid {{ q.border }};background:{{ q.bg }};color:{{ q.fg }};border-radius:999px;padding:8px 13px;font-size:11.5px;font-weight:600;font-family:var(--font-body)">{{ q.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;display:flex;align-items:center;justify-content:center;gap:20px">
+          <button type="button" onClick="{{ onMinusMin }}" style="cursor:pointer;border:1px solid rgba(32,30,29,.15);background:var(--color-neutral-100);width:52px;height:52px;border-radius:999px;font-size:24px;line-height:1;font-family:var(--font-heading);color:var(--color-text)">−</button>
+          <div style="text-align:center;min-width:118px">
+            <div style="font-family:var(--font-heading);font-size:40px;line-height:1;font-variant-numeric:tabular-nums">{{ addMinLabel }}</div>
+            <div style="font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;font-weight:700;color:rgba(32,30,29,.45);margin-top:4px">Dauer · 15-Min-Schritte</div>
+          </div>
+          <button type="button" onClick="{{ onPlusMin }}" style="cursor:pointer;border:1px solid rgba(32,30,29,.15);background:var(--color-neutral-100);width:52px;height:52px;border-radius:999px;font-size:24px;line-height:1;font-family:var(--font-heading);color:var(--color-text)">+</button>
+        </div>
+
+        <button type="button" onClick="{{ onSaveAdd }}" style="cursor:pointer;margin-top:24px;width:100%;border:0;background:var(--color-accent);color:var(--color-bg);border-radius:999px;padding:16px;font-family:var(--font-heading);font-size:15.5px" style-hover="background:var(--color-accent-600)">{{ addCatLabel }} eintragen</button>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ showOnboard }}" hint-placeholder-val="{{ true }}">
+    <div style="position:absolute;inset:0;background:var(--color-bg);z-index:90;display:flex;flex-direction:column;padding:78px 26px 40px">
+      <div style="display:flex;gap:6px">
+        <sc-for list="{{ obDots }}" as="d" hint-placeholder-count="3">
+          <div style="flex:1;height:5px;border-radius:999px;background:{{ d.bg }}"></div>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{ ob1 }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
+        <div style="width:82px;height:82px;border-radius:999px;background:var(--color-accent);display:grid;place-items:center;font-family:var(--font-heading);font-size:34px;color:var(--color-bg)">Z</div>
+        <h1 style="font-size:40px;margin:26px 0 0;line-height:1.05">Zeitwaage</h1>
+        <p style="font-size:16px;line-height:1.55;color:rgba(32,30,29,.68);margin-top:14px;text-wrap:pretty">Arbeitszeit in Sekunden erfasst statt in Formularen. Ein Tipp startet, ein Tipp speichert — der Rest passiert im Hintergrund.</p>
+        <div style="margin-top:22px;display:flex;flex-direction:column;gap:10px">
+          <sc-for list="{{ obPoints }}" as="p" hint-placeholder-count="3">
+            <div style="display:flex;gap:11px;align-items:flex-start">
+              <div style="width:8px;height:8px;border-radius:999px;background:var(--color-accent-2-600);margin-top:7px;flex:none"></div>
+              <div style="font-size:14px;line-height:1.45;color:rgba(32,30,29,.75)">{{ p.text }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ ob2 }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
+        <h1 style="font-size:32px;margin:0;line-height:1.1">Was gesendet wird</h1>
+        <p style="font-size:14.5px;line-height:1.55;color:rgba(32,30,29,.68);margin-top:10px">Für die schulweite Erhebung verlassen ausschließlich <strong>Minuten pro Kategorie pro Tag</strong> dein Handy — unter einem Pseudonym.</p>
+        <div style="margin-top:16px;display:flex;flex-direction:column;gap:9px">
+          <sc-for list="{{ consentRows }}" as="c" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:12px;background:{{ c.bg }};border-radius:20px;padding:13px 15px">
+              <div style="width:24px;height:24px;border-radius:999px;flex:none;display:grid;place-items:center;font-size:13px;font-weight:700;color:var(--color-bg);background:{{ c.color }}">{{ c.mark }}</div>
+              <div style="flex:1;font-size:13.5px;line-height:1.35">{{ c.name }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <button type="button" onClick="{{ onToggleConsent }}" style="margin-top:16px;cursor:pointer;display:flex;align-items:center;gap:12px;border:1px solid {{ consentBorder }};background:{{ consentBg }};border-radius:20px;padding:14px 15px;text-align:left;font-family:var(--font-body)">
+          <div style="width:24px;height:24px;border-radius:8px;flex:none;display:grid;place-items:center;background:{{ consentBox }};color:var(--color-bg);font-size:14px;font-weight:700">{{ consentCheck }}</div>
+          <div style="flex:1;font-size:13px;line-height:1.4;color:var(--color-text)">Ich stimme der anonymisierten Übermittlung zu. Widerruf jederzeit im Datenraum.</div>
+        </button>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ ob3 }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
+        <h1 style="font-size:32px;margin:0;line-height:1.1">Dein Stundenmaß</h1>
+        <p style="font-size:14.5px;line-height:1.55;color:rgba(32,30,29,.68);margin-top:10px">Daraus berechnet die App deinen Soll-Ist-Vergleich. 25,5 Deputatsstunden entsprechen 40 Zeitstunden pro Woche.</p>
+        <div style="margin-top:20px;display:flex;flex-direction:column;gap:9px">
+          <sc-for list="{{ deputatOpts }}" as="o" hint-placeholder-count="4">
+            <button type="button" onClick="{{ o.onClick }}" style="cursor:pointer;text-align:left;display:flex;align-items:center;gap:14px;border:1px solid {{ o.border }};background:{{ o.bg }};border-radius:22px;padding:15px 18px;font-family:var(--font-body)">
+              <div style="width:20px;height:20px;border-radius:999px;border:2px solid {{ o.dotBorder }};background:{{ o.dot }};flex:none"></div>
+              <div style="flex:1;font-family:var(--font-heading);font-size:16px;color:var(--color-text)">{{ o.label }}</div>
+              <div style="font-size:12.5px;color:rgba(32,30,29,.55)">{{ o.hours }} h / Woche</div>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <div style="display:flex;align-items:center;gap:12px">
+        <button type="button" onClick="{{ onObSkip }}" style="border:0;background:transparent;cursor:pointer;font-size:13px;color:rgba(32,30,29,.5);font-family:var(--font-body);padding:8px 4px">überspringen</button>
+        <button type="button" onClick="{{ onObNext }}" style="flex:1;cursor:pointer;border:0;background:var(--color-accent);color:var(--color-bg);border-radius:999px;padding:16px;font-family:var(--font-heading);font-size:15.5px" style-hover="background:var(--color-accent-600)">{{ obCta }}</button>
+      </div>
+    </div>
+    </sc-if>
+
+  </div>
+</x-import>
+</div>
+</div>
+
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Tages-Timeline — jetzt in <a class="dv-oid" href="#1a">1a</a> als Reiter „Tagesband" integriert.</div>
+<div class="dv-card" style="width:300px">
+  <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(32,30,29,.5);font-weight:700">Zusammengeführt</div>
+  <h4 style="margin:8px 0 0;font-size:19px">Reiter „Tagesband"</h4>
+  <p style="font-size:13px;line-height:1.55;color:rgba(32,30,29,.65);margin:8px 0 0">Der Tag als Band von 7 bis 20 Uhr liegt jetzt im vierten Reiter der App. Blöcke lassen sich am Griff nach oben und unten ziehen (5-Minuten-Raster), Lücken werden benannt und mit Startzeit nachgetragen.</p>
+</div>
+</div>
+
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Erfassung als Regler — eine Hand, ein Daumen: Kategorie wählen, Dauer schieben, fertig. Schnellster Weg für „15 Minuten Elterntelefonat".</div>
+<div class="dv-card">
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+  <div style="height:100%;display:flex;flex-direction:column;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text);padding:60px 22px 30px;overflow:hidden">
+    <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(32,30,29,.5);font-weight:700">Schnelleintrag</div>
+    <h1 style="font-size:32px;margin:4px 0 0">Wie lange?</h1>
+
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px">
+      <div style="width:216px;height:216px;border-radius:999px;display:grid;place-items:center;background:conic-gradient({{ dialColor }} {{ dialPct }}%, var(--color-neutral-300) 0)">
+        <div style="width:172px;height:172px;border-radius:999px;background:var(--color-bg);display:grid;place-items:center;text-align:center">
+          <div>
+            <div style="font-family:var(--font-heading);font-size:46px;line-height:1;font-variant-numeric:tabular-nums">{{ dialLabel }}</div>
+            <div style="font-size:11px;letter-spacing:.07em;text-transform:uppercase;font-weight:700;color:rgba(32,30,29,.45);margin-top:6px">{{ dialCat }}</div>
+          </div>
+        </div>
+      </div>
+      <div onPointerDown="{{ onDialDown }}" onPointerMove="{{ onDialMove }}" onPointerUp="{{ onDialUp }}" style="width:280px;height:40px;margin-top:30px;position:relative;display:flex;align-items:center;cursor:pointer;touch-action:none">
+        <div style="position:absolute;left:0;right:0;height:14px;border-radius:999px;background:var(--color-neutral-300)"></div>
+        <div style="position:absolute;left:0;height:14px;border-radius:999px;background:var(--color-accent-300);width:{{ dialTrackPct }}%"></div>
+        <div style="position:absolute;left:{{ dialTrackPct }}%;width:38px;height:38px;margin-left:-19px;border-radius:999px;background:var(--color-accent);border:5px solid var(--color-bg);box-shadow:var(--shadow-md)"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;width:270px;font-size:10.5px;font-weight:700;color:rgba(32,30,29,.4)">
+        <span>15 Min</span><span>2 h</span><span>4 h</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
+      <sc-for list="{{ dialChips }}" as="c" hint-placeholder-count="9">
+        <button type="button" onClick="{{ c.onClick }}" style="cursor:pointer;border:1px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};border-radius:999px;padding:10px 15px;font-size:12.5px;font-weight:600;font-family:var(--font-body)">{{ c.name }}</button>
+      </sc-for>
+    </div>
+
+    <button type="button" onClick="{{ onDialSave }}" style="cursor:pointer;margin-top:18px;width:100%;border:0;background:var(--color-accent);color:var(--color-bg);border-radius:999px;padding:17px;font-family:var(--font-heading);font-size:16px" style-hover="background:var(--color-accent-600)">{{ dialCta }}</button>
+    <div style="text-align:center;margin-top:10px;font-size:11.5px;color:rgba(32,30,29,.5)">Heute schon {{ dialToday }} erfasst</div>
+  </div>
+</x-import>
+</div>
+</div>
+
+<div class="dv-opt" id="1d">
+<div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Gleicher Kern, andere visuelle Sprache — dunkler Salbei-Grund, Zahl als Held, Kategorien als Textzeilen statt Kacheln. Für abendliches Nachtragen.</div>
+<div class="dv-card" style="background:#272e1b;border-color:rgba(240,250,225,.14)">
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+  <div style="height:100%;display:flex;flex-direction:column;background:#272e1b;font-family:var(--font-body);color:#f0fae1;padding:62px 24px 30px;overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(240,250,225,.5);font-weight:700">Mi, 2. Sep · Abendbilanz</div>
+      <div style="padding:6px 13px;border-radius:999px;background:rgba(240,250,225,.12);font-size:11px;font-weight:700;color:#ccdbb2">+3:10 Woche</div>
+    </div>
+
+    <div style="margin-top:34px">
+      <div style="font-family:var(--font-heading);font-size:84px;line-height:.92;color:#f0fae1">{{ darkTotal }}</div>
+      <div style="font-size:15px;color:rgba(240,250,225,.6);margin-top:10px">von {{ tagesSollLabel }} Tagesrichtwert · {{ darkPctLabel }}</div>
+      <div style="margin-top:18px;height:10px;border-radius:999px;background:rgba(240,250,225,.14);overflow:hidden">
+        <div style="height:100%;border-radius:999px;background:#aebf92;width:{{ darkPct }}%"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:34px;flex:1;display:flex;flex-direction:column">
+      <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(240,250,225,.45);font-weight:700">Heute erfasst</div>
+      <div style="margin-top:6px">
+        <sc-for list="{{ darkRows }}" as="r" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;gap:14px;padding:15px 0;border-bottom:1px solid rgba(240,250,225,.1)">
+            <div style="width:7px;height:7px;border-radius:999px;flex:none;background:{{ r.color }}"></div>
+            <div style="flex:1;font-size:15.5px">{{ r.name }}</div>
+            <div style="font-family:var(--font-heading);font-size:16px;font-variant-numeric:tabular-nums;color:#e1eecc">{{ r.dur }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px">
+      <button type="button" onClick="{{ onOpenAdd }}" style="flex:1;cursor:pointer;border:0;background:#f0fae1;color:#272e1b;border-radius:999px;padding:16px;font-family:var(--font-heading);font-size:15px" style-hover="background:#e1eecc">Nachtragen</button>
+      <button type="button" onClick="{{ onGoDaten }}" style="cursor:pointer;border:1px solid rgba(240,250,225,.28);background:transparent;color:#e1eecc;border-radius:999px;padding:16px 22px;font-family:var(--font-heading);font-size:15px" style-hover="background:rgba(240,250,225,.1)">Senden</button>
+    </div>
+  </div>
+</x-import>
+</div>
+</div>
+
+<div class="dv-opt" id="1e">
+<div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Die zentrale Tabelle — was in der Sammelstelle der Schule ankommt: eine Zeile pro Pseudonym, Tag und Kategorie, plus automatische Aggregate. Kein Klarname, keine Zuordnung.</div>
+<div class="dv-card" style="width:760px">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px">
+    <div>
+      <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:rgba(32,30,29,.5);font-weight:700">Sammelstelle · Erhebung 2026/27</div>
+      <h3 style="margin:5px 0 0;font-size:26px">arbeitszeit_gesamtschule-nord.xlsx</h3>
+      <div style="font-size:12.5px;color:rgba(32,30,29,.55);margin-top:4px">Blatt „Rohdaten" · 18 Teilnehmende · 1.204 Zeilen · letzter Eingang 2. Sep, 21:14</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div style="padding:8px 14px;border-radius:999px;background:var(--color-accent-2-200);color:var(--color-accent-2-800);font-size:11.5px;font-weight:700">k ≥ 5 erfüllt</div>
+      <div style="padding:8px 14px;border-radius:999px;background:var(--color-neutral-200);color:var(--color-neutral-800);font-size:11.5px;font-weight:700">ohne Klarnamen</div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;border-radius:20px;overflow:hidden;border:1px solid rgba(32,30,29,.12);font-variant-numeric:tabular-nums">
+    <div style="display:grid;grid-template-columns:56px 1.1fr 1fr 1.6fr .8fr 1.1fr;background:var(--color-accent-800);color:var(--color-accent-100);font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase">
+      <div style="padding:10px 12px">#</div><div style="padding:10px 12px">Pseudonym</div><div style="padding:10px 12px">Datum</div><div style="padding:10px 12px">Kategorie</div><div style="padding:10px 12px;text-align:right">Minuten</div><div style="padding:10px 12px">Stundenmaß</div>
+    </div>
+    <sc-for list="{{ sheetRows }}" as="r" hint-placeholder-count="10">
+      <div style="display:grid;grid-template-columns:56px 1.1fr 1fr 1.6fr .8fr 1.1fr;font-size:12.5px;background:{{ r.bg }};border-top:1px solid rgba(32,30,29,.07)">
+        <div style="padding:9px 12px;color:rgba(32,30,29,.4)">{{ r.n }}</div>
+        <div style="padding:9px 12px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px">{{ r.id }}</div>
+        <div style="padding:9px 12px;color:rgba(32,30,29,.65)">{{ r.date }}</div>
+        <div style="padding:9px 12px">{{ r.cat }}</div>
+        <div style="padding:9px 12px;text-align:right;font-weight:700">{{ r.min }}</div>
+        <div style="padding:9px 12px;color:rgba(32,30,29,.65)">{{ r.mass }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="display:flex;gap:14px;margin-top:18px">
+    <sc-for list="{{ sheetStats }}" as="s" hint-placeholder-count="4">
+      <div style="flex:1;background:var(--color-neutral-100);border-radius:22px;padding:16px 18px">
+        <div style="font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;font-weight:700;color:rgba(32,30,29,.45)">{{ s.label }}</div>
+        <div style="font-family:var(--font-heading);font-size:25px;margin-top:5px">{{ s.value }}</div>
+        <div style="font-size:11.5px;color:rgba(32,30,29,.55);margin-top:2px">{{ s.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+  <div style="margin-top:14px;font-size:11.5px;line-height:1.55;color:rgba(32,30,29,.5);max-width:620px;text-wrap:pretty">Die App sendet ausschließlich diese sechs Spalten. Pseudonyme werden pro Erhebung neu erzeugt; Zeilen einzelner Personen werden erst ausgewertet, wenn mindestens fünf Kollegien-Mitglieder Daten für den Zeitraum geliefert haben.</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Nächste Schritte: „<a class="dv-oid" href="#1c">1c</a> als Standard-Erfassung in <a class="dv-oid" href="#1a">1a</a> einbauen" · „<a class="dv-oid" href="#1b">1b</a> mit Stundenplan-Import" · „Widget für den Homescreen zeigen"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;sollStunden&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:40,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:20,&quot;max&quot;:50,&quot;unit&quot;:&quot;h&quot;,&quot;section&quot;:&quot;Dienstrecht&quot;},&quot;quickTileCount&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:9,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:3,&quot;max&quot;:9,&quot;section&quot;:&quot;Erfassung&quot;}}">
+const CATS = [
+  { name: 'Unterricht', letter: 'U', color: '#d67f48', week: 1080 },
+  { name: 'Vor-/Nachbereitung', letter: 'B', color: '#b2622d', week: 520 },
+  { name: 'Korrektur', letter: 'K', color: '#728157', week: 385 },
+  { name: 'Elternarbeit', letter: 'E', color: '#8c491a', week: 95 },
+  { name: 'Konferenzen', letter: 'C', color: '#82796a', week: 150 },
+  { name: 'Aufsicht/Pausen', letter: 'A', color: '#aebf92', week: 70 },
+  { name: 'Fortbildung', letter: 'F', color: '#f6a06b', week: 120 },
+  { name: 'Verwaltung', letter: 'V', color: '#645c50', week: 165 },
+  { name: 'AGs', letter: 'G', color: '#3d472b', week: 90 },
+];
+const PALETTE = ['#d67f48', '#b2622d', '#8c491a', '#728157', '#aebf92', '#3d472b', '#82796a', '#645c50', '#c0b6a5'];
+let CURRENT = CATS;
+
+const clock = (m) => `${String(Math.floor((m % 1440) / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
+const hm = (m) => `${Math.floor(m / 60)}:${String(Math.round(m % 60)).padStart(2, '0')}`;
+const hmShort = (m) => (m >= 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} h` : `${m} Min`);
+const cat = (n) => CURRENT.find((c) => c.name === n) || { name: n, letter: n.slice(0, 1).toUpperCase(), color: '#c0b6a5', week: 0 };
+
+class Component extends DCLogic {
+  state = {
+    tab: 'heute',
+    ob: 1,
+    obDone: false,
+    consent: true,
+    deputat: 100,
+    running: null,
+    now: Date.now(),
+    showAdd: false,
+    addCat: 'Korrektur',
+    addMin: 45,
+    addFrom: 785,
+    showPreview: false,
+    participate: true,
+    synced: false,
+    cats: CATS.slice(),
+    hidden: [],
+    newName: '',
+    newColor: '#3d472b',
+    entries: [
+      { id: 1, name: 'Unterricht', from: 475, min: 195, source: 'Timer' },
+      { id: 2, name: 'Aufsicht/Pausen', from: 670, min: 20, source: 'Schnelleintrag' },
+      { id: 3, name: 'Unterricht', from: 695, min: 90, source: 'Timer' },
+      { id: 4, name: 'Elternarbeit', from: 850, min: 25, source: 'Schnelleintrag' },
+      { id: 5, name: 'Korrektur', from: 980, min: 75, source: 'Timer' },
+    ],
+    tlSel: null,
+    dialMin: 45,
+    dialCat: 'Elternarbeit',
+  };
+
+  componentDidMount() {
+    this.t = setInterval(() => { if (this.state.running) this.setState({ now: Date.now() }); }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this.t); }
+
+  soll() { return Math.round(((this.props.sollStunden ?? 40) * this.state.deputat) / 100 * 60); }
+  todayMin() { return this.state.entries.reduce((s, e) => s + e.min, 0); }
+  runMin() { return this.state.running ? (this.state.now - this.state.running.start) / 60000 : 0; }
+
+  addEntry(name, min, source, from) {
+    const d = new Date();
+    const m = Math.max(1, Math.round(min));
+    const start = from != null ? from : Math.max(0, d.getHours() * 60 + d.getMinutes() - m);
+    this.setState((s) => ({
+      entries: [...s.entries, { id: Date.now(), name, from: start, min: m, source }].sort((a, b) => a.from - b.from),
+    }));
+  }
+
+  setFrom(id, from) {
+    this.setState((s) => ({
+      entries: s.entries.map((e) => (e.id === id ? { ...e, from: Math.min(1440 - e.min, Math.max(0, from)) } : e)),
+    }));
+  }
+
+  swapCat(i, j) {
+    this.setState((st) => {
+      if (j < 0 || j >= st.cats.length) return null;
+      const cats = st.cats.slice();
+      [cats[i], cats[j]] = [cats[j], cats[i]];
+      return { cats };
+    });
+  }
+
+  setDial(e) {
+    const r = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    this.setState({ dialMin: 15 + Math.round((ratio * 225) / 15) * 15 });
+  }
+
+  renderVals() {
+    const s = this.state;
+    CURRENT = s.cats;
+    const sollWeek = this.soll();
+    const tagesSoll = Math.round(sollWeek / 5);
+    const today = this.todayMin();
+    const weekBase = 1810;
+    const weekTotal = weekBase + today;
+    const diff = weekTotal - sollWeek;
+    const pill = (on, color) => ({
+      bg: on ? 'var(--color-accent-200)' : 'var(--color-neutral-100)',
+      border: on ? 'var(--color-accent-400)' : 'rgba(32,30,29,.14)',
+      fg: on ? 'var(--color-accent-800)' : 'var(--color-text)',
+    });
+
+    const visible = s.cats.filter((c) => !s.hidden.includes(c.name)).slice(0, this.props.quickTileCount ?? 9);
+    const todayByCat = (n) => s.entries.filter((e) => e.name === n).reduce((a, e) => a + e.min, 0);
+
+    const dayVals = [385, 470, today, 0, 0, 95, 60];
+    const dayLabels = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    const maxDay = Math.max(...dayVals, tagesSoll) || 1;
+
+    const distTotal = s.cats.reduce((a, c) => a + c.week + todayByCat(c.name), 0);
+
+    const H0 = 0, H1 = 24, BAND = 720;
+    const PXPM = BAND / ((H1 - H0) * 60);
+    const pxm = (m) => (m - H0 * 60) * PXPM;
+    const sorted = s.entries.slice().sort((a, b) => a.from - b.from);
+
+    const sheet = [
+      ['LK-4F7A', '2026-09-02', 'Unterricht', 270, '100 %'],
+      ['LK-4F7A', '2026-09-02', 'Korrektur', 75, '100 %'],
+      ['LK-4F7A', '2026-09-02', 'Elternarbeit', 25, '100 %'],
+      ['LK-9C21', '2026-09-02', 'Unterricht', 225, '75 %'],
+      ['LK-9C21', '2026-09-02', 'Verwaltung', 40, '75 %'],
+      ['LK-2B08', '2026-09-02', 'Unterricht', 315, '100 %'],
+      ['LK-2B08', '2026-09-02', 'Konferenzen', 90, '100 %'],
+      ['LK-2B08', '2026-09-02', 'Korrektur', 120, '100 %'],
+      ['LK-77DE', '2026-09-02', 'Fortbildung', 240, '50 %'],
+      ['LK-77DE', '2026-09-02', 'AGs', 60, '50 %'],
+    ];
+
+    return {
+      isHeute: s.tab === 'heute', isBand: s.tab === 'band', isWoche: s.tab === 'woche', isDaten: s.tab === 'daten', isMehr: s.tab === 'mehr',
+      onGoBand: () => this.setState({ tab: 'band' }),
+      heuteDatum: 'Mittwoch, 2. September',
+      todayTotalLabel: hm(today + this.runMin()),
+      todayPct: Math.min(100, Math.round(((today + this.runMin()) / tagesSoll) * 100)),
+      tagesSollLabel: `${hm(tagesSoll)} h`,
+      sollStundenLabel: String(Math.round(sollWeek / 60)),
+      entryCount: s.entries.length,
+      lastEntryLabel: s.entries.length ? s.entries[s.entries.length - 1].name : '—',
+      weekDiffLabel: `${diff >= 0 ? '+' : '−'}${hm(Math.abs(diff))}`,
+      weekTotalLabel: `${hm(weekTotal)} h`,
+      weekPct: Math.min(100, Math.round((weekTotal / sollWeek) * 100)),
+      weekDiffSentence: diff >= 0
+        ? `${hm(diff)} h über dem Soll — dokumentiert`
+        : `${hm(-diff)} h bis zum Soll dieser Woche`,
+      diffBg: diff >= 0 ? 'var(--color-accent-200)' : 'var(--color-accent-2-200)',
+      diffFg: diff >= 0 ? 'var(--color-accent-800)' : 'var(--color-accent-2-800)',
+
+      running: !!s.running,
+      runningCat: s.running ? s.running.name : '',
+      runningStart: s.running ? s.running.label : '',
+      runningClock: (() => {
+        const t = Math.floor((s.now - (s.running ? s.running.start : s.now)) / 1000);
+        return `${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+      })(),
+      onStop: () => {
+        const m = this.runMin();
+        const name = s.running.name;
+        this.setState({ running: null });
+        this.addEntry(name, Math.max(1, m), 'Timer');
+      },
+      onDiscard: () => this.setState({ running: null }),
+
+      quickTiles: visible.map((c) => ({
+        name: c.name, letter: c.letter, color: c.color,
+        today: todayByCat(c.name) ? hmShort(todayByCat(c.name)) : '—',
+        onClick: () => {
+          const d = new Date();
+          this.setState({
+            running: { name: c.name, start: Date.now(), label: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` },
+            tab: 'heute',
+          });
+        },
+      })),
+
+      entries: sorted.slice().reverse().map((e) => ({
+        ...e, color: cat(e.name).color, dur: hmShort(e.min),
+        time: `${clock(e.from)} – ${clock(e.from + e.min)}`,
+        onDelete: () => this.setState((st) => ({ entries: st.entries.filter((x) => x.id !== e.id) })),
+      })),
+
+      onOpenAdd: () => this.setState({ showAdd: true, tab: 'heute' }),
+      onCloseAdd: () => this.setState({ showAdd: false }),
+      showAdd: s.showAdd,
+      addChips: s.cats.map((c) => ({ name: c.name, ...pill(s.addCat === c.name), onClick: () => this.setState({ addCat: c.name }) })),
+      addMinLabel: hmShort(s.addMin),
+      addCatLabel: s.addCat,
+      addFromLabel: clock(s.addFrom),
+      addToLabel: clock(s.addFrom + s.addMin),
+      onMinusFrom: () => this.setState((st) => ({ addFrom: Math.max(0, st.addFrom - 15) })),
+      onPlusFrom: () => this.setState((st) => ({ addFrom: Math.min(1439 - st.addMin, st.addFrom + 15) })),
+      addFromQuick: [
+        ['Vor dem Unterricht', 420], ['Mittag', 780], ['Nachmittag', 900], ['Abend', 1140],
+      ].map(([label, m]) => ({
+        label, ...pill(Math.abs(s.addFrom - m) < 8),
+        onClick: () => this.setState({ addFrom: m }),
+      })),
+      onMinusMin: () => this.setState((st) => ({ addMin: Math.max(15, st.addMin - 15) })),
+      onPlusMin: () => this.setState((st) => ({ addMin: Math.min(480, st.addMin + 15) })),
+      onSaveAdd: () => { this.addEntry(s.addCat, s.addMin, 'Nachtrag', s.addFrom); this.setState({ showAdd: false }); },
+
+      bars: dayVals.map((v, i) => ({
+        label: dayLabels[i],
+        h: v ? hm(v) : '·',
+        px: Math.round((v / maxDay) * 130),
+        color: i === 2 ? 'var(--color-accent)' : v ? 'var(--color-accent-300)' : 'var(--color-neutral-300)',
+        labelColor: i === 2 ? 'var(--color-accent-800)' : 'rgba(32,30,29,.45)',
+      })),
+      dist: s.cats.map((c) => {
+        const m = c.week + todayByCat(c.name);
+        return { name: c.name, color: c.color, label: `${hm(m)} h`, pct: Math.round((m / distTotal) * 100), pctLabel: `${Math.round((m / distTotal) * 100)} %` };
+      }).sort((a, b) => b.pct - a.pct),
+
+      onToggleParticipate: () => this.setState((st) => ({ participate: !st.participate })),
+      switchBg: s.participate ? 'var(--color-accent-2-700)' : 'var(--color-neutral-400)',
+      switchJustify: s.participate ? 'flex-end' : 'flex-start',
+      fields: [
+        { name: 'Minuten pro Kategorie pro Tag', state: 'gesendet', mark: '✓', color: '#728157' },
+        { name: 'Stundenmaß in Prozent', state: 'gesendet', mark: '✓', color: '#728157' },
+        { name: 'Pseudonym (pro Erhebung neu)', state: 'gesendet', mark: '✓', color: '#728157' },
+        { name: 'Name, Fächer, Klassen', state: 'nie', mark: '×', color: '#a19786' },
+        { name: 'Uhrzeiten, Notizen, Standort', state: 'nie', mark: '×', color: '#a19786' },
+      ],
+      onTogglePreview: () => this.setState((st) => ({ showPreview: !st.showPreview })),
+      showPreview: s.showPreview,
+      previewLabel: s.showPreview ? 'Vorschau schließen' : 'Genaue Zeilen ansehen',
+      previewRows: [
+        { date: '02.09.', cat: 'Unterricht', min: 270 },
+        { date: '02.09.', cat: 'Korrektur', min: 75 },
+        { date: '02.09.', cat: 'Elternarbeit', min: 25 },
+        { date: '01.09.', cat: 'Unterricht', min: 315 },
+        { date: '01.09.', cat: 'Konferenzen', min: 90 },
+      ],
+      packets: [
+        { date: 'Heute, 2. September', rows: s.entries.length, note: s.synced ? 'gerade gesendet' : 'wartet auf Freigabe', status: s.synced ? 'gesendet' : 'offen', bg: s.synced ? 'var(--color-accent-2-200)' : 'var(--color-accent-200)', fg: s.synced ? 'var(--color-accent-2-800)' : 'var(--color-accent-800)' },
+        { date: '1. September', rows: 6, note: 'in zentraler Tabelle', status: 'gesendet', bg: 'var(--color-accent-2-200)', fg: 'var(--color-accent-2-800)' },
+        { date: '31. August', rows: 5, note: 'in zentraler Tabelle', status: 'gesendet', bg: 'var(--color-accent-2-200)', fg: 'var(--color-accent-2-800)' },
+      ],
+      syncLabel: s.synced ? 'Heute übermittelt ✓' : 'Heutige Zeilen jetzt senden',
+      onSync: () => this.setState({ synced: true }),
+
+      catRows: s.cats.map((c, i) => {
+        const on = !s.hidden.includes(c.name);
+        return {
+          name: c.name, letter: c.letter, color: c.color,
+          weekLabel: `${hm(c.week + todayByCat(c.name))} h`,
+          state: on ? 'sichtbar' : 'aus',
+          stateColor: on ? 'var(--color-accent-2-700)' : 'rgba(32,30,29,.35)',
+          bg: on ? 'var(--color-neutral-100)' : 'transparent',
+          border: on ? 'rgba(32,30,29,.1)' : 'rgba(32,30,29,.14)',
+          upFg: i === 0 ? 'rgba(32,30,29,.18)' : 'rgba(32,30,29,.55)',
+          downFg: i === s.cats.length - 1 ? 'rgba(32,30,29,.18)' : 'rgba(32,30,29,.55)',
+          onToggle: () => this.setState((st) => ({ hidden: st.hidden.includes(c.name) ? st.hidden.filter((x) => x !== c.name) : [...st.hidden, c.name] })),
+          onUp: () => this.swapCat(i, i - 1),
+          onDown: () => this.swapCat(i, i + 1),
+          onDelete: () => this.setState((st) => ({ cats: st.cats.filter((x) => x.name !== c.name) })),
+        };
+      }),
+      catCountLabel: `${s.cats.length} von 9 Kategorien`,
+      newCatName: s.newName,
+      onNewName: (e) => this.setState({ newName: e.target.value }),
+      palette: PALETTE.map((col) => ({
+        color: col,
+        ring: s.newColor === col ? '3px solid var(--color-text)' : '3px solid transparent',
+        onClick: () => this.setState({ newColor: col }),
+      })),
+      addCatDisabled: s.cats.length >= 9 || !s.newName.trim(),
+      addCatBg: (s.cats.length >= 9 || !s.newName.trim()) ? 'var(--color-neutral-300)' : 'var(--color-accent)',
+      addCatFg: (s.cats.length >= 9 || !s.newName.trim()) ? 'rgba(32,30,29,.45)' : 'var(--color-bg)',
+      addCatHint: s.cats.length >= 9
+        ? 'Maximum erreicht — erst eine Kategorie löschen.'
+        : 'Eigene Kategorie anlegen, Farbe wählen.',
+      onAddCat: () => {
+        const name = s.newName.trim();
+        if (!name || s.cats.length >= 9 || s.cats.some((c) => c.name === name)) return;
+        this.setState((st) => ({
+          cats: [...st.cats, { name, letter: name.slice(0, 1).toUpperCase(), color: st.newColor, week: 0 }],
+          newName: '',
+        }));
+      },
+      deputatOpts: [100, 75, 50, 25].map((p) => ({
+        label: `${p} %`, hours: hm(Math.round(((this.props.sollStunden ?? 40) * p) / 100 * 60)).replace(':00', ''),
+        bg: s.deputat === p ? 'var(--color-accent-200)' : 'var(--color-neutral-100)',
+        border: s.deputat === p ? 'var(--color-accent-400)' : 'rgba(32,30,29,.14)',
+        fg: s.deputat === p ? 'var(--color-accent-800)' : 'var(--color-text)',
+        dot: s.deputat === p ? 'var(--color-accent)' : 'transparent',
+        dotBorder: s.deputat === p ? 'var(--color-accent)' : 'rgba(32,30,29,.28)',
+        onClick: () => this.setState({ deputat: p }),
+      })),
+      mehrLinks: [
+        { label: 'Eigener Export (Excel, PDF)' },
+        { label: 'Erinnerung am Abend · 20:30' },
+        { label: 'Erhebung & Datenschutzerklärung' },
+      ],
+
+      tabs: [
+        ['heute', 'Heute'], ['band', 'Tagesband'], ['woche', 'Woche'], ['daten', 'Daten'], ['mehr', 'Mehr'],
+      ].map(([k, label]) => ({
+        label, mark: s.tab === k ? 'var(--color-accent)' : 'transparent',
+        fg: s.tab === k ? 'var(--color-accent-800)' : 'rgba(32,30,29,.45)',
+        onClick: () => this.setState({ tab: k }),
+      })),
+      onGoDaten: () => this.setState({ tab: 'daten' }),
+
+      showOnboard: !s.obDone,
+      ob1: s.ob === 1, ob2: s.ob === 2, ob3: s.ob === 3,
+      obDots: [1, 2, 3].map((i) => ({ bg: i <= s.ob ? 'var(--color-accent)' : 'var(--color-neutral-300)' })),
+      obPoints: [
+        { text: 'Live-Timer für laufende Tätigkeiten — oder abends in Blöcken nachtragen.' },
+        { text: 'Soll-Ist gegen 25,5 Deputatsstunden bzw. 40 Zeitstunden.' },
+        { text: 'Anonymisierte Minuten fließen in die Erhebung des Kollegiums.' },
+      ],
+      consentRows: [
+        { name: 'Minuten pro Kategorie pro Tag', mark: '✓', color: '#728157', bg: 'var(--color-accent-2-200)' },
+        { name: 'Stundenmaß in Prozent', mark: '✓', color: '#728157', bg: 'var(--color-accent-2-200)' },
+        { name: 'Name, Fächer, Uhrzeiten, Notizen', mark: '×', color: '#a19786', bg: 'var(--color-neutral-200)' },
+      ],
+      onToggleConsent: () => this.setState((st) => ({ consent: !st.consent })),
+      consentCheck: s.consent ? '✓' : '',
+      consentBox: s.consent ? 'var(--color-accent)' : 'var(--color-neutral-400)',
+      consentBg: s.consent ? 'var(--color-accent-100)' : 'var(--color-neutral-100)',
+      consentBorder: s.consent ? 'var(--color-accent-400)' : 'rgba(32,30,29,.14)',
+      obCta: s.ob === 3 ? 'Los geht’s' : s.ob === 2 ? 'Einverstanden, weiter' : 'Weiter',
+      onObNext: () => this.setState((st) => (st.ob === 3 ? { obDone: true } : { ob: st.ob + 1 })),
+      onObSkip: () => this.setState({ obDone: true }),
+
+      tlTotal: `${hm(today)} h`,
+      tlHours: Array.from({ length: 13 }, (_, i) => ({ label: `${i * 2}`, top: Math.round(pxm(i * 120)) - 6 })),
+      tlLines: Array.from({ length: 25 }, (_, i) => ({ line: Math.round(pxm(i * 60)), color: i % 2 ? 'rgba(32,30,29,.05)' : 'rgba(32,30,29,.1)' })),
+      tlNight: [{ top: 0, height: Math.round(pxm(6 * 60)) }, { top: Math.round(pxm(22 * 60)), height: BAND - Math.round(pxm(22 * 60)) }],
+      tlBlocks: (() => { let cursor = -99; return sorted.map((e) => {
+        const sel = s.tlSel === e.id;
+        const c = cat(e.name);
+        const top = Math.round(pxm(e.from));
+        const h = Math.max(8, Math.round(pxm(e.from + e.min) - pxm(e.from)));
+        const labelTop = Math.max(top, cursor + 6);
+        cursor = labelTop + 30;
+        return {
+          name: e.name, top, height: h, labelTop, bar: c.color,
+          bg: sel ? c.color : `color-mix(in srgb, ${c.color} 22%, #f9f4ed)`,
+          border: sel ? '1px solid transparent' : `1px solid color-mix(in srgb, ${c.color} 45%, transparent)`,
+          fg: sel ? '#f9f4ed' : '#201e1d',
+          subFg: sel ? 'rgba(249,244,237,.75)' : 'rgba(32,30,29,.5)',
+          range: `${clock(e.from)} – ${clock(e.from + e.min)} · ${hmShort(e.min)}`,
+          grip: sel ? 'rgba(249,244,237,.6)' : 'rgba(32,30,29,.3)',
+          onDown: (ev) => {
+            ev.currentTarget.setPointerCapture(ev.pointerId);
+            this.bandDrag = { id: e.id, y0: ev.clientY, from0: e.from };
+            this.setState({ tlSel: e.id });
+          },
+          onMove: (ev) => {
+            const d = this.bandDrag;
+            if (!d || d.id !== e.id) return;
+            const deltaMin = (ev.clientY - d.y0) / PXPM;
+            this.setFrom(e.id, Math.round((d.from0 + deltaMin) / 5) * 5);
+          },
+          onUp: () => { this.bandDrag = null; },
+        };
+      }); })(),
+      tlHint: (() => {
+        const sel = sorted.find((e) => e.id === s.tlSel);
+        if (sel) return `${sel.name} · ${clock(sel.from)} — hoch/runter ziehen zum Verschieben.`;
+        let gap = { from: 0, len: 0 };
+        for (let i = 1; i < sorted.length; i++) {
+          const len = sorted[i].from - (sorted[i - 1].from + sorted[i - 1].min);
+          if (len > gap.len) gap = { from: sorted[i - 1].from + sorted[i - 1].min, len };
+        }
+        return gap.len >= 15
+          ? `Größte Lücke: ${clock(gap.from)} – ${clock(gap.from + gap.len)}. Vor- und Nachbereitung?`
+          : 'Keine offene Lücke — Block antippen und ziehen zum Verschieben.';
+      })(),
+      tlFill: () => {
+        let gap = { from: 785, len: 60 };
+        for (let i = 1; i < sorted.length; i++) {
+          const len = sorted[i].from - (sorted[i - 1].from + sorted[i - 1].min);
+          if (len > gap.len) gap = { from: sorted[i - 1].from + sorted[i - 1].min, len };
+        }
+        this.setState({ showAdd: true, addCat: 'Verwaltung', addMin: Math.min(180, Math.round(gap.len / 15) * 15) || 15, addFrom: gap.from });
+      },
+
+      dialMin: s.dialMin,
+      dialLabel: hmShort(s.dialMin),
+      dialCat: s.dialCat,
+      dialPct: Math.round((s.dialMin / 240) * 100),
+      dialColor: cat(s.dialCat).color,
+      dialChips: s.cats.map((c) => ({ name: c.name, ...pill(s.dialCat === c.name), onClick: () => this.setState({ dialCat: c.name }) })),
+      dialTrackPct: Math.round(((s.dialMin - 15) / 225) * 100),
+      onDialDown: (e) => { this.drag = true; e.currentTarget.setPointerCapture(e.pointerId); this.setDial(e); },
+      onDialMove: (e) => { if (this.drag) this.setDial(e); },
+      onDialUp: () => { this.drag = false; },
+      dialCta: `${hmShort(s.dialMin)} ${s.dialCat} buchen`,
+      dialToday: `${hm(today)} h`,
+      onDialSave: () => this.addEntry(s.dialCat, s.dialMin, 'Regler'),
+
+      darkTotal: hm(today),
+      darkPct: Math.min(100, Math.round((today / tagesSoll) * 100)),
+      darkPctLabel: `${Math.round((today / tagesSoll) * 100)} %`,
+      darkRows: s.entries.slice().reverse().map((e) => ({ name: e.name, dur: hmShort(e.min), color: cat(e.name).color })),
+
+      sheetRows: sheet.map((r, i) => ({
+        n: i + 2, id: r[0], date: r[1], cat: r[2], min: r[3], mass: r[4],
+        bg: i % 2 ? 'var(--color-neutral-200)' : 'var(--color-neutral-100)',
+      })),
+      sheetStats: [
+        { label: 'Ø Woche Vollzeit', value: '44:20 h', note: 'Soll 40:00 h' },
+        { label: 'Ø Korrektur', value: '6:10 h', note: 'pro Woche' },
+        { label: 'Teilnahmequote', value: '62 %', note: '18 von 29' },
+        { label: 'Über Soll', value: '13 von 18', note: 'in KW 36' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>
