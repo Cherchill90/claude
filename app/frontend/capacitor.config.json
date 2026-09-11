@@ -1,0 +1,8 @@
+{
+  "appId": "de.zeitwaage.app",
+  "appName": "Zeitwaage",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "always"
+  }
+}
