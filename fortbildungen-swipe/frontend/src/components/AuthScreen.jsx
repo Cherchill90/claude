@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../lib/AuthContext.jsx';
 
 export default function AuthScreen() {
-  const { login, register } = useAuth();
-  const [mode, setMode] = useState('login');
-  const [name, setName] = useState('');
+  const { login } = useAuth();
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -14,11 +13,7 @@ export default function AuthScreen() {
     setError('');
     setBusy(true);
     try {
-      if (mode === 'login') {
-        await login(name.trim(), password);
-      } else {
-        await register(name.trim(), password);
-      }
+      await login(email.trim(), password);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -30,32 +25,18 @@ export default function AuthScreen() {
     <div className="auth-screen">
       <div className="auth-card">
         <h1>Fortbildungen Swipe</h1>
-        <p className="auth-subtitle">Fortbildungen entdecken und nach rechts wischen für Interesse.</p>
-
-        <div className="auth-tabs">
-          <button
-            type="button"
-            className={mode === 'login' ? 'active' : ''}
-            onClick={() => setMode('login')}
-          >
-            Anmelden
-          </button>
-          <button
-            type="button"
-            className={mode === 'register' ? 'active' : ''}
-            onClick={() => setMode('register')}
-          >
-            Registrieren
-          </button>
-        </div>
+        <p className="auth-subtitle">
+          Melde dich mit deiner betriebseigenen E-Mail-Adresse und deinem Passwort an.
+        </p>
 
         <form onSubmit={handleSubmit} className="auth-form">
           <label>
-            Name
+            E-Mail-Adresse
             <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="z. B. Anna Müller"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="vorname.nachname@firma.de"
               autoComplete="username"
               required
             />
@@ -66,19 +47,23 @@ export default function AuthScreen() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="mind. 6 Zeichen"
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              placeholder="Passwort"
+              autoComplete="current-password"
               required
-              minLength={6}
             />
           </label>
 
           {error && <p className="auth-error">{error}</p>}
 
           <button type="submit" className="primary-btn" disabled={busy}>
-            {busy ? 'Bitte warten…' : mode === 'login' ? 'Anmelden' : 'Konto erstellen'}
+            {busy ? 'Bitte warten…' : 'Anmelden'}
           </button>
         </form>
+
+        <p className="auth-footnote">
+          Noch keinen Zugang? Wende dich an deine Verwaltung — sie richtet dein Konto mit
+          Initialpasswort ein.
+        </p>
       </div>
     </div>
   );

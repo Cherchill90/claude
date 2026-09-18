@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { db } from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, requireFreshPassword } from '../auth.js';
 
 export const trainingsRouter = Router();
-trainingsRouter.use(requireAuth);
+trainingsRouter.use(requireAuth, requireFreshPassword);
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;

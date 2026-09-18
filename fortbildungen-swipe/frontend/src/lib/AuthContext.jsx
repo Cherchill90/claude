@@ -23,23 +23,27 @@ export function AuthProvider({ children }) {
     }
   }, [auth]);
 
-  const register = useCallback(async (name, password) => {
-    const result = await api.register(name, password);
-    setAuth(result);
-    return result;
-  }, []);
-
-  const login = useCallback(async (name, password) => {
-    const result = await api.login(name, password);
+  const login = useCallback(async (email, password) => {
+    const result = await api.login(email, password);
     setAuth(result);
     return result;
   }, []);
 
   const logout = useCallback(() => setAuth(null), []);
 
+  const markPasswordChanged = useCallback((user) => {
+    setAuth((prev) => (prev ? { ...prev, user } : prev));
+  }, []);
+
   return (
     <AuthContext.Provider
-      value={{ user: auth?.user ?? null, token: auth?.token ?? null, register, login, logout }}
+      value={{
+        user: auth?.user ?? null,
+        token: auth?.token ?? null,
+        login,
+        logout,
+        markPasswordChanged,
+      }}
     >
       {children}
     </AuthContext.Provider>
