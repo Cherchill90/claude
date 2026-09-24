@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Würfel-Simulator</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --text: #1f2430;
+    --muted: #6b7280;
+    --accent: #4f46e5;
+    --accent-dark: #4338ca;
+    --border: #e2e4e9;
+    --die-bg: #1f2430;
+    --die-text: #ffffff;
+    --danger: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px 16px 64px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.6rem;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    text-align: center;
+    color: var(--muted);
+    margin-bottom: 24px;
+    font-size: 0.95rem;
+  }
+  .layout {
+    max-width: 920px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .card h2 {
+    font-size: 1.05rem;
+    margin: 0 0 14px;
+  }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  input[type="number"] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+  }
+  .sides-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    margin-bottom: 16px;
+  }
+  .sides-row > div:first-child { flex: 1; }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    background: var(--accent);
+    color: white;
+    transition: background 0.15s ease;
+  }
+  button:hover { background: var(--accent-dark); }
+  button.secondary {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  button.secondary:hover { background: #eef0ff; }
+  button:disabled {
+    background: #cbd0da;
+    cursor: not-allowed;
+  }
+  .weights-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+    max-height: 260px;
+    display: block;
+    overflow-y: auto;
+  }
+  .weights-table thead { position: sticky; top: 0; background: var(--card); }
+  .weights-table th, .weights-table td {
+    text-align: left;
+    padding: 6px 8px;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .weights-table input {
+    width: 80px;
+    padding: 5px 7px;
+  }
+  .weights-table td:last-child { color: var(--muted); }
+  .weight-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .error {
+    color: var(--danger);
+    font-size: 0.82rem;
+    min-height: 18px;
+    margin-top: 4px;
+  }
+  .die-display {
+    width: 140px;
+    height: 140px;
+    margin: 10px auto 20px;
+    background: var(--die-bg);
+    color: var(--die-text);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    font-weight: 700;
+    transition: transform 0.15s ease;
+  }
+  .die-display.rolling {
+    animation: spin 0.4s ease-in-out infinite;
+  }
+  @keyframes spin {
+    0% { transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(8deg) scale(1.05); }
+    100% { transform: rotate(0deg) scale(1); }
+  }
+  .roll-btn-wrap { text-align: center; }
+  .roll-btn-wrap button {
+    padding: 12px 28px;
+    font-size: 1rem;
+  }
+  .result-text {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 0.95rem;
+    color: var(--muted);
+  }
+  .history {
+    margin-top: 18px;
+  }
+  .history h3 {
+    font-size: 0.9rem;
+    margin: 0 0 8px;
+    color: var(--muted);
+  }
+  .history-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .history-chip {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 9px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .stats {
+    margin-top: 18px;
+  }
+  .stat-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 0.82rem;
+  }
+  .stat-label {
+    width: 34px;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .stat-bar-wrap {
+    flex: 1;
+    background: var(--bg);
+    border-radius: 6px;
+    overflow: hidden;
+    height: 14px;
+  }
+  .stat-bar {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.2s ease;
+  }
+  .stat-count {
+    width: 70px;
+    text-align: right;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .empty-hint {
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 10px 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>Würfel-Simulator</h1>
+<p class="subtitle">Anzahl der Seiten und Wahrscheinlichkeiten frei einstellen, dann würfeln.</p>
+
+<div class="layout">
+
+  <div class="card">
+    <h2>Konfiguration</h2>
+
+    <div class="sides-row">
+      <div>
+        <label for="sidesInput">Anzahl der Seiten (2–100)</label>
+        <input type="number" id="sidesInput" min="2" max="100" value="6">
+      </div>
+      <button id="applySidesBtn">Übernehmen</button>
+    </div>
+
+    <div class="weight-actions">
+      <button class="secondary" id="equalBtn">Gleichverteilung</button>
+    </div>
+
+    <label>Gewicht je Seite (bestimmt die relative Wahrscheinlichkeit)</label>
+    <table class="weights-table">
+      <thead>
+        <tr><th>Seite</th><th>Gewicht</th><th>Wahrscheinlichkeit</th></tr>
+      </thead>
+      <tbody id="weightsBody"></tbody>
+    </table>
+    <div class="error" id="configError"></div>
+  </div>
+
+  <div class="card">
+    <h2>Würfeln</h2>
+    <div class="die-display" id="dieDisplay">–</div>
+    <div class="roll-btn-wrap">
+      <button id="rollBtn">Würfeln</button>
+      <button class="secondary" id="resetStatsBtn">Statistik zurücksetzen</button>
+    </div>
+    <div class="result-text" id="resultText"></div>
+
+    <div class="history">
+      <h3>Letzte Würfe</h3>
+      <div class="history-list" id="historyList"></div>
+    </div>
+
+    <div class="stats">
+      <h3>Statistik der geworfenen Ergebnisse</h3>
+      <div id="statsList"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const sidesInput = document.getElementById('sidesInput');
+  const applySidesBtn = document.getElementById('applySidesBtn');
+  const equalBtn = document.getElementById('equalBtn');
+  const weightsBody = document.getElementById('weightsBody');
+  const configError = document.getElementById('configError');
+  const dieDisplay = document.getElementById('dieDisplay');
+  const rollBtn = document.getElementById('rollBtn');
+  const resetStatsBtn = document.getElementById('resetStatsBtn');
+  const resultText = document.getElementById('resultText');
+  const historyList = document.getElementById('historyList');
+  const statsList = document.getElementById('statsList');
+
+  const MIN_SIDES = 2;
+  const MAX_SIDES = 100;
+  const MAX_HISTORY = 30;
+
+  let weights = [];
+  let rollCounts = [];
+  let history = [];
+  let isRolling = false;
+
+  function buildSides(count) {
+    weights = new Array(count).fill(1);
+    rollCounts = new Array(count).fill(0);
+    history = [];
+    renderWeightsTable();
+    renderHistory();
+    renderStats();
+    resultText.textContent = '';
+    dieDisplay.textContent = '–';
+  }
+
+  function totalWeight() {
+    return weights.reduce((a, b) => a + b, 0);
+  }
+
+  function renderWeightsTable() {
+    weightsBody.innerHTML = '';
+    const total = totalWeight();
+    weights.forEach((w, i) => {
+      const tr = document.createElement('tr');
+
+      const tdLabel = document.createElement('td');
+      tdLabel.textContent = i + 1;
+
+      const tdInput = document.createElement('td');
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '0';
+      input.step = '0.1';
+      input.value = w;
+      input.dataset.index = i;
+      input.addEventListener('input', onWeightChange);
+      tdInput.appendChild(input);
+
+      const tdProb = document.createElement('td');
+      const pct = total > 0 ? ((w / total) * 100).toFixed(1) : '0.0';
+      tdProb.textContent = pct + ' %';
+
+      tr.appendChild(tdLabel);
+      tr.appendChild(tdInput);
+      tr.appendChild(tdProb);
+      weightsBody.appendChild(tr);
+    });
+  }
+
+  function onWeightChange(e) {
+    const idx = Number(e.target.dataset.index);
+    let val = parseFloat(e.target.value);
+    if (isNaN(val) || val < 0) val = 0;
+    weights[idx] = val;
+    updateProbabilityColumn();
+    validateWeights();
+  }
+
+  function updateProbabilityColumn() {
+    const total = totalWeight();
+    const rows = weightsBody.querySelectorAll('tr');
+    rows.forEach((row, i) => {
+      const pct = total > 0 ? ((weights[i] / total) * 100).toFixed(1) : '0.0';
+      row.children[2].textContent = pct + ' %';
+    });
+  }
+
+  function validateWeights() {
+    const total = totalWeight();
+    if (total <= 0) {
+      configError.textContent = 'Mindestens eine Seite muss ein Gewicht größer als 0 haben.';
+      rollBtn.disabled = true;
+      return false;
+    }
+    configError.textContent = '';
+    rollBtn.disabled = false;
+    return true;
+  }
+
+  function renderHistory() {
+    historyList.innerHTML = '';
+    if (history.length === 0) {
+      historyList.innerHTML = '<span class="empty-hint">Noch keine Würfe.</span>';
+      return;
+    }
+    history.slice(-MAX_HISTORY).reverse().forEach(v => {
+      const chip = document.createElement('span');
+      chip.className = 'history-chip';
+      chip.textContent = v;
+      historyList.appendChild(chip);
+    });
+  }
+
+  function renderStats() {
+    statsList.innerHTML = '';
+    const totalRolls = rollCounts.reduce((a, b) => a + b, 0);
+    if (totalRolls === 0) {
+      statsList.innerHTML = '<div class="empty-hint">Noch keine Würfe.</div>';
+      return;
+    }
+    const maxCount = Math.max(...rollCounts, 1);
+    rollCounts.forEach((count, i) => {
+      const row = document.createElement('div');
+      row.className = 'stat-row';
+
+      const label = document.createElement('div');
+      label.className = 'stat-label';
+      label.textContent = i + 1;
+
+      const barWrap = document.createElement('div');
+      barWrap.className = 'stat-bar-wrap';
+      const bar = document.createElement('div');
+      bar.className = 'stat-bar';
+      bar.style.width = (count / maxCount * 100) + '%';
+      barWrap.appendChild(bar);
+
+      const countLabel = document.createElement('div');
+      countLabel.className = 'stat-count';
+      const pct = ((count / totalRolls) * 100).toFixed(1);
+      countLabel.textContent = count + ' (' + pct + '%)';
+
+      row.appendChild(label);
+      row.appendChild(barWrap);
+      row.appendChild(countLabel);
+      statsList.appendChild(row);
+    });
+  }
+
+  function weightedRandomIndex() {
+    const total = totalWeight();
+    let r = Math.random() * total;
+    for (let i = 0; i < weights.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return i;
+    }
+    return weights.length - 1;
+  }
+
+  function roll() {
+    if (isRolling || !validateWeights()) return;
+    isRolling = true;
+    rollBtn.disabled = true;
+    dieDisplay.classList.add('rolling');
+
+    let ticks = 0;
+    const maxTicks = 10;
+    const interval = setInterval(() => {
+      dieDisplay.textContent = (Math.floor(Math.random() * weights.length) + 1);
+      ticks++;
+      if (ticks >= maxTicks) {
+        clearInterval(interval);
+        const idx = weightedRandomIndex();
+        const face = idx + 1;
+        dieDisplay.textContent = face;
+        dieDisplay.classList.remove('rolling');
+        rollCounts[idx]++;
+        history.push(face);
+        resultText.textContent = 'Ergebnis: ' + face;
+        renderHistory();
+        renderStats();
+        isRolling = false;
+        rollBtn.disabled = false;
+      }
+    }, 60);
+  }
+
+  applySidesBtn.addEventListener('click', () => {
+    let n = parseInt(sidesInput.value, 10);
+    if (isNaN(n) || n < MIN_SIDES) n = MIN_SIDES;
+    if (n > MAX_SIDES) n = MAX_SIDES;
+    sidesInput.value = n;
+    buildSides(n);
+  });
+
+  equalBtn.addEventListener('click', () => {
+    weights = weights.map(() => 1);
+    renderWeightsTable();
+    validateWeights();
+  });
+
+  resetStatsBtn.addEventListener('click', () => {
+    rollCounts = rollCounts.map(() => 0);
+    history = [];
+    resultText.textContent = '';
+    renderHistory();
+    renderStats();
+  });
+
+  rollBtn.addEventListener('click', roll);
+
+  buildSides(6);
+})();
+</script>
+
+</body>
+</html>
