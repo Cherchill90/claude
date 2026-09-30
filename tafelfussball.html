@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tafelfußball – Kopfrechen-Duell</title>
+<style>
+  :root {
+    --board: #2b3f36;
+    --board-dark: #1e2e27;
+    --chalk: #f4f1e6;
+    --chalk-dim: #b9c4bb;
+    --a: #ff8a80;
+    --b: #82c4ff;
+    --ok: #9be59b;
+    --bad: #ff6b6b;
+    --gold: #ffe082;
+    --chalk-font: "Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", "Comic Neue", cursive, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(255,255,255,.07), transparent 60%),
+      radial-gradient(ellipse at 80% 90%, rgba(255,255,255,.04), transparent 55%),
+      var(--board);
+    color: var(--chalk);
+    font-family: var(--chalk-font);
+    min-height: 100vh;
+    border: 10px solid #8a5a2b;
+    box-shadow: inset 0 0 40px rgba(0,0,0,.5);
+  }
+  h1, h2 { font-weight: normal; margin: 0; }
+  button { font-family: inherit; cursor: pointer; }
+  .hidden { display: none !important; }
+
+  /* ---------- Setup ---------- */
+  #setup { max-width: 820px; margin: 0 auto; padding: 24px 16px 40px; }
+  #setup h1 { font-size: clamp(2rem, 6vw, 3.2rem); text-align: center; margin-bottom: 4px; }
+  #setup .sub { text-align: center; color: var(--chalk-dim); margin-bottom: 22px; }
+  .card {
+    border: 2px dashed rgba(244,241,230,.45);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+  .card h2 { font-size: 1.25rem; margin-bottom: 10px; color: var(--gold); }
+  .row { display: flex; flex-wrap: wrap; gap: 14px; }
+  .row > label { flex: 1 1 200px; display: flex; flex-direction: column; gap: 4px; font-size: .95rem; }
+  input[type=text], input[type=number], select {
+    font-family: inherit; font-size: 1.1rem;
+    background: rgba(0,0,0,.25); color: var(--chalk);
+    border: 2px solid rgba(244,241,230,.5); border-radius: 8px;
+    padding: 8px 10px; width: 100%;
+  }
+  input:focus, select:focus { outline: 3px solid var(--gold); outline-offset: 1px; }
+  select option { color: #111; }
+  .teamA input { border-color: var(--a); }
+  .teamB input { border-color: var(--b); }
+  .ops { display: flex; flex-wrap: wrap; gap: 10px; }
+  .op {
+    flex: 1 1 130px; position: relative;
+  }
+  .op input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 1; }
+  .op span {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    border: 2px solid rgba(244,241,230,.5); border-radius: 10px;
+    padding: 10px; font-size: 1.15rem; opacity: .6; transition: .15s;
+  }
+  .op span b { font-size: 1.8rem; line-height: 1; }
+  .op input:checked + span { opacity: 1; border-color: var(--ok); background: rgba(155,229,155,.15); }
+  .op input:focus-visible + span { outline: 3px solid var(--gold); }
+  .check { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: .95rem; }
+  .check input { width: 22px; height: 22px; accent-color: var(--ok); }
+  .hint { color: var(--chalk-dim); font-size: .85rem; margin-top: 8px; }
+  #err { color: var(--bad); text-align: center; min-height: 1.4em; margin-bottom: 8px; }
+  .big-btn {
+    display: block; margin: 0 auto; font-size: 1.6rem;
+    background: var(--ok); color: #16301a; border: 0; border-radius: 14px;
+    padding: 14px 36px; box-shadow: 0 5px 0 #5da55d; transition: transform .08s;
+  }
+  .big-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #5da55d; }
+
+  /* ---------- Spiel ---------- */
+  #game { max-width: 1100px; margin: 0 auto; padding: 10px 12px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .top { display: flex; align-items: center; gap: 10px; }
+  .score {
+    flex: 1; text-align: center; border-radius: 12px; padding: 4px 8px;
+    border: 3px solid currentColor; transition: transform .2s, background .2s;
+  }
+  .score.a { color: var(--a); } .score.b { color: var(--b); }
+  .score .n { font-size: clamp(.9rem, 2.4vw, 1.3rem); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .score .p { font-size: clamp(2rem, 6vw, 3.4rem); line-height: 1; }
+  .score.pop { transform: scale(1.12); background: rgba(255,255,255,.12); }
+  .tools { display: flex; flex-direction: column; gap: 6px; }
+  .icon-btn {
+    background: transparent; color: var(--chalk); border: 2px solid rgba(244,241,230,.5);
+    border-radius: 8px; padding: 4px 10px; font-size: 1rem;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,.1); }
+
+  .pitch {
+    position: relative; height: clamp(90px, 18vw, 150px);
+    border: 3px solid var(--chalk); border-radius: 6px;
+    background: repeating-linear-gradient(90deg, rgba(255,255,255,.06) 0 8.33%, transparent 8.33% 16.66%);
+  }
+  .pitch::before { /* Mittellinie */
+    content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 3px solid var(--chalk); opacity: .8;
+  }
+  .pitch::after { /* Mittelkreis */
+    content: ""; position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1;
+    transform: translate(-50%, -50%); border: 3px solid var(--chalk); border-radius: 50%; opacity: .8;
+    max-height: 90%;
+  }
+  .goal { position: absolute; top: 28%; bottom: 28%; width: 5%; border: 3px solid var(--chalk); z-index: 1; background: rgba(255,255,255,.12); }
+  .goal.l { left: -3px; border-left: 0; border-radius: 0 6px 6px 0; }
+  .goal.r { right: -3px; border-right: 0; border-radius: 6px 0 0 6px; }
+  .goal-label { position: absolute; top: 4px; font-size: .8rem; opacity: .8; z-index: 2; }
+  .goal-label.l { left: 10px; color: var(--a); } .goal-label.r { right: 10px; color: var(--b); }
+  .ball {
+    position: absolute; top: 50%; font-size: clamp(1.8rem, 6vw, 3.2rem); line-height: 1; z-index: 3;
+    transform: translate(-50%, -50%); transition: left .55s cubic-bezier(.3,1.4,.5,1);
+  }
+  .ball.roll { animation: spin .55s linear; }
+  @keyframes spin { from { rotate: 0deg; } to { rotate: 360deg; } }
+  .ticks { position: absolute; left: 0; right: 0; bottom: 4px; display: flex; justify-content: space-between; padding: 0 6%; pointer-events: none; }
+  .ticks i { width: 6px; height: 6px; border-radius: 50%; background: var(--chalk); opacity: .4; }
+
+  .qwrap { text-align: center; position: relative; }
+  .question {
+    display: inline-block; min-width: min(100%, 520px);
+    font-size: clamp(2.4rem, 10vw, 5.2rem); line-height: 1.15;
+    border: 3px solid var(--chalk); border-radius: 18px; padding: 6px 26px;
+    background: rgba(0,0,0,.2);
+  }
+  .question.in { animation: pop .3s ease-out; }
+  @keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
+  .status { min-height: 1.6em; margin-top: 4px; font-size: clamp(1rem, 2.6vw, 1.4rem); }
+  .timerbar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.15); overflow: hidden; margin: 6px auto 0; max-width: 520px; }
+  .timerbar i { display: block; height: 100%; width: 100%; background: var(--gold); transform-origin: left; }
+
+  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .panel { border: 3px solid currentColor; border-radius: 14px; padding: 8px 10px 10px; transition: opacity .2s; }
+  .panel.a { color: var(--a); } .panel.b { color: var(--b); }
+  .panel.locked { opacity: .45; }
+  .panel.shake { animation: shake .4s; }
+  @keyframes shake { 20%,60% { transform: translateX(-8px); } 40%,80% { transform: translateX(8px); } }
+  .panel .pname { display: block; text-align: center; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ans {
+    margin: 4px 0 8px; height: 2.6rem; display: flex; align-items: center; justify-content: center;
+    font-size: 2rem; color: var(--chalk); background: rgba(0,0,0,.3); border-radius: 8px;
+    border: 2px solid currentColor;
+  }
+  .ans.empty { color: var(--chalk-dim); opacity: .6; }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .pad button {
+    font-size: clamp(1.1rem, 3.4vw, 1.7rem); padding: 6px 0; border-radius: 10px;
+    background: rgba(0,0,0,.25); color: var(--chalk); border: 2px solid currentColor;
+  }
+  .pad button:active { background: rgba(255,255,255,.25); }
+  .pad .go { background: var(--ok); color: #16301a; border-color: var(--ok); }
+  .pad .del { color: var(--gold); }
+  .keyhint { text-align: center; font-size: .75rem; color: var(--chalk-dim); margin-top: 6px; }
+
+  /* Tafel-Modus (Lehrkraft entscheidet) */
+  .judge { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+  .judge button {
+    font-size: clamp(1rem, 2.8vw, 1.5rem); padding: 12px 18px; border-radius: 12px;
+    border: 3px solid currentColor; background: rgba(0,0,0,.25); color: var(--chalk); flex: 1 1 200px;
+  }
+  .judge .ja { color: var(--a); } .judge .jb { color: var(--b); } .judge .jr { color: var(--gold); } .judge .jn { color: var(--chalk-dim); }
+  .judge button:disabled { opacity: .35; cursor: default; }
+
+  /* Overlay */
+  #overlay {
+    position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px; text-align: center; padding: 20px;
+    background: rgba(20,30,25,.86);
+  }
+  #overlay .t { font-size: clamp(3rem, 14vw, 8rem); animation: pop .4s ease-out; color: var(--gold); }
+  #overlay .s { font-size: clamp(1.2rem, 4vw, 2.2rem); }
+  #overlay .btns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  #overlay .btns button { font-size: 1.3rem; padding: 10px 22px; border-radius: 12px; border: 3px solid var(--chalk); background: transparent; color: var(--chalk); }
+  #overlay .btns button.main { background: var(--ok); color: #16301a; border-color: var(--ok); }
+  .confetti { position: fixed; top: -20px; font-size: 1.8rem; z-index: 11; pointer-events: none; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(540deg); } }
+
+  @media (max-width: 560px) {
+    body { border-width: 5px; }
+    .panels { gap: 6px; }
+    .panel { padding: 6px; }
+    .ans { font-size: 1.5rem; height: 2.2rem; }
+    .keyhint { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== EINSTELLUNGEN ===================== -->
+<section id="setup">
+  <h1>⚽ Tafelfußball</h1>
+  <p class="sub">Kopfrechnen-Duell: Wer richtig rechnet, treibt den Ball Richtung gegnerisches Tor!</p>
+
+  <div class="card">
+    <h2>Teams</h2>
+    <div class="row">
+      <label class="teamA">Team links (rot)
+        <input type="text" id="nameA" value="Team Rot" maxlength="20">
+      </label>
+      <label class="teamB">Team rechts (blau)
+        <input type="text" id="nameB" value="Team Blau" maxlength="20">
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Zahlenraum</h2>
+    <div class="row">
+      <label>Von
+        <input type="number" id="min" value="1" min="0" max="100000" inputmode="numeric">
+      </label>
+      <label>Bis
+        <input type="number" id="max" value="100" min="1" max="100000" inputmode="numeric">
+      </label>
+      <label>Größter Faktor bei × und :
+        <input type="number" id="fmax" value="10" min="2" max="100" inputmode="numeric">
+      </label>
+    </div>
+    <p class="hint">Bei + und − liegen die Zahlen im Bereich „Von–Bis“ (Summen möglichst nicht über „Bis“, Ergebnisse nie negativ).
+      Bei × und : werden Faktoren von 2 bis zum größten Faktor genutzt, das Produkt bleibt möglichst unter „Bis“.</p>
+  </div>
+
+  <div class="card">
+    <h2>Rechenarten</h2>
+    <div class="ops">
+      <label class="op"><input type="checkbox" id="opAdd" checked><span><b>+</b> Addition</span></label>
+      <label class="op"><input type="checkbox" id="opSub" checked><span><b>−</b> Subtraktion</span></label>
+      <label class="op"><input type="checkbox" id="opMul"><span><b>×</b> Multiplikation</span></label>
+      <label class="op"><input type="checkbox" id="opDiv"><span><b>:</b> Division</span></label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Spielregeln</h2>
+    <div class="row">
+      <label>Spielmodus
+        <select id="mode">
+          <option value="device">Eingabe am Gerät (Tastatur / Touch)</option>
+          <option value="board">An der Tafel (Lehrkraft entscheidet)</option>
+        </select>
+      </label>
+      <label>Tore zum Sieg
+        <select id="goals">
+          <option>1</option><option>2</option><option selected>3</option><option>5</option><option>7</option><option>10</option>
+        </select>
+      </label>
+      <label>Schritte bis zum Tor
+        <select id="steps">
+          <option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option><option>8</option>
+        </select>
+      </label>
+      <label>Zeit pro Aufgabe (Sek., 0 = unbegrenzt)
+        <input type="number" id="time" value="0" min="0" max="300" inputmode="numeric">
+      </label>
+    </div>
+    <label class="check"><input type="checkbox" id="penalty"> Falsche Antwort: Ball rollt einen Schritt zurück (Strafe)</label>
+    <label class="check"><input type="checkbox" id="sound" checked> Sound an</label>
+  </div>
+
+  <div id="err" role="alert"></div>
+  <button class="big-btn" id="start">Anpfiff! ⚽</button>
+</section>
+
+<!-- ===================== SPIEL ===================== -->
+<section id="game" class="hidden">
+  <div class="top">
+    <div class="score a" id="scoreA"><span class="n" id="sNameA"></span><span class="p" id="sPtsA">0</span></div>
+    <div class="tools">
+      <button class="icon-btn" id="btnMute" title="Sound an/aus">🔊</button>
+      <button class="icon-btn" id="btnMenu" title="Zurück zu den Einstellungen">⚙</button>
+    </div>
+    <div class="score b" id="scoreB"><span class="n" id="sNameB"></span><span class="p" id="sPtsB">0</span></div>
+  </div>
+
+  <div class="pitch" id="pitch">
+    <div class="goal l"></div><div class="goal r"></div>
+    <div class="goal-label l" id="glA"></div><div class="goal-label r" id="glB"></div>
+    <div class="ticks" id="ticks"></div>
+    <div class="ball" id="ball">⚽</div>
+  </div>
+
+  <div class="qwrap">
+    <div class="question" id="question">–</div>
+    <div class="timerbar hidden" id="timerbar"><i id="timerfill"></i></div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="panels" id="panels">
+    <div class="panel a" id="panelA">
+      <span class="pname" id="pNameA"></span>
+      <div class="ans empty" id="ansA">…</div>
+      <div class="pad" id="padA"></div>
+      <div class="keyhint">Tastatur: Zahlenreihe oben · Enter · ← löschen</div>
+    </div>
+    <div class="panel b" id="panelB">
+      <span class="pname" id="pNameB"></span>
+      <div class="ans empty" id="ansB">…</div>
+      <div class="pad" id="padB"></div>
+      <div class="keyhint">Tastatur: Ziffernblock · Num-Enter · Num-Komma löschen</div>
+    </div>
+  </div>
+
+  <div class="judge hidden" id="judge">
+    <button class="jr" id="jReveal">👁 Lösung zeigen</button>
+    <button class="ja" id="jA"></button>
+    <button class="jb" id="jB"></button>
+    <button class="jn" id="jNone">Niemand / nächste Aufgabe</button>
+  </div>
+</section>
+
+<div id="overlay" class="hidden"></div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+
+  let cfg = null;
+  let st = null;          // Spielzustand
+  let timers = [];        // alle offenen Timeouts
+  let soundOn = true;
+  let actx = null;
+
+  /* ---------------- Sound ---------------- */
+  function tone(freq, dur, type = 'sine', delay = 0, vol = 0.15) {
+    if (!soundOn) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      const t0 = actx.currentTime + delay;
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = type; o.frequency.value = freq;
+      g.gain.setValueAtTime(vol, t0);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+      o.connect(g).connect(actx.destination);
+      o.start(t0); o.stop(t0 + dur);
+    } catch (e) { /* Audio nicht verfügbar */ }
+  }
+  const sndOk    = () => { tone(660, .12, 'triangle'); tone(880, .18, 'triangle', .1); };
+  const sndBad   = () => { tone(180, .3, 'sawtooth', 0, .1); };
+  const sndGoal  = () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, .25, 'triangle', i * .12)); };
+  const sndWhistle = () => { tone(2200, .25, 'sine', 0, .08); tone(2000, .35, 'sine', .28, .08); };
+
+  /* ---------------- Aufgaben ---------------- */
+  function makeQuestion() {
+    const { min, max, fmax, ops } = cfg;
+    let op;
+    do { op = ops[rand(0, ops.length - 1)]; } while (ops.length > 1 && op === st.lastOp);
+    st.lastOp = op;
+    let a, b, ans, text;
+    if (op === '+') {
+      for (let i = 0; i < 300; i++) { a = rand(min, max); b = rand(min, max); if (a + b <= max) break; }
+      ans = a + b; text = `${a} + ${b}`;
+    } else if (op === '−') {
+      for (let i = 0; i < 50; i++) { a = rand(min, max); b = rand(min, max); if (a !== b) break; }
+      if (a < b) [a, b] = [b, a];
+      ans = a - b; text = `${a} − ${b}`;
+    } else if (op === '×') {
+      for (let i = 0; i < 300; i++) { a = rand(2, fmax); b = rand(2, fmax); if (a * b <= max) break; }
+      ans = a * b; text = `${a} × ${b}`;
+    } else {
+      let q;
+      for (let i = 0; i < 300; i++) { b = rand(2, fmax); q = rand(2, fmax); if (b * q <= max) break; }
+      a = b * q; ans = q; text = `${a} : ${b}`;
+    }
+    return { text, ans };
+  }
+
+  /* ---------------- Hilfsfunktionen ---------------- */
+  function later(fn, ms) { const id = setTimeout(fn, ms); timers.push(id); return id; }
+  function clearAll() { timers.forEach(clearTimeout); timers = []; cancelAnimationFrame(st && st.raf); }
+  function setStatus(html, color) { const s = $('status'); s.innerHTML = html; s.style.color = color || ''; }
+  const name = t => (t === 0 ? cfg.nameA : cfg.nameB);
+
+  function esc(s) { return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  /* ---------------- Start / Setup ---------------- */
+  function readConfig() {
+    const ops = [];
+    if ($('opAdd').checked) ops.push('+');
+    if ($('opSub').checked) ops.push('−');
+    if ($('opMul').checked) ops.push('×');
+    if ($('opDiv').checked) ops.push(':');
+    const c = {
+      nameA: $('nameA').value.trim() || 'Team Rot',
+      nameB: $('nameB').value.trim() || 'Team Blau',
+      min: parseInt($('min').value, 10),
+      max: parseInt($('max').value, 10),
+      fmax: parseInt($('fmax').value, 10),
+      ops,
+      mode: $('mode').value,
+      goals: parseInt($('goals').value, 10),
+      steps: parseInt($('steps').value, 10),
+      time: Math.max(0, parseInt($('time').value, 10) || 0),
+      penalty: $('penalty').checked,
+    };
+    let err = '';
+    if (!ops.length) err = 'Bitte mindestens eine Rechenart auswählen.';
+    else if (isNaN(c.min) || isNaN(c.max) || c.min < 0) err = 'Bitte einen gültigen Zahlenraum eingeben (Von ≥ 0).';
+    else if (c.max <= c.min) err = '„Bis“ muss größer als „Von“ sein.';
+    else if ((ops.includes('×') || ops.includes(':')) && (isNaN(c.fmax) || c.fmax < 2)) err = 'Der größte Faktor muss mindestens 2 sein.';
+    else if (ops.includes('×') && c.max < 4) err = 'Für Multiplikation muss „Bis“ mindestens 4 sein.';
+    else if (ops.includes(':') && c.max < 4) err = 'Für Division muss „Bis“ mindestens 4 sein.';
+    return { c, err };
+  }
+
+  function start() {
+    const { c, err } = readConfig();
+    $('err').textContent = err;
+    if (err) return;
+    cfg = c;
+    soundOn = $('sound').checked;
+    $('btnMute').textContent = soundOn ? '🔊' : '🔇';
+    st = { score: [0, 0], pos: 0, q: null, locked: [false, false], input: ['', ''], open: false, lastOp: null, raf: 0 };
+
+    $('sNameA').textContent = cfg.nameA; $('sNameB').textContent = cfg.nameB;
+    $('pNameA').textContent = cfg.nameA; $('pNameB').textContent = cfg.nameB;
+    $('glA').textContent = cfg.nameA; $('glB').textContent = cfg.nameB;
+    $('jA').textContent = `✔ Punkt für ${cfg.nameA}`;
+    $('jB').textContent = `✔ Punkt für ${cfg.nameB}`;
+    $('sPtsA').textContent = '0'; $('sPtsB').textContent = '0';
+
+    const board = cfg.mode === 'board';
+    $('panels').classList.toggle('hidden', board);
+    $('judge').classList.toggle('hidden', !board);
+
+    $('ticks').innerHTML = '<i></i>'.repeat(2 * cfg.steps + 1);
+    $('setup').classList.add('hidden');
+    $('game').classList.remove('hidden');
+    hideOverlay();
+    placeBall(false);
+    sndWhistle();
+    later(nextQuestion, 500);
+  }
+
+  function backToSetup() {
+    if (st) clearAll();
+    hideOverlay();
+    $('game').classList.add('hidden');
+    $('setup').classList.remove('hidden');
+  }
+
+  /* ---------------- Ball ---------------- */
+  function placeBall(animate = true) {
+    const ball = $('ball');
+    const frac = (st.pos + cfg.steps) / (2 * cfg.steps);       // 0..1
+    ball.style.left = (7 + frac * 86) + '%';
+    if (animate) { ball.classList.remove('roll'); void ball.offsetWidth; ball.classList.add('roll'); }
+  }
+
+  /* ---------------- Runde ---------------- */
+  function nextQuestion() {
+    if (!st) return;
+    st.q = makeQuestion();
+    st.locked = [false, false];
+    st.input = ['', ''];
+    st.open = true;
+    const q = $('question');
+    q.textContent = `${st.q.text} = ?`;
+    q.classList.remove('in'); void q.offsetWidth; q.classList.add('in');
+    setStatus('');
+    renderAnswers();
+    if (cfg.mode === 'board') {
+      $('jReveal').disabled = false; $('jA').disabled = false; $('jB').disabled = false;
+    }
+    startTimer();
+  }
+
+  function startTimer() {
+    const bar = $('timerbar'), fill = $('timerfill');
+    cancelAnimationFrame(st.raf);
+    if (!cfg.time) { bar.classList.add('hidden'); return; }
+    bar.classList.remove('hidden');
+    const t0 = performance.now(), total = cfg.time * 1000, q = st.q;
+    const tick = now => {
+      if (!st.open || st.q !== q) return;
+      const left = Math.max(0, 1 - (now - t0) / total);
+      fill.style.transform = `scaleX(${left})`;
+      fill.style.background = left < .25 ? 'var(--bad)' : 'var(--gold)';
+      if (left <= 0) return timeUp();
+      st.raf = requestAnimationFrame(tick);
+    };
+    st.raf = requestAnimationFrame(tick);
+  }
+
+  function timeUp() {
+    if (!st.open) return;
+    st.open = false;
+    sndBad();
+    setStatus(`⏰ Zeit um! Lösung: <b>${st.q.ans}</b>`, 'var(--gold)');
+    later(nextQuestion, 2000);
+  }
+
+  function renderAnswers() {
+    [0, 1].forEach(t => {
+      const el = $(t ? 'ansB' : 'ansA');
+      el.textContent = st.input[t] || '…';
+      el.classList.toggle('empty', !st.input[t]);
+      $(t ? 'panelB' : 'panelA').classList.toggle('locked', st.locked[t]);
+    });
+  }
+
+  function press(t, key) {
+    if (!st || !st.open || st.locked[t] || cfg.mode !== 'device') return;
+    if (key === 'OK') return submit(t);
+    if (key === 'DEL') st.input[t] = st.input[t].slice(0, -1);
+    else if (st.input[t].length < 7) st.input[t] += key;
+    renderAnswers();
+  }
+
+  function submit(t) {
+    if (!st.open || st.locked[t] || !st.input[t]) return;
+    if (parseInt(st.input[t], 10) === st.q.ans) awardPoint(t);
+    else wrong(t);
+  }
+
+  function wrong(t) {
+    st.locked[t] = true;
+    sndBad();
+    const p = $(t ? 'panelB' : 'panelA');
+    p.classList.remove('shake'); void p.offsetWidth; p.classList.add('shake');
+    if (cfg.penalty) {
+      // Ball rollt zurück, kann aber nie ein Eigentor erzeugen
+      st.pos = Math.max(-cfg.steps + 1, Math.min(cfg.steps - 1, st.pos + (t === 0 ? -1 : 1)));
+      placeBall();
+    }
+    renderAnswers();
+    if (st.locked[0] && st.locked[1]) {
+      st.open = false;
+      cancelAnimationFrame(st.raf);
+      setStatus(`Beide daneben – Lösung: <b>${st.q.ans}</b>`, 'var(--gold)');
+      later(nextQuestion, 2200);
+    } else {
+      setStatus(`✗ ${esc(name(t))}: falsch – ${esc(name(1 - t))} ist dran!`, 'var(--bad)');
+    }
+  }
+
+  function awardPoint(t) {
+    st.open = false;
+    cancelAnimationFrame(st.raf);
+    sndOk();
+    setStatus(`✓ ${esc(name(t))}: ${st.q.ans} ist richtig!`, 'var(--ok)');
+    st.pos += t === 0 ? 1 : -1;
+    placeBall();
+    if (Math.abs(st.pos) >= cfg.steps) return later(() => goal(t), 650);
+    later(nextQuestion, 1500);
+  }
+
+  function goal(t) {
+    st.score[t]++;
+    const el = $(t ? 'scoreB' : 'scoreA');
+    $(t ? 'sPtsB' : 'sPtsA').textContent = st.score[t];
+    el.classList.add('pop'); later(() => el.classList.remove('pop'), 500);
+    sndGoal();
+    const won = st.score[t] >= cfg.goals;
+    if (won) return finish(t);
+    showOverlay(`<div class="t">TOR!</div><div class="s">${esc(name(t))} trifft – Stand ${st.score[0]} : ${st.score[1]}</div>`);
+    confetti(24);
+    later(() => { hideOverlay(); st.pos = 0; placeBall(false); sndWhistle(); later(nextQuestion, 400); }, 2200);
+  }
+
+  function finish(t) {
+    confetti(70);
+    showOverlay(
+      `<div class="t">🏆 ${esc(name(t))}</div>
+       <div class="s">gewinnt ${st.score[0]} : ${st.score[1]}!</div>
+       <div class="btns"><button class="main" id="ovAgain">Nochmal spielen</button><button id="ovMenu">Einstellungen</button></div>`);
+    $('ovAgain').onclick = () => { clearAll(); start(); };
+    $('ovMenu').onclick = backToSetup;
+  }
+
+  /* ---------------- Tafel-Modus ---------------- */
+  function reveal() {
+    if (!st.open) return;
+    setStatus(`Lösung: <b>${st.q.ans}</b>`, 'var(--gold)');
+    $('jReveal').disabled = true;
+  }
+  function judge(t) {
+    if (!st.open) return;
+    if (t === null) { st.open = false; cancelAnimationFrame(st.raf); return nextQuestion(); }
+    awardPoint(t);
+    $('jA').disabled = $('jB').disabled = true;
+  }
+
+  /* ---------------- Overlay / Effekte ---------------- */
+  function showOverlay(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden'); }
+  function hideOverlay() { $('overlay').classList.add('hidden'); $('overlay').innerHTML = ''; document.querySelectorAll('.confetti').forEach(n => n.remove()); }
+  function confetti(n) {
+    const icons = ['⚽', '🎉', '⭐', '🏆', '✨'];
+    for (let i = 0; i < n; i++) {
+      const s = document.createElement('span');
+      s.className = 'confetti';
+      s.textContent = icons[rand(0, icons.length - 1)];
+      s.style.left = rand(0, 98) + 'vw';
+      s.style.animationDuration = (1.6 + Math.random() * 2) + 's';
+      s.style.animationDelay = (Math.random() * .6) + 's';
+      document.body.appendChild(s);
+      setTimeout(() => s.remove(), 4500);
+    }
+  }
+
+  /* ---------------- Aufbau & Events ---------------- */
+  function buildPad(id, t) {
+    const el = $(id);
+    ['1','2','3','4','5','6','7','8','9','DEL','0','OK'].forEach(k => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = k === 'DEL' ? '⌫' : k === 'OK' ? '✔' : k;
+      if (k === 'DEL') b.className = 'del';
+      if (k === 'OK') b.className = 'go';
+      b.setAttribute('aria-label', k === 'DEL' ? 'Löschen' : k === 'OK' ? 'Antwort abgeben' : k);
+      b.addEventListener('click', () => press(t, k));
+      el.appendChild(b);
+    });
+  }
+  buildPad('padA', 0);
+  buildPad('padB', 1);
+
+  $('start').addEventListener('click', start);
+  $('btnMenu').addEventListener('click', backToSetup);
+  $('btnMute').addEventListener('click', () => { soundOn = !soundOn; $('btnMute').textContent = soundOn ? '🔊' : '🔇'; });
+  $('jReveal').addEventListener('click', reveal);
+  $('jA').addEventListener('click', () => judge(0));
+  $('jB').addEventListener('click', () => judge(1));
+  $('jNone').addEventListener('click', () => judge(null));
+
+  document.addEventListener('keydown', e => {
+    if ($('game').classList.contains('hidden') || !st) return;
+    if (cfg.mode === 'board') {
+      if (e.code === 'Space') { e.preventDefault(); reveal(); }
+      else if (e.key === 'ArrowLeft') judge(0);
+      else if (e.key === 'ArrowRight') judge(1);
+      return;
+    }
+    const c = e.code;
+    if (/^Digit\d$/.test(c)) { press(0, c.slice(5)); e.preventDefault(); }
+    else if (c === 'Enter')  { press(0, 'OK'); e.preventDefault(); }
+    else if (c === 'Backspace') { press(0, 'DEL'); e.preventDefault(); }
+    else if (/^Numpad\d$/.test(c)) { press(1, c.slice(6)); e.preventDefault(); }
+    else if (c === 'NumpadEnter') { press(1, 'OK'); e.preventDefault(); }
+    else if (c === 'NumpadDecimal' || c === 'NumpadSubtract') { press(1, 'DEL'); e.preventDefault(); }
+  });
+})();
+</script>
+</body>
+</html>
