@@ -271,6 +271,46 @@ body.sad .nowood{display:flex}
 .qnav{display:flex;gap:14px;justify-content:center;align-items:center;margin-top:12px;flex-wrap:wrap}
 .dots{display:flex;gap:8px}.dots i{width:22px;height:22px;border-radius:50%;background:#ced4da;border:3px solid var(--ink)}.dots i.on{background:var(--btn)}
 
+/* ---------- Sonderkarten ---------- */
+.modebox{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:10px auto 18px;max-width:1300px}
+.mode{cursor:pointer;flex:1 1 380px;max-width:620px;position:relative}
+.mode input{position:absolute;opacity:0;width:1px;height:1px}
+.mode span{display:block;background:#fff;border:6px solid #ced4da;border-radius:24px;padding:10px 16px;font-size:1.3rem;min-height:104px;transition:transform .15s}
+.mode small{display:block;font-size:1rem;font-weight:700;color:#495057;margin-top:4px}
+.mode input:checked+span{border-color:var(--leaf);background:#ebfbee;transform:scale(1.03);box-shadow:0 0 0 5px var(--gold)}
+.mode input:focus-visible+span{outline:5px solid #ffd43b;outline-offset:3px}
+.badges{display:flex;gap:4px;align-items:center;flex:none}
+.cards{flex:none;font-size:1.1rem;letter-spacing:2px}
+.cards .used{opacity:.2;filter:grayscale(1)}
+.badge{flex:none;font-size:1.05rem;background:#fff3bf;border:3px solid var(--gold-dark);border-radius:12px;padding:0 6px}
+.dialog{max-height:94vh;overflow:auto}
+.dialog.wide{max-width:1000px}
+.dialog h3{font-size:1.1rem;margin:12px 0 2px;text-align:left}
+.dialog p{font-size:1.1rem;margin:6px 0}
+.sprow{display:flex;align-items:center;gap:14px;margin:8px 0;text-align:left}
+.sprow .btn{flex:0 0 340px;justify-content:flex-start}
+.sphint{font-size:1rem;flex:1}
+.tpick{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin:10px 0}
+.tbtn{min-height:76px;min-width:210px;border-radius:20px;border:6px solid var(--c);background:#fff;font-size:1.15rem;font-weight:800;cursor:pointer;padding:6px 14px;display:flex;align-items:center;gap:8px;justify-content:center}
+.tbtn:disabled{opacity:.3;cursor:not-allowed}
+.tbtn:focus-visible{outline:5px solid #ffd43b;outline-offset:3px}
+.paytab{display:grid;grid-template-columns:1fr auto auto;gap:4px 18px;align-items:center;text-align:left;font-size:1.05rem;margin:8px auto;max-width:700px}
+.pay{color:#c92a2a}
+.confrow{display:flex;align-items:center;gap:10px;margin:6px 0;justify-content:space-between;text-align:left}
+.confrow>span:first-child{flex:1}
+.confrow>.pay{min-width:6.5em;text-align:right}
+.confrow .stepper{flex:none}
+.confrow .stepper b{min-width:2.2em;text-align:center;font-size:1.6rem}
+.sumline{font-size:1.2rem;background:#fff8db;border:4px solid var(--gold-dark);border-radius:16px;padding:4px 10px}
+.bigcard{width:min(760px,92vw);border-radius:34px;border:10px solid #fff;padding:22px;text-align:center;box-shadow:0 12px 0 rgba(0,0,0,.25);animation:cardflip .9s cubic-bezier(.3,1.4,.5,1);cursor:pointer}
+.bigcard.yellow{background:#ffd43b;transform:rotate(-3deg)}
+.bigcard.red{background:#e03131;color:#fff;transform:rotate(3deg)}
+.bigcard.event{background:#fff}
+.bigcard .ce{font-size:6rem;display:block;line-height:1.1}
+.bigcard b{font-size:2.6rem;display:block}
+.bigcard .cs{font-size:1.4rem;display:block;margin-top:6px}
+@keyframes cardflip{from{opacity:0;transform:perspective(900px) rotateY(100deg) scale(.3)}}
+
 /* ---------- Ruhige Ansicht ---------- */
 body.calm *,body.calm *::before,body.calm *::after{animation:none!important;transition:none!important}
 body.calm .rainbow{display:none}
@@ -297,6 +337,11 @@ body.calm .rainbow{display:none}
   </div>
   <div style="font-size:1.2rem">Wie heißen die Teams?</div>
   <div class="teamsetup" id="teamSetup"></div>
+  <div style="font-size:1.2rem">Wie wollt ihr spielen?</div>
+  <div class="modebox" role="radiogroup" aria-label="Spielart">
+    <label class="mode"><input type="radio" name="mode" value="basic" checked><span>🌳 Ohne Sonderereignisse<small>Das Grundspiel</small></span></label>
+    <label class="mode"><input type="radio" name="mode" value="events"><span>🃏 Mit Sonderereignissen<small>Rote und gelbe Karten, Aufforstung, Konferenz, Großvertrag</small></span></label>
+  </div>
   <button class="btn big green" id="btnStart">🌳 Spiel starten</button>
   <div class="tools" style="justify-content:center;margin-top:16px">
     <button class="btn light keep" data-tool="sound">🔇 Ton aus</button>
@@ -338,6 +383,7 @@ body.calm .rainbow{display:none}
           <button class="btn red" id="btnFell">🪓 Bäume fällen</button>
           <button class="btn green" id="btnGrow">🌱 Wald wächst nach</button>
           <button class="btn" id="btnNext">➡️ Nächste Runde</button>
+          <button class="btn gold" id="btnSpecial" hidden>🃏 Sonderkarten</button>
         </div>
         <div class="timeline" id="timeline"></div>
       </div>
@@ -410,6 +456,13 @@ body.calm .rainbow{display:none}
   </div>
 </div>
 
+<!-- Dialoge für Sonderkarten -->
+<div class="overlay" id="dlgOverlay" hidden>
+  <div class="dialog wide"><h2 id="dlgTitle"></h2><div id="dlgBody"></div></div>
+</div>
+<!-- Große Karten-Ansage -->
+<div class="overlay" id="announceOverlay" style="z-index:70" hidden></div>
+
 <script>
 'use strict';
 /* =====================================================================
@@ -421,6 +474,8 @@ const ROUNDS = 10;             // 1 Runde = 1 Jahrzehnt
 const COINS_PER_TREE = 100;    // Forstlinge pro gefälltem Baum
 const REGROW_LIMIT = 25;       // ab 25 Bäumen wird der Wald wieder voll
 const SUSTAINABLE_PER_TEAM = 5000;   // 5 Bäume × 10 Runden × 100
+const CONTRACT_HIGH = 150, CONTRACT_LOW = 50;   // Großvertrag: Forstlinge je Baum
+const AID_LIMIT = 8, CONFERENCE_LIMIT = 15;     // Sonderkarten der Spielleitung: „weniger als …“ Bäume
 
 const TEAM_STYLE = [
   { color:'#e03131', animal:'🦊' },
@@ -430,12 +485,16 @@ const TEAM_STYLE = [
   { color:'#0b7285', animal:'🐢' },
 ];
 
-const QUESTIONS = [
-  { e:'🌳', t:'Was ist mit unserem Wald passiert?', h:'Wie viele Bäume gab es am Anfang? Wie viele jetzt?' },
-  { e:'🤔', t:'Was hätten wir anders machen können?', h:'Wie viele Bäume wären gut für alle gewesen?' },
-  { e:'😢', t:'Wie war es, wenn kein Baum mehr für euch da war?', h:'Wer ist leer ausgegangen? Wie hat sich das angefühlt?' },
-  { e:'🤝', t:'Was hilft, damit der Wald bleibt?', h:'Miteinander reden. Nicht zu viel nehmen. Aufpassen.' },
-  { e:'🌍', t:'Was können wir im echten Leben für den Wald tun?', h:'Papier sparen. Bäume pflanzen. Nichts wegwerfen.' },
+const QUESTIONS = [   // Abschlussfragen nach der Spielanleitung
+  { e:'🌳', t:'Was ist im Spiel passiert?', h:'Wie viele Bäume gab es am Anfang? Wie viele jetzt?' },
+  { e:'🏗️', t:'Was war für das Ergebnis verantwortlich?', h:'Die Spielregeln haben viel bestimmt, nicht nur einzelne Kinder.' },
+  { e:'🪙', t:'Wie viele Forstlinge wären nachhaltig möglich gewesen?', h:'25 Bäume × 10 Runden ÷ 5 Teams = 50 Bäume je Team = 5.000 🪙' },
+  { e:'📊', t:'Was haben die Teams wirklich erreicht?', h:'Schaut auf die Balken. Wer hat wie viel?' },
+  { e:'🏆', t:'Wer ist der „Sieger“ im Spiel?', h:'Sind das die Teams? Oder der Wald?' },
+  { e:'🤝', t:'Welche Strategie hätte allen am meisten gebracht? Woran ist sie gescheitert?', h:'Miteinander reden. Sich an Absprachen halten.' },
+  { e:'🌲', t:'Was ist mit unserem Wald UnaSilva passiert?', h:'Was wurde aus den Tieren?' },
+  { e:'🌍', t:'Wo gibt es im echten Leben ähnliche Situationen?', h:'Fische im Meer. Regenwald. Wasser. Papier.' },
+  { e:'💡', t:'Welche Strategien führen zu einem besseren Ergebnis?', h:'Nicht zu viel nehmen. Aufpassen. Bäume pflanzen.' },
 ];
 
 /* =====================================================================
@@ -448,7 +507,7 @@ let soundOn = false;
 let audioCtx = null;
 let qIndex = 0;
 
-function newState(names){
+function newState(names, events = false){
   return {
     view: 'start',                       // 'start' | 'game' | 'end'
     round: 1,                            // 1..10
@@ -460,6 +519,17 @@ function newState(names){
     results: Array(TEAM_COUNT).fill(null), // {wish, got} nach dem Fällen
     stats: [],                           // je Runde: {afterFell, afterGrow}
     note: '',                            // Text für die Sprechblase
+    // --- Sonderregeln (nur aktiv, wenn events === true) ---
+    events,                              // Spiel mit Sonderereignissen?
+    cards: names.map(() => ({ red:true, yellow:true })), // Karten der Teams (true = noch da)
+    skip: Array(TEAM_COUNT).fill(0),     // Rote Karte: Runden, die ein Team noch aussetzt
+    paused: false,                       // Gelbe Karte: diese Runde pausiert
+    bonusTrees: 0,                       // Extra-Bäume der Spielleitung, kommen NACH der Verdopplung
+    touched: false,                      // in dieser Runde wurde vor dem Ziehen schon eine Karte gespielt
+    contractUsed: false,                 // Großvertrag schon benutzt?
+    contractNext: false,                 // Großvertrag gilt in der nächsten Runde
+    contractActive: false,               // Großvertrag gilt in dieser Runde
+    roundEvents: { aid:false, conf:false }, // Spielleiter-Karten, die diese Runde schon gespielt wurden
   };
 }
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -498,6 +568,29 @@ function planGrowth(slots, rnd = Math.random){
   return shuffle(empty, rnd).slice(0, need);
 }
 
+const ceil100 = v => Math.ceil(v / 100) * 100;   // immer auf volle 100 aufrunden
+
+/** Wünsche der Teams: Ein Team im Boykott (Rote Karte) wünscht sich nichts. */
+const effWishes = () => S.wishes.map((w,i) => S.skip[i] > 0 ? 0 : w);
+
+/** Gelbe Karte: Jedes Team zahlt 20 % seiner Forstlinge (auf 100 aufgerundet, höchstens seine Kasse). */
+function planYellow(coins){ return coins.map(c => Math.min(c, ceil100(c / 5))); }
+
+/** Aufforstungsprogramm: höchste Einnahmen zahlen 1/2, zweithöchste 1/3, dritthöchste 1/6.
+    Gleiche Einnahmen zahlen gleich (Rang nach verschiedenen Beträgen). */
+function planAid(coins){
+  const values = [...new Set(coins.filter(c => c > 0))].sort((a,b) => b - a).slice(0,3);
+  const parts = [2,3,6];
+  return coins.map(c => { const r = values.indexOf(c); return r < 0 ? 0 : Math.min(c, ceil100(c / parts[r])); });
+}
+
+/** Großvertrag: Team mit dem höchsten Baumwunsch; bei Gleichstand das zuerst gezogene. */
+function contractHolder(wishes, order){
+  let best = 0, holder = null;
+  for(const t of order){ if(wishes[t] > best){ best = wishes[t]; holder = t; } }
+  return holder;
+}
+
 /** Beispielspiele zur Kontrolle der Regeln (Ausgabe in der Browser-Konsole). */
 function selfTest(){
   const ok = (name, cond) => console.assert(cond, 'REGELTEST FEHLT: ' + name);
@@ -523,6 +616,13 @@ function selfTest(){
   ok('Wuchs 10 → 10 neue', planGrowth(s).length === 10);
   const t = full.slice(); for(let i=0;i<30;i++) t[i]=false;
   ok('20 Bäume → 40, also 20 neue', planGrowth(t).length === 20);
+  // Sonderregeln
+  const eq = (a,b) => JSON.stringify(a) === JSON.stringify(b);
+  ok('Gelbe Karte 20 %', eq(planYellow([1000,0,300,50,1500]), [200,0,100,50,300]));
+  ok('Aufforstung 1/2, 1/3, 1/6', eq(planAid([2000,1000,500,500,0]), [1000,400,100,100,0]));
+  ok('Aufforstung Gleichstand', eq(planAid([2000,2000,1000,0,0]), [1000,1000,400,0,0]));
+  ok('Großvertrag: zuerst gezogen', contractHolder([5,8,8,0,2],[2,1,0,3,4]) === 2);
+  ok('Großvertrag: niemand wünscht', contractHolder([0,0,0,0,0],[0,1,2,3,4]) === null);
 }
 selfTest();
 
@@ -553,6 +653,7 @@ const sfx = {
   card:  n => tone(400+n*90,.2,'triangle',.18),
   squeak:() => tone(600+Math.random()*500,.12,'square',.06),
   fanfare: () => [523,659,784,1047].forEach((f,i)=>tone(f,.3,'triangle',.15,i*.16)),
+  whistle: () => [0,.18,.36].forEach(d => tone(2300,.14,'square',.07,d)),
   sad:   () => [392,330,262].forEach((f,i)=>tone(f,.4,'sine',.15,i*.3)),
 };
 
@@ -754,26 +855,37 @@ function renderTeams(){
   const box = $('#teams'); box.innerHTML = '';
   const canEdit = !busy && (S.phase === 'wish' || S.phase === 'drawn');
   const ranks = S.teams.map(t => 1 + S.teams.filter(o => o.coins > t.coins).length);
+  const eff = effWishes();
+  const holder = S.contractActive && S.phase !== 'wish' ? contractHolder(eff, S.order) : null;
   S.order.forEach((ti, pos) => {
     const t = S.teams[ti], st = TEAM_STYLE[ti];
     const el = document.createElement('div');
     el.className = 'team'; el.dataset.i = ti; el.style.setProperty('--c', st.color);
     const showArrows = S.phase === 'drawn' && !busy;
+    const editable = canEdit && S.skip[ti] === 0;
+    let badges = '';
+    if(S.events) badges += `<span class="cards"><span class="${S.cards[ti].yellow?'':'used'}" title="Gelbe Karte">🟨</span><span class="${S.cards[ti].red?'':'used'}" title="Rote Karte">🟥</span></span>`;
+    if(S.skip[ti] > 0) badges += `<span class="badge" title="Boykott: setzt aus">🚫 ${S.skip[ti]}</span>`;
+    if(holder === ti) badges += `<span class="badge" title="Großvertrag">📜 ${CONTRACT_HIGH}</span>`;
+    const late = S.phase === 'felled' || S.phase === 'grown';
+    const resTxt = late ? (S.paused ? '⏸️ Pause' : S.skip[ti] > 0 ? '🚫 Boykott' : resultText(S.results[ti]))
+                        : (S.skip[ti] > 0 ? '🚫 setzt aus' : '🌳 Wunsch');
     el.innerHTML = `
       <div class="row1">
         <span class="pos" title="Reihenfolge">${S.phase === 'wish' ? '·' : pos+1}</span>
         <span class="tanim">${st.animal}</span>
         <span class="tname"></span>
+        <span class="badges">${badges}</span>
         <span class="kasse"><span class="coinstack">${coinStackHTML(t.coins)}</span><span class="coins">${fmt(t.coins)}</span></span>
       </div>
       <div class="row2">
         <div class="stepper">
-          <button class="rb minus" aria-label="weniger Bäume" ${canEdit?'':'disabled'}>−</button>
-          <input class="wish" type="number" inputmode="numeric" min="0" max="${MAX_TREES}" value="${S.wishes[ti]}" aria-label="Baumwunsch ${t.name}" ${canEdit?'':'disabled'}>
-          <button class="rb plus" aria-label="mehr Bäume" ${canEdit?'':'disabled'}>+</button>
+          <button class="rb minus" aria-label="weniger Bäume" ${editable?'':'disabled'}>−</button>
+          <input class="wish" type="number" inputmode="numeric" min="0" max="${MAX_TREES}" value="${eff[ti]}" aria-label="Baumwunsch" ${editable?'':'disabled'}>
+          <button class="rb plus" aria-label="mehr Bäume" ${editable?'':'disabled'}>+</button>
         </div>
         ${showArrows ? `<div class="arrows"><button class="rb up" aria-label="früher" ${pos===0?'disabled':''}>▲</button><button class="rb down" aria-label="später" ${pos===TEAM_COUNT-1?'disabled':''}>▼</button></div>`
-                     : `<div class="res">${(S.phase==='felled'||S.phase==='grown') ? resultText(S.results[ti]) : '🌳 Wunsch'}</div>`}
+                     : `<div class="res">${resTxt}</div>`}
       </div>
       <div class="rankbar"><i style="width:${barPct(t.coins)}%"></i>${t.coins>0 && ranks[ti]<=3 ? `<span class="medal">${['🥇','🥈','🥉'][ranks[ti]-1]}</span>`:''}</div>`;
     el.querySelector('.tname').textContent = t.name;
@@ -817,15 +929,26 @@ function updateButtons(){
   set('#btnGrow', p==='felled', p==='felled');
   set('#btnNext', p==='grown', p==='grown');
   $('#btnNext').textContent = S.round === ROUNDS ? '📊 Auswertung' : '➡️ Nächste Runde';
-  const canUndo = !busy && (p !== 'wish' || snaps.length > 1);
+  const n = countTrees(S.slots);
+  const sp = $('#btnSpecial');
+  sp.hidden = !S.events; sp.disabled = busy;
+  sp.classList.toggle('next-step', S.events && !busy && p === 'felled' && n < CONFERENCE_LIMIT && !(S.roundEvents.aid && S.roundEvents.conf));
+  const canUndo = !busy && (p !== 'wish' || S.touched || snaps.length > 1);
   $('#btnUndo').disabled = !canUndo;
   $('#btnNew').disabled = busy;
 }
 
 function phaseMessage(){
   switch(S.phase){
-    case 'wish':   return '📝 Jedes Team schreibt seinen Baumwunsch auf. Dann: Ziehen!';
-    case 'drawn':  return S.note || '🎲 So ist die Reihenfolge. Jetzt: Bäume fällen!';
+    case 'wish':   return S.note || (S.contractActive
+                     ? `📜 Großvertrag! Der höchste Wunsch bekommt ${CONTRACT_HIGH} 🪙 je Baum.`
+                     : '📝 Jedes Team schreibt seinen Baumwunsch auf. Dann: Ziehen!');
+    case 'drawn': {
+      if(S.note) return S.note;
+      const h = S.contractActive ? contractHolder(effWishes(), S.order) : null;
+      return h != null ? `📜 Großvertrag: ${S.teams[h].name} bekommt ${CONTRACT_HIGH} 🪙 je Baum!`
+                       : '🎲 So ist die Reihenfolge. Jetzt: Bäume fällen!';
+    }
     case 'felled': return S.note || '🌱 Jetzt wächst der Wald nach.';
     case 'grown':  return S.note || (S.round === ROUNDS ? '📊 Geschafft! Jetzt kommt die Auswertung.' : '➡️ Weiter zur nächsten Runde.');
   }
@@ -840,7 +963,7 @@ function render(){
   const n = countTrees(S.slots);
   paintSlots();
   applyCount(n);
-  $('#roundInfo').textContent = `Runde ${S.round} von ${ROUNDS} · Jahr ${S.round*10}`;
+  $('#roundInfo').textContent = `Runde ${S.round} von ${ROUNDS} · Jahr ${S.round*10}` + (S.events ? ' · 🃏' : '');
   setMsg(phaseMessage());
   renderTeams(); renderTimeline(); updateButtons();
   document.body.classList.toggle('party', S.round === ROUNDS && S.phase === 'grown' && n >= MAX_TREES);
@@ -885,7 +1008,10 @@ function doDraw(){ return run(async () => {
 /* --- Bäume fällen --- */
 function doFell(){ return run(async () => {
   const present = []; S.slots.forEach((on,i) => { if(on) present.push(i); });
-  const plan = planFelling(present, S.wishes, S.order);
+  const eff = effWishes();
+  const plan = planFelling(present, eff, S.order);
+  const holder = S.contractActive ? contractHolder(eff, S.order) : null;
+  const rateOf = ti => !S.contractActive ? COINS_PER_TREE : (ti === holder ? CONTRACT_HIGH : CONTRACT_LOW);
   let count = present.length;
   const shown = S.teams.map(t => t.coins);
   setMsg('🪓 Los geht\'s!');
@@ -897,16 +1023,17 @@ function doFell(){ return run(async () => {
     card.classList.add('active');
     card.scrollIntoView({block:'nearest', behavior: isCalm() ? 'auto' : 'smooth'});
     if(p.wish === 0){
-      setMsg(`${st.animal} ${t.name} wünscht sich keinen Baum.`);
+      setMsg(S.skip[p.team] > 0 ? `🚫 ${t.name} setzt aus (Boykott).` : `${st.animal} ${t.name} wünscht sich keinen Baum.`);
       await sleep(900); card.classList.remove('active'); continue;
     }
     if(p.got === 0){
       setMsg(`😢 ${t.name} geht leer aus. Es ist kein Baum mehr da.`);
       await sleep(1600); card.classList.remove('active'); continue;
     }
-    setMsg(p.got === p.wish
+    setMsg((p.got === p.wish
       ? `${st.animal} ${t.name} bekommt ${p.got} ${p.got===1?'Baum':'Bäume'}!`
-      : `${st.animal} ${t.name} wollte ${p.wish}. Es gibt nur noch ${p.got}.`);
+      : `${st.animal} ${t.name} wollte ${p.wish}. Es gibt nur noch ${p.got}.`)
+      + (S.contractActive ? ` 📜 ${rateOf(p.team)} 🪙 je Baum` : ''));
     // 1) Bäume in Teamfarbe markieren
     p.slots.forEach(i => { const e = slotEl(i); e.style.setProperty('--c', st.color); e.classList.add('marked'); });
     await sleep(900);
@@ -927,7 +1054,7 @@ function doFell(){ return run(async () => {
     }
     await sleep(1000);
     // 3) Münzen fliegen in die Kasse
-    const gain = p.got * COINS_PER_TREE;
+    const gain = p.got * rateOf(p.team);
     const target = $(`.team[data-i="${p.team}"] .coinstack`).getBoundingClientRect();
     const nCoins = Math.min(p.got, 10);
     if(isCalm()){
@@ -958,41 +1085,63 @@ function doFell(){ return run(async () => {
   const stat = { afterFell: left, afterGrow: null };
   S.stats[S.round-1] = stat;
   S.phase = 'felled';
-  S.note = left === 0 ? '😢 Kein Baum ist mehr da! Kein Holz mehr!'
-         : `🪓 Es stehen noch ${left} Bäume. Jetzt wächst der Wald nach.`;
+  const hint = S.events && left < CONFERENCE_LIMIT ? ' ⚡ Sonderkarte möglich!' : '';
+  S.note = left === 0 ? '😢 Kein Baum ist mehr da! Kein Holz mehr!' + hint
+         : `🪓 Es stehen noch ${left} Bäume.${hint || ' Jetzt wächst der Wald nach.'}`;
   if(left === 0) sfx.sad();
 }); }
 
 /* --- Nachwuchs --- */
+/** Lässt die Bäume auf den Plätzen `list` nacheinander aufpoppen. Gibt die neue Baumzahl zurück. */
+async function sproutSlots(list, count, icons, pitch = 0){
+  const gap = Math.min(140, 4200 / Math.max(1, list.length));
+  for(let k=0;k<list.length;k++){
+    const e = slotEl(list[k]);
+    e.classList.remove('stump'); e.classList.add('sprout');
+    count++; applyCount(count);
+    sfx.pling((k % 8) + pitch);
+    if(!isCalm()) fxAt(e.getBoundingClientRect(), 'spark', icons[k % icons.length]);
+    await sleep(gap);
+  }
+  await sleep(1300);
+  return count;
+}
+
 function doGrow(){ return run(async () => {
   let count = countTrees(S.slots);
-  const fresh = planGrowth(S.slots);
   const before = count;
+  const fresh = planGrowth(S.slots);                      // 1) normale Verdopplung
+  const taken = new Set(fresh);
+  const emptyLeft = [];
+  S.slots.forEach((on,i) => { if(!on && !taken.has(i)) emptyLeft.push(i); });
+  const extra = shuffle(emptyLeft).slice(0, S.bonusTrees); // 2) Extra-Bäume der Spielleitung, erst NACH der Verdopplung
+
+  if(S.paused){ setMsg('⏸️ Diese Runde war Pause. Der Wald wächst normal nach.'); await sleep(1500); }
   if(before === 0){
-    setMsg('😢 Ohne Bäume wächst nichts mehr.'); await sleep(1800);
-    S.note = '😢 Es gibt keine Bäume mehr. Nichts wächst nach.';
+    setMsg('😢 Ohne Bäume wächst nichts von allein.'); await sleep(1600);
   } else {
     setMsg(before >= REGROW_LIMIT
       ? `🎉 Es sind mindestens ${REGROW_LIMIT} Bäume da! Der Wald wird wieder voll.`
       : `🌱 Weniger als ${REGROW_LIMIT} Bäume. Es wachsen nur doppelt so viele.`);
     await sleep(1400);
-    const gap = Math.min(140, 4200 / Math.max(1, fresh.length));
-    for(let k=0;k<fresh.length;k++){
-      const e = slotEl(fresh[k]);
-      e.classList.remove('stump'); e.classList.add('sprout');
-      count++; applyCount(count);
-      sfx.pling(k % 8);
-      if(!isCalm()) fxAt(e.getBoundingClientRect(), 'spark', k%2 ? '✨' : '⭐');
-      await sleep(gap);
-    }
-    await sleep(1300);
-    S.note = count >= MAX_TREES ? '🌳 Der Wald ist wieder voll!' :
-             `🌱 Jetzt sind es ${count} Bäume.`;
+    if(fresh.length) count = await sproutSlots(fresh, count, ['✨','⭐']);
   }
-  fresh.forEach(i => S.slots[i] = true);
-  S.stats[S.round-1].afterGrow = countTrees(S.slots);
+  if(extra.length){
+    setMsg(`🌟 Die Spielleitung pflanzt ${extra.length} neue ${extra.length === 1 ? 'Baum' : 'Bäume'}!`);
+    await sleep(1400);
+    count = await sproutSlots(extra, count, ['🌟','💚'], 3);
+  } else if(S.bonusTrees > 0){
+    setMsg('🌳 Der Wald ist schon voll. Für neue Bäume ist kein Platz.'); await sleep(1600);
+  }
+
+  [...fresh, ...extra].forEach(i => S.slots[i] = true);
+  S.bonusTrees = 0;
+  const total = countTrees(S.slots);
+  S.note = (S.paused ? '⏸️ ' : '') + (total >= MAX_TREES ? '🌳 Der Wald ist wieder voll!' :
+           total === 0 ? '😢 Es gibt keine Bäume mehr. Nichts wächst nach.' : `🌱 Jetzt sind es ${total} Bäume.`);
+  S.stats[S.round-1].afterGrow = total;
   S.phase = 'grown';
-  if(S.round === ROUNDS && countTrees(S.slots) >= MAX_TREES){
+  if(S.round === ROUNDS && total >= MAX_TREES){
     S.note = '🎉 Der Wald ist voll! Ihr habt gut auf den Wald aufgepasst!';
     sfx.fanfare(); confetti();
   }
@@ -1002,7 +1151,10 @@ function doGrow(){ return run(async () => {
 function doNext(){
   if(busy || S.phase !== 'grown') return;
   if(S.round === ROUNDS){ S.view = 'end'; qIndex = 0; render(); if(document.body.classList.contains('party')){ sfx.fanfare(); confetti(); } return; }
-  S.round++; S.phase = 'wish'; S.note = '';
+  S.round++; S.phase = 'wish'; S.note = ''; S.paused = false; S.touched = false;
+  S.skip = S.skip.map(v => Math.max(0, v - 1));            // Boykott läuft ab
+  S.contractActive = S.contractNext; S.contractNext = false; // Großvertrag gilt jetzt
+  S.roundEvents = { aid:false, conf:false };
   S.wishes.fill(0); S.order = [...Array(TEAM_COUNT).keys()]; S.results.fill(null);
   snaps.push(clone(S));
   render();
@@ -1011,7 +1163,7 @@ function doNext(){
 /* --- Rückgängig: Runde neu beginnen bzw. zur vorigen Runde --- */
 async function doUndo(){
   if(busy) return;
-  const started = S.phase !== 'wish';
+  const started = S.phase !== 'wish' || S.touched;
   const ok = await askConfirm(started ? '↩️ Diese Runde noch einmal von vorn?' : '↩️ Zurück zur letzten Runde?', 'Ja, zurück');
   if(!ok) return;
   if(!started) snaps.pop();
@@ -1053,7 +1205,8 @@ function buildTeamSetup(){
 }
 function startGame(){
   const names = $$('#teamSetup input').map((inp,i) => inp.value.trim() || `Team ${i+1}`);
-  S = newState(names); S.view = 'game';
+  const events = document.querySelector('input[name="mode"]:checked').value === 'events';
+  S = newState(names, events); S.view = 'game';
   snaps = [clone(S)];
   animalSig = ''; animalsShown = 0; $('#animals').innerHTML = '';
   render();
@@ -1117,6 +1270,213 @@ function renderQuestion(){
 }
 
 /* =====================================================================
+   9b. SONDERKARTEN UND SONDERERIGNISSE (nur bei „Mit Sonderereignissen“)
+   - Karten der Teams (Rot/Gelb): am Rundenanfang, vor dem Ziehen. Haben Vorrang.
+   - Karten der Spielleitung: nach dem Fällen, vor dem Nachwachsen.
+   - Extra-Bäume (bonusTrees) kommen erst NACH der normalen Verdopplung dazu.
+   ===================================================================== */
+function mk(tag, cls = '', text = ''){
+  const e = document.createElement(tag);
+  if(cls) e.className = cls;
+  if(text) e.textContent = text;
+  return e;
+}
+function mkBtn(label, cls, fn){ const b = mk('button', 'btn ' + cls, label); b.type = 'button'; b.onclick = fn; return b; }
+const newTrees = n => n === 1 ? '1 neuer Baum' : `${n} neue Bäume`;
+const teamLabel = ti => `${TEAM_STYLE[ti].animal} ${S.teams[ti].name}`;
+
+/** Allgemeiner Dialog. build(box, close) füllt ihn; close(wert) schließt und liefert den Wert. */
+function dialog(title, build){
+  return new Promise(res => {
+    const ov = $('#dlgOverlay'), box = $('#dlgBody');
+    $('#dlgTitle').textContent = title; box.innerHTML = ''; ov.hidden = false;
+    const close = v => { ov.hidden = true; box.innerHTML = ''; res(v); };
+    build(box, close);
+  });
+}
+function pickTeam(title, enabledFn, hint = ''){
+  return dialog(title, (box, close) => {
+    if(hint) box.appendChild(mk('p', '', hint));
+    const g = mk('div', 'tpick');
+    S.teams.forEach((t, ti) => {
+      const b = mk('button', 'tbtn', teamLabel(ti)); b.type = 'button';
+      b.style.setProperty('--c', TEAM_STYLE[ti].color);
+      b.disabled = !enabledFn(ti); b.onclick = () => close(ti); g.appendChild(b);
+    });
+    box.appendChild(g);
+    const bt = mk('div', 'btns'); bt.appendChild(mkBtn('Abbrechen', 'light', () => close(null))); box.appendChild(bt);
+  });
+}
+function yesNo(title, build, yes = '✅ Ja', no = 'Abbrechen'){
+  return dialog(title, (box, close) => {
+    build(box);
+    const bt = mk('div', 'btns');
+    bt.append(mkBtn(yes, 'green', () => close(true)), mkBtn(no, 'light', () => close(false)));
+    box.appendChild(bt);
+  });
+}
+function payTable(pays){
+  const t = mk('div', 'paytab');
+  S.teams.forEach((tm, i) => t.append(mk('span', '', teamLabel(i)), mk('span', '', fmt(tm.coins) + ' 🪙'),
+                                      mk('span', 'pay', pays[i] > 0 ? '− ' + fmt(pays[i]) + ' 🪙' : '–')));
+  return t;
+}
+/** Große Karten-Ansage. Klick oder Zeit beendet sie. */
+async function announce(kind, emoji, title, sub){
+  const ov = $('#announceOverlay');
+  ov.innerHTML = '';
+  const c = mk('div', 'bigcard ' + kind);
+  c.append(mk('span', 'ce', emoji), mk('b', '', title), mk('span', 'cs', sub));
+  ov.appendChild(c); ov.hidden = false;
+  if(kind === 'event') sfx.pling(); else sfx.whistle();
+  await new Promise(res => { const t = setTimeout(res, isCalm() ? 600 : 2800); ov.onclick = () => { clearTimeout(t); res(); }; });
+  ov.hidden = true; ov.onclick = null;
+}
+
+/** Auswahl aller Sonderkarten */
+async function openSpecials(){
+  if(busy || !S.events) return;
+  const n = countTrees(S.slots), p = S.phase;
+  const action = await dialog('🃏 Sonderkarten', (box, close) => {
+    const row = (icon, title, hint, on, fn) => {
+      const d = mk('div', 'sprow'), b = mkBtn(icon + ' ' + title, 'gold', () => close(fn));
+      b.disabled = !on; d.append(b, mk('div', 'sphint', hint)); box.appendChild(d);
+    };
+    box.appendChild(mk('h3', '', 'Karten der Teams – am Anfang der Runde'));
+    row('🟨', 'Gelbe Karte', 'Alle pausieren eine Runde. Jedes Team zahlt 20 %. Dafür werden Bäume gepflanzt.',
+        p === 'wish' && S.cards.some(c => c.yellow), playYellow);
+    row('🟥', 'Rote Karte', 'Ein Team setzt 2 Runden aus (Boykott).',
+        p === 'wish' && S.cards.some(c => c.red), playRed);
+    box.appendChild(mk('h3', '', 'Karten der Spielleitung – nach dem Fällen'));
+    row('🌍', 'Aufforstung', `Bei weniger als ${AID_LIMIT} Bäumen. Die reichsten Teams zahlen. Es werden Bäume gepflanzt.`,
+        p === 'felled' && n < AID_LIMIT && !S.roundEvents.aid, playAid);
+    row('💬', 'Sonderkonferenz', `Bei weniger als ${CONFERENCE_LIMIT} Bäumen. Jedes gute Argument zählt 50 🪙. Es werden Bäume gepflanzt.`,
+        p === 'felled' && n < CONFERENCE_LIMIT && !S.roundEvents.conf, playConference);
+    row('📜', 'Großvertrag', `Nur 1× im Spiel. In der nächsten Runde bekommt der höchste Baumwunsch ${CONTRACT_HIGH} 🪙 je Baum, alle anderen ${CONTRACT_LOW} 🪙.`,
+        (p === 'felled' || p === 'grown') && !S.contractUsed && !S.contractNext && S.round < ROUNDS, playContract);
+    const bt = mk('div', 'btns'); bt.appendChild(mkBtn('Schließen', 'light', () => close(null))); box.appendChild(bt);
+  });
+  if(action) await action();
+}
+
+/** 🟨 Gelbe Karte: alle einigen sich, eine Runde zu pausieren. */
+async function playYellow(){
+  const team = await pickTeam('🟨 Welches Team spielt die Gelbe Karte?', ti => S.cards[ti].yellow);
+  if(team == null) return;
+  const pays = planYellow(S.teams.map(t => t.coins));
+  const trees = Math.floor(pays.reduce((a,b) => a + b, 0) / 100);
+  const ok = await yesNo('🟨 Gelbe Karte', box => {
+    box.appendChild(mk('p', '', `${teamLabel(team)} möchte eine Pause. Alle Teams pausieren diese Runde. Jedes Team zahlt 20 %.`));
+    box.appendChild(payTable(pays));
+    box.appendChild(mk('p', '', `🌳 Die Spielleitung pflanzt ${newTrees(trees)}. Sie kommen nach dem Nachwachsen dazu.`));
+    box.appendChild(mk('p', '', 'Sind alle Teams einverstanden?'));
+  }, '✅ Ja, alle sind einverstanden');
+  if(!ok) return;
+  await announce('yellow', '🟨', 'Gelbe Karte!', 'Pause! Alle zahlen 20 %.');
+  await run(async () => {
+    S.cards[team].yellow = false;
+    pays.forEach((v,i) => S.teams[i].coins -= v);
+    S.bonusTrees += trees; S.paused = true; S.touched = true;
+    S.wishes.fill(0); S.results.fill(null);
+    S.stats[S.round-1] = { afterFell: countTrees(S.slots), afterGrow: null };
+    S.phase = 'felled';
+    S.note = `⏸️ Pause! Alle zahlen 20 %. ${trees} neue Bäume kommen dazu.`;
+  });
+}
+
+/** 🟥 Rote Karte: alle anderen Teams sind einig, ein Team setzt 2 Runden aus. */
+async function playRed(){
+  const from = await pickTeam('🟥 Welches Team spielt die Rote Karte?',
+    ti => S.cards[ti].red && S.teams.some((_,o) => o !== ti && S.skip[o] === 0));
+  if(from == null) return;
+  const target = await pickTeam('🚫 Welches Team soll aussetzen?', ti => ti !== from && S.skip[ti] === 0,
+    `${teamLabel(from)} spielt die Rote Karte.`);
+  if(target == null) return;
+  const ok = await yesNo('🟥 Rote Karte', box => {
+    box.appendChild(mk('p', '', `${teamLabel(target)} bekommt die Rote Karte: Holzkaufboykott. Das Team setzt 2 Runden aus.`));
+    box.appendChild(mk('p', '', 'Sind alle anderen Teams damit einverstanden?'));
+  }, '✅ Ja, alle sind einverstanden');
+  if(!ok) return;
+  await announce('red', '🟥', 'Rote Karte!', `${S.teams[target].name} setzt 2 Runden aus.`);
+  await run(async () => {
+    S.cards[from].red = false; S.skip[target] = 2; S.wishes[target] = 0; S.touched = true;
+    S.note = `🟥 ${S.teams[target].name} setzt 2 Runden aus.`;
+  });
+}
+
+/** 🌍 Globales Aufforstungsprogramm (weniger als 8 Bäume vor der Verdopplung) */
+async function playAid(){
+  const pays = planAid(S.teams.map(t => t.coins));
+  const trees = Math.floor(pays.reduce((a,b) => a + b, 0) / 100);
+  const ok = await yesNo('🌍 Aufforstungsprogramm', box => {
+    box.appendChild(mk('p', '', 'Die Not des Waldes ist groß! Wer am meisten verdient hat, zahlt am meisten: 1/2, 1/3 und 1/6.'));
+    box.appendChild(payTable(pays));
+    box.appendChild(mk('p', '', `🌳 Es werden ${newTrees(trees)} gepflanzt.`));
+  }, '✅ Ausführen');
+  if(!ok) return;
+  await announce('event', '🌍', 'Aufforstungsprogramm!', `${trees} neue Bäume werden gepflanzt.`);
+  await run(async () => {
+    pays.forEach((v,i) => S.teams[i].coins -= v);
+    S.bonusTrees += trees; S.roundEvents.aid = true;
+    S.note = `🌍 Aufforstung: ${trees} neue Bäume kommen nach dem Nachwachsen dazu.`;
+  });
+}
+
+/** 💬 Sonderkonferenz (weniger als 15 Bäume vor der Verdopplung): 50 🪙 je richtiges Argument */
+async function playConference(){
+  const args = Array(TEAM_COUNT).fill(0);
+  let result = { pays: [], trees: 0 };
+  const ok = await dialog('💬 Sonderkonferenz', (box, close) => {
+    box.appendChild(mk('p', '', 'Jedes richtige Argument für den Wald zählt 50 🪙. Aus dem Geld werden Bäume gepflanzt (100 🪙 = 1 Baum).'));
+    const list = mk('div'), sum = mk('p', 'sumline');
+    box.append(list, sum);
+    const draw = () => {
+      list.innerHTML = ''; const pays = [];
+      S.teams.forEach((t, i) => {
+        const pay = Math.min(t.coins, args[i] * 50); pays.push(pay);
+        const r = mk('div', 'confrow'); r.style.setProperty('--c', TEAM_STYLE[i].color);
+        const st = mk('div', 'stepper'), m = mk('button', 'rb', '−'), pl = mk('button', 'rb', '+');
+        m.type = pl.type = 'button';
+        m.onclick = () => { args[i] = Math.max(0, args[i] - 1); draw(); };
+        pl.onclick = () => { args[i] = Math.min(20, args[i] + 1); draw(); };
+        st.append(m, mk('b', '', String(args[i])), pl);
+        r.append(mk('span', '', teamLabel(i)), st, mk('span', 'pay', pay ? '− ' + fmt(pay) + ' 🪙' : '–'));
+        list.appendChild(r);
+      });
+      const total = pays.reduce((a,b) => a + b, 0);
+      result = { pays, trees: Math.floor(total / 100) };
+      sum.textContent = `Zusammen ${fmt(total)} 🪙 → 🌳 ${newTrees(result.trees)}`;
+    };
+    draw();
+    const bt = mk('div', 'btns');
+    bt.append(mkBtn('✅ Ausführen', 'green', () => close(true)), mkBtn('Abbrechen', 'light', () => close(false)));
+    box.appendChild(bt);
+  });
+  if(!ok) return;
+  await announce('event', '💬', 'Sonderkonferenz!', `${result.trees} neue Bäume werden gepflanzt.`);
+  await run(async () => {
+    result.pays.forEach((v,i) => S.teams[i].coins -= v);
+    S.bonusTrees += result.trees; S.roundEvents.conf = true;
+    S.note = `💬 Konferenz: ${result.trees} neue Bäume kommen nach dem Nachwachsen dazu.`;
+  });
+}
+
+/** 📜 Großvertrag: gilt in der nächsten Runde für den höchsten Baumwunsch */
+async function playContract(){
+  const ok = await yesNo('📜 Großvertrag lockt!', box => {
+    box.appendChild(mk('p', '', 'Das Land Waldonia baut Häuser aus Holz und will nur ein Team als Partner.'));
+    box.appendChild(mk('p', '', `In der nächsten Runde bekommt das Team mit dem höchsten Baumwunsch ${CONTRACT_HIGH} 🪙 je Baum. Alle anderen Teams nur ${CONTRACT_LOW} 🪙. Bei gleichem Wunsch gewinnt die zuerst gezogene Karte.`));
+    box.appendChild(mk('p', '', 'Diese Karte gibt es nur einmal im Spiel.'));
+  }, '✅ Vertrag starten');
+  if(!ok) return;
+  await announce('event', '📜', 'Großvertrag!', `Nächste Runde: ${CONTRACT_HIGH} 🪙 je Baum für den höchsten Wunsch.`);
+  await run(async () => {
+    S.contractUsed = true; S.contractNext = true;
+    S.note = `📜 Großvertrag! In der nächsten Runde gibt es ${CONTRACT_HIGH} 🪙 je Baum für den höchsten Wunsch.`;
+  });
+}
+
+/* =====================================================================
    10. WERKZEUGE (Ton, Ruhige Ansicht) UND START
    ===================================================================== */
 function toggleSound(){
@@ -1151,6 +1511,7 @@ function syncTools(){
   $('#btnFell').onclick = doFell;
   $('#btnGrow').onclick = doGrow;
   $('#btnNext').onclick = doNext;
+  $('#btnSpecial').onclick = openSpecials;
   $('#btnUndo').onclick = doUndo;
   $('#btnNew').onclick = doNew; $('#btnNew2').onclick = doNew;
   $('#btnBack').onclick = () => { S.view = 'game'; render(); };
