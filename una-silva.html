@@ -1059,23 +1059,24 @@ function doFell(){ return run(async () => {
   const rateOf = ti => !S.contractActive ? COINS_PER_TREE : (ti === holder ? CONTRACT_HIGH : CONTRACT_LOW);
   let count = present.length;
   const shown = S.teams.map(t => t.coins);
-  setMsg('🪓 Los geht\'s!');
+  setMsg(`🪓 Los geht's! ${S.teams[S.order[0]].name} darf zuerst.`);
   await sleep(600);
 
   for(const p of plan){
     const t = S.teams[p.team], st = TEAM_STYLE[p.team];
+    const pre = `${plan.indexOf(p) + 1}. Platz: `;   // Reihenfolge der Ziehung bestimmt, wer zuerst Bäume bekommt
     const card = $(`.team[data-i="${p.team}"]`);
     card.classList.add('active');
     card.scrollIntoView({block:'nearest', behavior: isCalm() ? 'auto' : 'smooth'});
     if(p.wish === 0){
-      setMsg(S.skip[p.team] > 0 ? `🚫 ${t.name} setzt aus (Boykott).` : `${st.animal} ${t.name} wünscht sich keinen Baum.`);
+      setMsg(pre + (S.skip[p.team] > 0 ? `🚫 ${t.name} setzt aus (Boykott).` : `${st.animal} ${t.name} wünscht sich keinen Baum.`));
       await sleep(900); card.classList.remove('active'); continue;
     }
     if(p.got === 0){
-      setMsg(`😢 ${t.name} geht leer aus. Es ist kein Baum mehr da.`);
+      setMsg(pre + `😢 ${t.name} geht leer aus. Es ist kein Baum mehr da.`);
       await sleep(1600); card.classList.remove('active'); continue;
     }
-    setMsg((p.got === p.wish
+    setMsg(pre + (p.got === p.wish
       ? `${st.animal} ${t.name} bekommt ${p.got} ${p.got===1?'Baum':'Bäume'}!`
       : `${st.animal} ${t.name} wollte ${p.wish}. Es gibt nur noch ${p.got}.`)
       + (S.contractActive ? ` 📜 ${rateOf(p.team)} 🪙 je Baum` : ''));
