@@ -232,6 +232,15 @@ body.sad .nowood{display:flex}
 .dslot .de{font-size:3.2rem;line-height:1}
 @keyframes cardin{from{transform:translate(var(--dx),var(--dy)) scale(.3) rotate(-200deg);opacity:.2}to{transform:none;opacity:1}}
 
+.pool{display:flex;gap:12px;justify-content:center;margin-top:10px;min-height:104px}
+.pcard{width:72px;height:98px;border-radius:14px;border:4px solid #1b5e20;color:#fff;font-size:2rem;display:grid;place-items:center;
+  background:repeating-linear-gradient(45deg,#2b9348 0 8px,#37b24d 8px 16px);box-shadow:0 4px 0 rgba(0,0,0,.25)}
+.pool.mix .pcard{animation:mix .45s ease-in-out 3}
+@keyframes mix{50%{transform:translate(var(--mx),var(--my)) rotate(var(--mr))}}
+.pcard.pick{animation:hop .5s;border-color:var(--gold)}
+.pcard.gone{visibility:hidden}
+.drawresult{font-size:1.9rem;font-weight:900;color:var(--leaf-dark);min-height:1.4em;margin-top:8px}
+
 /* Fliegende Extras */
 .fx{position:fixed;z-index:60;pointer-events:none;font-size:2rem;font-weight:900}
 .fx.pop{color:#fff;text-shadow:0 0 4px #000,0 0 4px #000;animation:floatup 1s ease-out forwards}
@@ -441,7 +450,9 @@ body.calm .rainbow{display:none}
       <div class="sack" id="sack">🎒</div>
       <div class="sq" id="sq">🐿️</div>
     </div>
+    <div class="pool" id="pool" aria-hidden="true"></div>
     <div class="dslots" id="dslots" style="margin-top:14px"></div>
+    <div class="drawresult" id="drawResult" aria-live="polite"></div>
   </div>
 </div>
 
@@ -538,13 +549,23 @@ const countTrees = slots => slots.filter(Boolean).length;
 /* =====================================================================
    3. SPIELREGELN (rein, ohne Darstellung)
    ===================================================================== */
-function shuffle(a, rnd = Math.random){
+/** Zufallszahl in [0,1). Nimmt den Zufallsgenerator des Browsers (crypto), sonst Math.random. */
+function rand(){
+  try {
+    const a = new Uint32Array(2); crypto.getRandomValues(a);
+    return ((a[0] >>> 5) * 67108864 + (a[1] >>> 6)) / 9007199254740992;   // 53 Bit
+  } catch(e){ return Math.random(); }
+}
+/** Zieht ein zufälliges Element aus der Liste und entfernt es daraus. */
+function pickRandom(list, rnd = rand){ return list.splice(Math.floor(rnd() * list.length), 1)[0]; }
+
+function shuffle(a, rnd = rand){
   for(let i=a.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
   return a;
 }
 
 /** Bestätigung: Teams kommen in `order` dran. Jedes bekommt min(Wunsch, Rest). */
-function planFelling(presentSlots, wishes, order, rnd = Math.random){
+function planFelling(presentSlots, wishes, order, rnd = rand){
   const pool = shuffle(presentSlots.slice(), rnd);   // zufällige Bäume werden gefällt
   return order.map(team => {
     const wish = wishes[team];
@@ -560,7 +581,7 @@ function regrowTarget(count){
   return Math.min(MAX_TREES, count * 2);
 }
 /** Welche leeren Plätze bekommen neue Bäume? */
-function planGrowth(slots, rnd = Math.random){
+function planGrowth(slots, rnd = rand){
   const count = countTrees(slots);
   const need = regrowTarget(count) - count;
   const empty = [];
@@ -616,6 +637,11 @@ function selfTest(){
   ok('Wuchs 10 → 10 neue', planGrowth(s).length === 10);
   const t = full.slice(); for(let i=0;i<30;i++) t[i]=false;
   ok('20 Bäume → 40, also 20 neue', planGrowth(t).length === 20);
+  // Zufall: jedes Team beginnt mit gleicher Wahrscheinlichkeit
+  const firsts = [0,0,0,0,0];
+  for(let i=0;i<20000;i++){ const pool = [0,1,2,3,4]; firsts[pickRandom(pool)]++; }
+  ok('Zufall Platz 1 gleichverteilt', firsts.every(n => n > 3600 && n < 4400));
+  ok('rand() in [0,1)', Array.from({length:1000}, rand).every(x => x >= 0 && x < 1));
   // Sonderregeln
   const eq = (a,b) => JSON.stringify(a) === JSON.stringify(b);
   ok('Gelbe Karte 20 %', eq(planYellow([1000,0,300,50,1500]), [200,0,100,50,300]));
@@ -905,6 +931,8 @@ function moveTeam(pos, dir){
   const o = S.order, j = pos + dir;
   if(j < 0 || j >= o.length) return;
   [o[pos], o[j]] = [o[j], o[pos]];
+  S.note = '';
+  setMsg(phaseMessage());
   renderTeams();
 }
 
@@ -979,30 +1007,47 @@ async function run(fn){
   try { await fn(); } finally { busy = false; render(); }
 }
 
-/* --- Ziehen: Eichhörnchen zieht Karten aus dem Sack --- */
+/* --- Ziehen: Das Eichhörnchen zieht zufällig eine der verdeckten Karten nach der anderen.
+       Die Reihenfolge ergibt sich allein aus diesen Zügen (pickRandom). --- */
 function doDraw(){ return run(async () => {
-  const order = shuffle([...Array(TEAM_COUNT).keys()]);
-  const ov = $('#drawOverlay'), slots = $('#dslots');
-  slots.innerHTML = order.map((_,i) => `<div class="dslot"><small>Platz ${i+1}</small></div>`).join('');
-  ov.hidden = false;
-  await sleep(500);
-  for(let i=0;i<order.length;i++){
-    const sq = $('#sq'); sq.classList.remove('jump'); void sq.offsetWidth; sq.classList.add('jump');
-    await sleep(350);
-    const slot = slots.children[i], ti = order[i], st = TEAM_STYLE[ti];
-    const sr = $('#sack').getBoundingClientRect(), dr = slot.getBoundingClientRect();
-    slot.style.setProperty('--c', st.color);
-    slot.style.setProperty('--dx', (sr.left - dr.left) + 'px');
-    slot.style.setProperty('--dy', (sr.top - dr.top) + 'px');
-    slot.className = 'dslot full';
-    slot.innerHTML = `<small>Platz ${i+1}</small><span class="de">${st.animal}</span><span></span>`;
-    slot.lastChild.textContent = S.teams[ti].name;
-    sfx.card(i);
-    await sleep(900);
+  const ov = $('#drawOverlay'), slots = $('#dslots'), pool = $('#pool'), res = $('#drawResult');
+  const ids = [...Array(TEAM_COUNT).keys()];
+  const order = [];
+  try {
+    slots.innerHTML = ids.map((_,i) => `<div class="dslot"><small>Platz ${i+1}</small></div>`).join('');
+    pool.innerHTML = ids.map(t => `<div class="pcard" data-t="${t}" style="--mx:${Math.round(rand()*80-40)}px;--my:${Math.round(rand()*40-20)}px;--mr:${Math.round(rand()*50-25)}deg">🌳</div>`).join('');
+    res.textContent = '';
+    ov.hidden = false;
+    pool.classList.add('mix'); sfx.card(0);            // Karten werden gemischt
+    await sleep(1600);
+    pool.classList.remove('mix');
+    const left = [...pool.children];
+    for(let i=0;i<TEAM_COUNT;i++){
+      const sq = $('#sq'); sq.classList.remove('jump'); void sq.offsetWidth; sq.classList.add('jump');
+      const card = pickRandom(left);                    // ← hier entscheidet der Zufall
+      const ti = +card.dataset.t; order.push(ti);
+      card.classList.add('pick');
+      await sleep(600);
+      const slot = slots.children[i], st = TEAM_STYLE[ti];
+      const cr = card.getBoundingClientRect(), dr = slot.getBoundingClientRect();
+      card.classList.add('gone');
+      slot.style.setProperty('--c', st.color);
+      slot.style.setProperty('--dx', (cr.left - dr.left) + 'px');
+      slot.style.setProperty('--dy', (cr.top - dr.top) + 'px');
+      slot.className = 'dslot full';
+      slot.innerHTML = `<small>Platz ${i+1}</small><span class="de">${st.animal}</span><span></span>`;
+      slot.lastChild.textContent = S.teams[ti].name;
+      sfx.card(i);
+      await sleep(900);
+    }
+    res.textContent = `🎲 ${S.teams[order[0]].name} beginnt!`;
+    sfx.fanfare();
+    await sleep(1800);
+  } finally {
+    ov.hidden = true;                                   // Fenster schließt sich auch bei einem Fehler
   }
-  await sleep(1000);
-  ov.hidden = true;
-  S.order = order; S.phase = 'drawn'; S.note = '';
+  S.order = order; S.phase = 'drawn';
+  S.note = `🎲 ${S.teams[order[0]].name} beginnt! Jetzt: Bäume fällen.`;
 }); }
 
 /* --- Bäume fällen --- */
