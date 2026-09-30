@@ -508,10 +508,31 @@ function movement() {
     ['🙆', 'Strecke dich ganz hoch und zähle langsam bis 5.'],
     ['🐶', 'Schüttle Arme und Beine aus – wie ein nasser Hund!'],
     ['🤷', 'Kreise 5-mal mit den Schultern.'],
-    ['🦩', 'Stehe auf einem Bein. Dann wechsle das Bein.']
+    ['🦩', 'Stehe auf einem Bein. Dann wechsle das Bein.'],
+    ['🦘', 'Hüpfe 5-mal wie ein Känguru.'],
+    ['🚶', 'Gehe 10 Schritte auf der Stelle. Hebe die Knie hoch!'],
+    ['🐘', 'Schwinge deinen Arm wie einen Elefantenrüssel hin und her.'],
+    ['🙌', 'Halte die Arme hoch und wackle mit allen Fingern.'],
+    ['🐢', 'Gehe ganz langsam in die Hocke und steh wieder auf.'],
+    ['🦋', 'Bewege deine Arme wie Schmetterlingsflügel.'],
+    ['🌳', 'Stelle dich wie ein Baum hin und wiege im Wind.'],
+    ['🤸', 'Berühre mit der rechten Hand das linke Knie. Dann umgekehrt.'],
+    ['🧘', 'Atme tief ein und langsam wieder aus. Drei Mal.'],
+    ['👣', 'Laufe auf der Stelle, erst langsam, dann schnell.'],
+    ['🐻', 'Drehe dich einmal langsam im Kreis wie ein Bär.'],
+    ['🤲', 'Reibe deine Hände ganz schnell aneinander, bis sie warm sind.']
   ];
-  if (cnt) tasks.push(['👏', 'Klatsche ' + n + '-mal in die Hände!'], ['🦶', 'Stampfe ' + n + '-mal mit den Füßen!'], ['🐸', 'Hüpfe ' + n + '-mal auf der Stelle!']);
-  const [icon, text] = tasks[Math.floor(Math.random() * tasks.length)];
+  if (cnt) tasks.push(
+    ['👏', 'Klatsche ' + n + '-mal in die Hände!'],
+    ['🦶', 'Stampfe ' + n + '-mal mit den Füßen!'],
+    ['🐸', 'Hüpfe ' + n + '-mal auf der Stelle!'],
+    ['🥁', 'Trommle ' + n + '-mal auf deine Oberschenkel!'],
+    ['🫰', 'Schnipse oder tippe ' + n + '-mal mit den Fingern auf den Tisch!'],
+    ['🙋', 'Strecke ' + n + '-mal die Arme hoch!']);
+  let pick;
+  do { pick = Math.floor(Math.random() * tasks.length); } while (tasks.length > 1 && pick === G.lastMove);
+  G.lastMove = pick;
+  const [icon, text] = tasks[pick];
   drawProgress();
   const bar = el('div', 'timebar'), fill = el('i');
   bar.appendChild(fill);
