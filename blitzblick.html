@@ -113,6 +113,10 @@ h1{font-size:clamp(28px,5vw,40px);margin:8px 0 4px;text-align:center}
 .stars{font-size:clamp(40px,9vw,72px);text-align:center;margin:10px 0;letter-spacing:6px}
 .result-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:12px}
 .center{text-align:center}
+.moveicon{font-size:clamp(70px,16vmin,130px);line-height:1}
+.movetext{font-size:clamp(26px,5vw,38px);font-weight:800;text-align:center;max-width:640px}
+.timebar{width:min(80%,420px);height:16px;border-radius:8px;background:var(--line);overflow:hidden}
+.timebar i{display:block;height:100%;width:100%;background:var(--gold);transition:width 20s linear}
 @media (prefers-reduced-motion:no-preference){
   .pop{animation:pop .35s ease-out}
   @keyframes pop{0%{transform:scale(.85);opacity:.3}100%{transform:scale(1);opacity:1}}
@@ -174,6 +178,10 @@ h1{font-size:clamp(28px,5vw,40px);margin:8px 0 4px;text-align:center}
       <button class="chip" data-val="15">15</button>
       <button class="chip" data-val="20">20</button>
     </div>
+    <div class="chips" data-key="move" style="margin-top:12px">
+      <button class="chip" data-val="1">🤸 Bewegungspause an</button>
+      <button class="chip" data-val="0">Bewegungspause aus</button>
+    </div>
     <div class="chips" data-key="sound" style="margin-top:12px">
       <button class="chip" data-val="1">🔊 Ton an</button>
       <button class="chip" data-val="0">🔇 Ton aus</button>
@@ -210,7 +218,7 @@ const $ = s => document.querySelector(s);
 const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 
 /* ---------- Einstellungen ---------- */
-const DEFAULTS = {min:1, max:10, repr:'punkte', time:3000, answer:'tippen', rounds:10, sound:1};
+const DEFAULTS = {min:1, max:10, repr:'punkte', time:3000, answer:'tippen', rounds:10, sound:1, move:1};
 let cfg = {...DEFAULTS};
 try { Object.assign(cfg, JSON.parse(localStorage.getItem('blitzblick') || '{}')); } catch(e) {}
 const save = () => { try { localStorage.setItem('blitzblick', JSON.stringify(cfg)); } catch(e) {} };
@@ -486,9 +494,32 @@ function reveal(state) {
   const st = makeStim(G.n, G.kind, cfg.max); st.classList.add('pop');
   stage.append(st, el('div', 'bignum', String(G.n)));
   const b = el('button', 'btn', G.idx + 1 >= G.total ? 'Fertig' : 'Weiter →');
-  b.addEventListener('click', () => { G.idx++; nextRound(); });
+  b.addEventListener('click', () => { G.idx++; if (cfg.move && G.idx < G.total) movement(); else nextRound(); });
   stage.appendChild(b);
   b.focus();
+}
+
+const MOVE_SECONDS = 20;
+function movement() {
+  clearTimer();
+  G.phase = 'move';
+  const n = G.n, cnt = n <= 10;
+  const tasks = [
+    ['🙆', 'Strecke dich ganz hoch und zähle langsam bis 5.'],
+    ['🐶', 'Schüttle Arme und Beine aus – wie ein nasser Hund!'],
+    ['🤷', 'Kreise 5-mal mit den Schultern.'],
+    ['🦩', 'Stehe auf einem Bein. Dann wechsle das Bein.']
+  ];
+  if (cnt) tasks.push(['👏', 'Klatsche ' + n + '-mal in die Hände!'], ['🦶', 'Stampfe ' + n + '-mal mit den Füßen!'], ['🐸', 'Hüpfe ' + n + '-mal auf der Stelle!']);
+  const [icon, text] = tasks[Math.floor(Math.random() * tasks.length)];
+  drawProgress();
+  const bar = el('div', 'timebar'), fill = el('i');
+  bar.appendChild(fill);
+  const done = el('button', 'btn', 'Fertig ✔');
+  done.addEventListener('click', nextRound);
+  stage.replaceChildren(el('div', 'message', 'Bewegungspause!'), el('div', 'moveicon', icon), el('div', 'movetext', text), bar, done);
+  requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.width = '0%'; }));
+  G.timer = setTimeout(nextRound, MOVE_SECONDS * 1000);
 }
 
 function finish() {
