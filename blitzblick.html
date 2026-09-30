@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blitzblick – Mengen erfassen</title>
+<style>
+:root{
+  --bg:#f4f7fb; --card:#ffffff; --ink:#1f2a37; --muted:#5b6776; --line:#d5dde8;
+  --brand:#2f6fde; --brand-ink:#ffffff; --ok:#1f9d55; --bad:#d9480f;
+  --red:#e03131; --blue:#1c7ed6; --gold:#f5b301;
+  --radius:18px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  font-family:"Trebuchet MS","Segoe UI",Verdana,sans-serif;
+  background:var(--bg);color:var(--ink);font-size:20px;line-height:1.35;
+  -webkit-tap-highlight-color:transparent;user-select:none;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:4px solid #ffb703;outline-offset:2px}
+.screen{display:none;max-width:980px;margin:0 auto;padding:16px}
+.screen.active{display:block}
+h1{font-size:clamp(28px,5vw,40px);margin:8px 0 4px;text-align:center}
+.sub{text-align:center;color:var(--muted);margin:0 0 18px}
+.panel{background:var(--card);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;box-shadow:0 2px 8px rgba(20,40,80,.08)}
+.panel h2{font-size:1.05rem;margin:0 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chip{
+  min-height:56px;min-width:64px;padding:8px 18px;border-radius:14px;border:3px solid var(--line);
+  background:#fff;font-weight:700;
+}
+.chip[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.chip:disabled{opacity:.4;cursor:not-allowed}
+.range{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin-top:12px}
+.range label{display:flex;align-items:center;gap:10px;font-weight:700}
+.range input{
+  width:110px;height:56px;font:inherit;font-size:1.4rem;font-weight:700;text-align:center;
+  border:3px solid var(--line);border-radius:14px;user-select:text;
+}
+.hint{color:var(--muted);font-size:.85rem;margin:8px 0 0}
+.big{
+  display:block;margin:18px auto 8px;min-height:72px;padding:12px 44px;border:0;border-radius:20px;
+  background:var(--ok);color:#fff;font-size:1.7rem;font-weight:800;box-shadow:0 5px 0 #157a42;
+}
+.big:active{transform:translateY(3px);box-shadow:0 2px 0 #157a42}
+.btn{
+  min-height:60px;padding:10px 26px;border-radius:16px;border:0;background:var(--brand);color:#fff;
+  font-weight:800;font-size:1.25rem;box-shadow:0 4px 0 #2050a5;
+}
+.btn.alt{background:#fff;color:var(--ink);border:3px solid var(--line);box-shadow:none}
+.btn:active{transform:translateY(2px)}
+
+/* Spiel */
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.top .btn{min-height:48px;padding:6px 16px;font-size:1rem}
+.progress{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;flex:1}
+.pip{width:16px;height:16px;border-radius:50%;background:var(--line)}
+.pip.ok{background:var(--ok)} .pip.bad{background:var(--bad)} .pip.now{outline:3px solid var(--brand)}
+.stage{
+  min-height:min(58vh,520px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:0 2px 8px rgba(20,40,80,.08);
+}
+.cover{
+  width:min(60vmin,320px);height:min(60vmin,320px);border-radius:28px;background:repeating-linear-gradient(45deg,#dfe7f5,#dfe7f5 14px,#eaf0fa 14px,#eaf0fa 28px);
+  display:flex;align-items:center;justify-content:center;font-size:clamp(70px,18vmin,140px);font-weight:800;color:#8aa0c4;
+}
+.message{font-size:clamp(22px,4vw,30px);font-weight:700;text-align:center;min-height:1.4em}
+.message.ok{color:var(--ok)} .message.bad{color:var(--bad)}
+.answerbox{
+  min-width:150px;height:84px;padding:0 24px;border:4px solid var(--brand);border-radius:18px;background:#fff;
+  font-size:3rem;font-weight:800;text-align:center;line-height:76px;
+}
+.numpad{display:grid;grid-template-columns:repeat(3,minmax(72px,92px));gap:10px}
+.numpad button{height:68px;border-radius:16px;border:3px solid var(--line);background:#fff;font-size:1.9rem;font-weight:800}
+.numpad button.go{background:var(--ok);border-color:var(--ok);color:#fff}
+.numpad button.del{background:#fff3e0}
+.choices{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
+.choices button{
+  min-width:120px;height:100px;padding:0 26px;border-radius:20px;border:4px solid var(--brand);background:#fff;
+  font-size:3rem;font-weight:800;
+}
+.choices button:disabled{opacity:.5}
+.bignum{font-size:clamp(56px,12vmin,110px);font-weight:800;color:var(--brand);line-height:1}
+
+/* Mengenbilder */
+.stim{display:flex;flex-wrap:wrap;gap:clamp(14px,3vmin,30px);align-items:flex-start;justify-content:center}
+.frame{display:grid;grid-template-columns:repeat(5,var(--d));grid-template-rows:repeat(2,var(--d));gap:calc(var(--d)*.14);
+  padding:calc(var(--d)*.16);border:3px solid #55657d;border-radius:8px;background:#fff}
+.dot{width:var(--d);height:var(--d);border-radius:50%;background:#eef2f8;border:2px solid #dde4ef}
+.dot.r{background:var(--red);border-color:#a61e1e}
+.dot.b{background:var(--blue);border-color:#14578f}
+.hfield{display:flex;flex-direction:column;gap:calc(var(--d)*.16);padding:calc(var(--d)*.3);border:3px solid #55657d;border-radius:8px;background:#fff}
+.hfield .row{display:flex;gap:calc(var(--d)*.6)}
+.hfield .five{display:flex;gap:calc(var(--d)*.16)}
+.hfield .row:nth-child(5){margin-bottom:calc(var(--d)*.5)}
+.tens{display:flex;gap:calc(var(--u)*.6);align-items:flex-start;flex-wrap:wrap;justify-content:center;max-width:100%}
+.bar{display:flex;flex-direction:column;gap:2px;padding:3px;border:3px solid #55657d;border-radius:6px;background:#fff}
+.bar span{width:var(--u);height:var(--u);border-radius:4px}
+.bar span.r{background:var(--red)} .bar span.b{background:var(--blue)}
+.bar span:nth-child(5){margin-bottom:calc(var(--u)*.3)}
+.plate{
+  width:calc(var(--u)*10 + 12px);height:calc(var(--u)*10 + 12px);border:3px solid #55657d;border-radius:8px;
+  background:
+    linear-gradient(90deg,transparent calc(100% - 2px),rgba(255,255,255,.75) 0) 0 0/calc(var(--u) + 1px) 100%,
+    linear-gradient(0deg,transparent calc(100% - 2px),rgba(255,255,255,.75) 0) 0 0/100% calc(var(--u) + 1px),
+    #e8590c;
+}
+.group{display:flex;gap:calc(var(--u)*.7);flex-wrap:wrap;justify-content:center;align-items:flex-start}
+
+/* Ergebnis */
+.stars{font-size:clamp(40px,9vw,72px);text-align:center;margin:10px 0;letter-spacing:6px}
+.result-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+.center{text-align:center}
+@media (prefers-reduced-motion:no-preference){
+  .pop{animation:pop .35s ease-out}
+  @keyframes pop{0%{transform:scale(.85);opacity:.3}100%{transform:scale(1);opacity:1}}
+}
+</style>
+</head>
+<body>
+
+<!-- Einstellungen -->
+<main id="setup" class="screen active">
+  <h1>⚡ Blitzblick</h1>
+  <p class="sub">Mengen auf einen Blick erfassen</p>
+
+  <section class="panel">
+    <h2>Zahlenraum</h2>
+    <div class="chips" data-key="preset" id="presets"></div>
+    <div class="range">
+      <label>von <input id="minIn" type="number" inputmode="numeric" min="1" max="999"></label>
+      <label>bis <input id="maxIn" type="number" inputmode="numeric" min="2" max="1000"></label>
+    </div>
+    <p class="hint">Es können Zahlen von 1 bis 1000 geübt werden. Bis 100 gibt es zusätzlich das Punktefeld.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Darstellung</h2>
+    <div class="chips" data-key="repr">
+      <button class="chip" data-val="punkte">Punktefeld</button>
+      <button class="chip" data-val="stellen">Zehner &amp; Einer</button>
+      <button class="chip" data-val="mix">Abwechselnd</button>
+    </div>
+    <p class="hint" id="reprHint"></p>
+  </section>
+
+  <section class="panel">
+    <h2>Wie lange ist das Bild zu sehen?</h2>
+    <div class="chips" data-key="time">
+      <button class="chip" data-val="1000">1 Sekunde</button>
+      <button class="chip" data-val="2000">2 Sekunden</button>
+      <button class="chip" data-val="3000">3 Sekunden</button>
+      <button class="chip" data-val="5000">5 Sekunden</button>
+      <button class="chip" data-val="0">bleibt stehen</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Antwort</h2>
+    <div class="chips" data-key="answer">
+      <button class="chip" data-val="tippen">Zahl eintippen</button>
+      <button class="chip" data-val="wahl">Zahl auswählen</button>
+      <button class="chip" data-val="gruppe">Gemeinsam (Lehrkraft löst auf)</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Anzahl der Aufgaben</h2>
+    <div class="chips" data-key="rounds">
+      <button class="chip" data-val="5">5</button>
+      <button class="chip" data-val="10">10</button>
+      <button class="chip" data-val="15">15</button>
+      <button class="chip" data-val="20">20</button>
+    </div>
+    <div class="chips" data-key="sound" style="margin-top:12px">
+      <button class="chip" data-val="1">🔊 Ton an</button>
+      <button class="chip" data-val="0">🔇 Ton aus</button>
+    </div>
+  </section>
+
+  <button class="big" id="startBtn">▶ Start</button>
+</main>
+
+<!-- Spiel -->
+<main id="game" class="screen">
+  <div class="top">
+    <button class="btn alt" id="backBtn">← Ende</button>
+    <div class="progress" id="progress" aria-label="Fortschritt"></div>
+  </div>
+  <div class="stage" id="stage" aria-live="polite"></div>
+</main>
+
+<!-- Ergebnis -->
+<main id="result" class="screen">
+  <h1>Geschafft!</h1>
+  <div class="stars" id="stars"></div>
+  <p class="sub" id="resultText"></p>
+  <div class="result-actions">
+    <button class="btn" id="againBtn">Nochmal</button>
+    <button class="btn alt" id="settingsBtn">Einstellungen</button>
+  </div>
+</main>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+
+/* ---------- Einstellungen ---------- */
+const DEFAULTS = {min:1, max:10, repr:'punkte', time:3000, answer:'tippen', rounds:10, sound:1};
+let cfg = {...DEFAULTS};
+try { Object.assign(cfg, JSON.parse(localStorage.getItem('blitzblick') || '{}')); } catch(e) {}
+const save = () => { try { localStorage.setItem('blitzblick', JSON.stringify(cfg)); } catch(e) {} };
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+const PRESETS = [5, 10, 20, 50, 100, 1000];
+const presetBox = $('#presets');
+PRESETS.forEach(p => {
+  const b = el('button', 'chip', 'bis ' + p); b.dataset.val = p; b.type = 'button';
+  b.addEventListener('click', () => { cfg.max = p; cfg.min = 1; refreshSetup(); });
+  presetBox.appendChild(b);
+});
+
+document.querySelectorAll('.chips[data-key]:not(#presets)').forEach(box => {
+  box.addEventListener('click', e => {
+    const b = e.target.closest('.chip'); if (!b || b.disabled) return;
+    const key = box.dataset.key;
+    cfg[key] = typeof DEFAULTS[key] === 'number' ? Number(b.dataset.val) : b.dataset.val;
+    refreshSetup();
+  });
+});
+
+function readRange() {
+  let max = clamp(parseInt($('#maxIn').value, 10) || cfg.max, 2, 1000);
+  let min = clamp(parseInt($('#minIn').value, 10) || 1, 1, max - 1);
+  cfg.max = max; cfg.min = min;
+}
+['#minIn', '#maxIn'].forEach(s => $(s).addEventListener('change', () => { readRange(); refreshSetup(); }));
+
+function refreshSetup() {
+  cfg.max = clamp(cfg.max, 2, 1000);
+  cfg.min = clamp(cfg.min, 1, cfg.max - 1);
+  $('#minIn').value = cfg.min; $('#maxIn').value = cfg.max;
+  presetBox.querySelectorAll('.chip').forEach(b =>
+    b.setAttribute('aria-pressed', String(Number(b.dataset.val) === cfg.max && cfg.min === 1)));
+  const big = cfg.max > 100;
+  if (big && cfg.repr !== 'stellen') cfg.repr = 'stellen';
+  document.querySelectorAll('.chips[data-key]:not(#presets)').forEach(box => {
+    const key = box.dataset.key;
+    box.querySelectorAll('.chip').forEach(b => {
+      b.setAttribute('aria-pressed', String(String(cfg[key]) === b.dataset.val));
+      if (key === 'repr' && b.dataset.val !== 'stellen') b.disabled = big;
+    });
+  });
+  $('#reprHint').textContent = big
+    ? 'Über 100 werden Hunderter-Platten, Zehner-Stangen und Einer gezeigt.'
+    : cfg.max <= 10 ? 'Punktefeld: Zehnerfeld mit Fünferstruktur (rot/blau).'
+    : cfg.max <= 20 ? 'Punktefeld: Zwanzigerfeld mit Fünferstruktur (rot/blau).'
+    : 'Punktefeld: Hunderterfeld mit Fünferstruktur (rot/blau).';
+  save();
+}
+
+/* ---------- Mengenbilder ---------- */
+function tenFrame(count, d) {
+  const f = el('div', 'frame'); f.style.setProperty('--d', d + 'px');
+  for (let i = 0; i < 10; i++) f.appendChild(el('div', 'dot' + (i < count ? (i < 5 ? ' r' : ' b') : '')));
+  return f;
+}
+function dotField(n, max) {
+  const box = el('div', 'stim');
+  const small = Math.min(innerWidth, innerHeight);
+  if (max <= 100 && max > 20) {
+    const d = clamp(small * 0.046, 18, 40);
+    const h = el('div', 'hfield'); h.style.setProperty('--d', d + 'px');
+    for (let r = 0; r < 10; r++) {
+      const row = el('div', 'row');
+      for (let g = 0; g < 2; g++) {
+        const five = el('div', 'five');
+        for (let c = 0; c < 5; c++) {
+          const idx = r * 10 + g * 5 + c;
+          five.appendChild(el('div', 'dot' + (idx < n ? (g === 0 ? ' r' : ' b') : '')));
+        }
+        row.appendChild(five);
+      }
+      h.appendChild(row);
+    }
+    box.appendChild(h);
+  } else {
+    const d = clamp(small * (max <= 10 ? 0.085 : 0.07), 32, 76);
+    const frames = max <= 10 ? 1 : 2;
+    for (let k = 0; k < frames; k++) box.appendChild(tenFrame(clamp(n - k * 10, 0, 10), d));
+  }
+  return box;
+}
+function placeValue(n, max) {
+  const box = el('div', 'stim');
+  const small = Math.min(innerWidth, innerHeight);
+  const u = max > 100 ? clamp(small * 0.014, 6, 14) : clamp(small * 0.04, 16, 34);
+  box.style.setProperty('--u', u + 'px');
+  const h = Math.floor(n / 100), t = Math.floor((n % 100) / 10), o = n % 10;
+  if (h) { const g = el('div', 'group'); for (let i = 0; i < h; i++) g.appendChild(el('div', 'plate')); box.appendChild(g); }
+  if (t) {
+    const g = el('div', 'group');
+    for (let i = 0; i < t; i++) {
+      const bar = el('div', 'bar');
+      for (let k = 0; k < 10; k++) bar.appendChild(el('span', k < 5 ? 'r' : 'b'));
+      g.appendChild(bar);
+    }
+    box.appendChild(g);
+  }
+  if (o) {
+    const d = clamp(small * 0.06, 28, 60);
+    box.appendChild(tenFrame(o, d));
+  }
+  return box;
+}
+function makeStim(n, kind, max) { return kind === 'punkte' ? dotField(n, max) : placeValue(n, max); }
+
+/* ---------- Ton ---------- */
+let actx = null;
+function tone(seq) {
+  if (!cfg.sound) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    let t = actx.currentTime;
+    seq.forEach(([f, dur]) => {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = 'sine'; o.frequency.value = f; o.connect(g); g.connect(actx.destination);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.start(t); o.stop(t + dur + 0.02); t += dur;
+    });
+  } catch(e) {}
+}
+const soundOk = () => tone([[660, .12], [880, .2]]);
+const soundBad = () => tone([[330, .25]]);
+const soundFlash = () => tone([[1040, .08]]);
+
+/* ---------- Spielablauf ---------- */
+const G = {n:0, kind:'punkte', idx:0, total:0, results:[], last:0, tries:0, typed:'', timer:null, phase:'idle'};
+const stage = $('#stage');
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  scrollTo(0, 0);
+}
+function clearTimer() { clearTimeout(G.timer); G.timer = null; }
+
+function startGame() {
+  readRange(); refreshSetup();
+  G.total = cfg.rounds; G.idx = 0; G.results = []; G.last = 0;
+  show('game'); nextRound();
+}
+
+function pickNumber() {
+  let n, guard = 0;
+  do { n = cfg.min + Math.floor(Math.random() * (cfg.max - cfg.min + 1)); guard++; }
+  while (n === G.last && cfg.max - cfg.min > 0 && guard < 50);
+  return n;
+}
+
+function drawProgress() {
+  const p = $('#progress'); p.replaceChildren();
+  for (let i = 0; i < G.total; i++) {
+    const r = G.results[i];
+    p.appendChild(el('div', 'pip' + (r === true ? ' ok' : r === false ? ' bad' : '') + (i === G.idx ? ' now' : '')));
+  }
+}
+
+function nextRound() {
+  clearTimer();
+  if (G.idx >= G.total) return finish();
+  G.n = pickNumber(); G.last = G.n; G.tries = 0; G.typed = '';
+  G.kind = cfg.repr === 'mix' ? (Math.random() < 0.5 ? 'punkte' : 'stellen') : cfg.repr;
+  if (cfg.max > 100) G.kind = 'stellen';
+  drawProgress();
+  G.phase = 'ready';
+  stage.replaceChildren();
+  const b = el('button', 'big', '⚡ Blitz!');
+  b.style.margin = '0';
+  b.addEventListener('click', flash);
+  stage.append(el('div', 'message', 'Bist du bereit?'), b);
+  b.focus();
+}
+
+function flash() {
+  if (G.phase !== 'ready') return;
+  G.phase = 'flash';
+  stage.replaceChildren(el('div', 'message', '👀'));
+  G.timer = setTimeout(() => {
+    soundFlash();
+    const st = makeStim(G.n, G.kind, cfg.max);
+    st.classList.add('pop');
+    stage.replaceChildren(st);
+    if (cfg.time > 0) G.timer = setTimeout(hide, cfg.time);
+    else {
+      const b = el('button', 'btn', 'Verdecken');
+      b.addEventListener('click', hide);
+      stage.appendChild(b);
+    }
+  }, 700);
+}
+
+function hide() {
+  clearTimer();
+  G.phase = 'answer';
+  stage.replaceChildren();
+  stage.appendChild(el('div', 'cover', '?'));
+  if (cfg.answer === 'gruppe') {
+    const b = el('button', 'btn', 'Auflösen');
+    b.addEventListener('click', () => reveal(null));
+    stage.append(el('div', 'message', 'Wie viele waren es?'), b);
+    return;
+  }
+  stage.appendChild(el('div', 'message', 'Wie viele waren es?'));
+  if (cfg.answer === 'wahl') buildChoices(); else buildNumpad();
+}
+
+function buildNumpad() {
+  G.typed = '';
+  const box = el('div', 'answerbox', '');
+  box.id = 'ans';
+  const pad = el('div', 'numpad');
+  const add = (label, cls, fn) => { const b = el('button', cls, label); b.type = 'button'; b.addEventListener('click', fn); pad.appendChild(b); };
+  [1,2,3,4,5,6,7,8,9].forEach(d => add(String(d), '', () => typeDigit(d)));
+  add('⌫', 'del', backspace); add('0', '', () => typeDigit(0)); add('OK', 'go', submitTyped);
+  stage.append(box, pad);
+}
+function typeDigit(d) {
+  if (G.phase !== 'answer') return;
+  if (G.typed.length >= String(cfg.max).length) return;
+  G.typed += d; $('#ans').textContent = G.typed;
+}
+function backspace() { G.typed = G.typed.slice(0, -1); const a = $('#ans'); if (a) a.textContent = G.typed; }
+function submitTyped() { if (G.phase === 'answer' && G.typed !== '') check(parseInt(G.typed, 10)); }
+
+function buildChoices() {
+  const opts = new Set([G.n]);
+  const lo = cfg.max <= 10 ? 1 : 0;
+  const steps = cfg.max > 20 ? [1, 2, 10, -1, -2, -10] : [1, 2, 3, -1, -2, -3];
+  const cand = steps.sort(() => Math.random() - .5).map(s => G.n + s).filter(v => v >= lo && v <= cfg.max);
+  cand.forEach(v => { if (opts.size < 3) opts.add(v); });
+  for (let v = lo; opts.size < 3 && v <= cfg.max; v++) opts.add(v);
+  const box = el('div', 'choices');
+  [...opts].sort(() => Math.random() - .5).forEach(v => {
+    const b = el('button', '', String(v)); b.type = 'button';
+    b.addEventListener('click', () => check(v));
+    box.appendChild(b);
+  });
+  stage.appendChild(box);
+}
+
+function check(v) {
+  if (G.phase !== 'answer') return;
+  G.tries++;
+  if (v === G.n) { soundOk(); reveal(G.tries === 1 ? 'ok' : 'late'); return; }
+  soundBad();
+  if (G.tries >= 2) { reveal('bad'); return; }
+  // Zweiter Versuch: Bild wird wieder gezeigt, Kind darf in Ruhe nachsehen
+  G.phase = 'retry';
+  stage.replaceChildren();
+  stage.appendChild(el('div', 'message bad', 'Fast! Schau noch einmal genau hin.'));
+  const st = makeStim(G.n, G.kind, cfg.max); st.classList.add('pop');
+  stage.appendChild(st);
+  const b = el('button', 'btn', 'Nochmal versuchen');
+  b.addEventListener('click', () => { G.phase = 'answer'; hideRetry(); });
+  stage.appendChild(b);
+}
+function hideRetry() {
+  stage.replaceChildren(el('div', 'cover', '?'), el('div', 'message', 'Wie viele waren es?'));
+  if (cfg.answer === 'wahl') buildChoices(); else buildNumpad();
+}
+
+function reveal(state) {
+  clearTimer();
+  G.phase = 'reveal';
+  if (state !== null) G.results[G.idx] = (state === 'ok');
+  drawProgress();
+  stage.replaceChildren();
+  if (state === 'ok') stage.appendChild(el('div', 'message ok', '⭐ Super! Richtig!'));
+  else if (state === 'late') stage.appendChild(el('div', 'message ok', '👍 Richtig!'));
+  else if (state === 'bad') stage.appendChild(el('div', 'message bad', 'Das war die Zahl:'));
+  const st = makeStim(G.n, G.kind, cfg.max); st.classList.add('pop');
+  stage.append(st, el('div', 'bignum', String(G.n)));
+  const b = el('button', 'btn', G.idx + 1 >= G.total ? 'Fertig' : 'Weiter →');
+  b.addEventListener('click', () => { G.idx++; nextRound(); });
+  stage.appendChild(b);
+  b.focus();
+}
+
+function finish() {
+  clearTimer(); G.phase = 'idle';
+  show('result');
+  if (cfg.answer === 'gruppe') {
+    $('#stars').textContent = '🎉';
+    $('#resultText').textContent = 'Alle ' + G.total + ' Bilder wurden gezeigt.';
+    return;
+  }
+  const good = G.results.filter(Boolean).length;
+  const ratio = good / G.total;
+  const stars = ratio >= .9 ? 3 : ratio >= .6 ? 2 : 1;
+  $('#stars').textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+  $('#resultText').textContent = good + ' von ' + G.total + ' Aufgaben gleich richtig!';
+  if (good > 0) tone([[523, .12], [659, .12], [784, .25]]);
+}
+
+/* ---------- Bedienung ---------- */
+$('#startBtn').addEventListener('click', startGame);
+$('#backBtn').addEventListener('click', () => { clearTimer(); G.phase = 'idle'; show('setup'); });
+$('#againBtn').addEventListener('click', startGame);
+$('#settingsBtn').addEventListener('click', () => show('setup'));
+addEventListener('keydown', e => {
+  if (!$('#game').classList.contains('active')) return;
+  if (G.phase === 'answer' && cfg.answer === 'tippen') {
+    if (/^[0-9]$/.test(e.key)) typeDigit(e.key);
+    else if (e.key === 'Backspace') backspace();
+    else if (e.key === 'Enter') submitTyped();
+  } else if (G.phase === 'ready' && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); flash(); }
+});
+
+refreshSetup();
+})();
+</script>
+</body>
+</html>
