@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UnaSilva – Das Waldspiel</title>
+<style>
+/* =====================================================================
+   UnaSilva – Begleit-Seite zum Waldspiel
+   Alles in einer Datei: HTML + CSS + JavaScript, keine externen Dateien.
+   ===================================================================== */
+
+:root{
+  --ink:#12251a;
+  --paper:#ffffff;
+  --leaf:#2b9348;
+  --leaf-dark:#1b5e20;
+  --wood:#8b5a2b;
+  --gold:#ffd43b;
+  --gold-dark:#b8860b;
+  --sky1:#74c0fc; --sky2:#d0ebff;
+  --field1:#d3f9d8; --field2:#8ce99a;
+  --btn:#1c7ed6; --btn-dark:#1864ab;
+  --danger:#e03131;
+}
+html{font-size:24px}                       /* Basis 24 px – alles andere in rem (>= 1rem) */
+*{box-sizing:border-box}
+body{
+  margin:0; min-height:100vh; color:var(--ink);
+  font-family:"Comic Neue","Comic Sans MS","Chalkboard SE","Trebuchet MS",Verdana,sans-serif;
+  font-weight:700; line-height:1.25; overflow-x:hidden;
+  background:linear-gradient(var(--sky1),var(--sky2) 60%,#b2f2bb);
+  transition:background .8s;
+}
+button,input{font:inherit;color:inherit}
+[hidden]{display:none!important}
+
+/* ---------- Himmel, Wolken, Regen ---------- */
+.skybg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.cloud{position:absolute;width:220px;height:70px;background:#fff;border-radius:60px;opacity:.95;
+  animation:drift 60s linear infinite;transition:background .8s}
+.cloud::before,.cloud::after{content:"";position:absolute;background:inherit;border-radius:50%}
+.cloud::before{width:100px;height:100px;left:26px;top:-48px}
+.cloud::after{width:80px;height:80px;left:100px;top:-34px}
+.cloud.c1{top:12%;animation-duration:70s}
+.cloud.c2{top:30%;animation-duration:95s;animation-delay:-40s;transform:scale(.8)}
+.cloud.c3{top:6%;animation-duration:120s;animation-delay:-80s;transform:scale(1.2)}
+@keyframes drift{from{left:-300px}to{left:105%}}
+.rain{position:absolute;inset:0;display:none}
+.rain i{position:absolute;top:-40px;width:4px;height:26px;background:#a5d8ff;border-radius:3px;animation:rain 1s linear infinite}
+@keyframes rain{to{transform:translateY(110vh)}}
+body.sad{background:linear-gradient(#5c677d,#909aa8 60%,#7d8a7d)}
+body.sad .cloud{background:#8d96a3}
+body.sad .rain{display:block}
+body.worry{background:linear-gradient(#8fb8de,#cfe2f3 60%,#b2d8b8)}
+
+.app{position:relative;z-index:1;max-width:1920px;margin:0 auto;padding:10px 16px 16px}
+
+/* ---------- Buttons ---------- */
+.btn{
+  min-height:64px; min-width:64px; padding:8px 22px; border:0; border-radius:20px; cursor:pointer;
+  background:var(--btn); color:#fff; font-size:1.05rem; font-weight:800;
+  box-shadow:0 6px 0 var(--btn-dark); transition:transform .1s, box-shadow .1s, opacity .2s;
+  display:inline-flex; align-items:center; justify-content:center; gap:.35em; touch-action:manipulation;
+}
+.btn:active:not(:disabled){transform:translateY(5px);box-shadow:0 1px 0 var(--btn-dark)}
+.btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:0 6px 0 #6c757d;background:#868e96}
+.btn:focus-visible,input:focus-visible,.an:focus-visible{outline:5px solid #ffd43b;outline-offset:3px}
+.btn.green{background:var(--leaf);box-shadow:0 6px 0 var(--leaf-dark)}
+.btn.brown{background:#a0622d;box-shadow:0 6px 0 #6b3f16}
+.btn.gold{background:#f59f00;box-shadow:0 6px 0 #b36b00;color:#1b1b1b}
+.btn.red{background:var(--danger);box-shadow:0 6px 0 #a61e1e}
+.btn.light{background:#fff;color:var(--ink);box-shadow:0 6px 0 #adb5bd;border:3px solid #ced4da}
+.btn.big{min-height:84px;font-size:1.4rem;padding:12px 40px;border-radius:26px}
+.btn.next-step:not(:disabled){animation:nudge 1.2s ease-in-out infinite;outline:5px solid #ffd43b}
+@keyframes nudge{50%{transform:scale(1.06)}}
+body.busy .btn:not(.keep){pointer-events:none;opacity:.55}
+
+/* ---------- Startbildschirm ---------- */
+#start{text-align:center;padding-top:10px}
+#start h1{font-size:3.4rem;margin:.1em 0;color:var(--leaf-dark);text-shadow:0 4px 0 #fff}
+.hero-trees{font-size:3rem;display:flex;justify-content:center;gap:10px}
+.hero-trees span{display:inline-block;animation:bounce 1.6s ease-in-out infinite}
+.hero-trees span:nth-child(2n){animation-delay:.3s}
+.hero-trees span:nth-child(3n){animation-delay:.6s}
+@keyframes bounce{50%{transform:translateY(-14px) rotate(4deg)}}
+.rules{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin:14px 0}
+.rules div{background:#fff;border-radius:20px;padding:8px 18px;font-size:1.1rem;border:4px solid var(--leaf)}
+.teamsetup{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;max-width:1500px;margin:16px auto}
+.tsbox{background:#fff;border-radius:24px;padding:12px;border:6px solid var(--c)}
+.tsbox .big-emoji{font-size:3.2rem;display:block}
+.tsbox input{width:100%;font-size:1.15rem;padding:10px;border-radius:14px;border:3px solid #adb5bd;text-align:center;font-weight:800}
+
+/* ---------- Kopfzeile ---------- */
+.top{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.sunbox{width:76px;height:76px;flex:none;cursor:pointer;transition:filter .8s}
+.sunbox svg{width:100%;height:100%;overflow:visible}
+.sunbox .rays{transform-origin:50px 50px;animation:spin 40s linear infinite}
+.sunbox .eye{animation:blink 5s infinite;transform-origin:center;transform-box:fill-box}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.1)}}
+.sunbox.hop{animation:hop .6s}
+body.sad .sunbox{filter:grayscale(.85) brightness(.9)}
+.headtext{flex:1;min-width:280px}
+.headtext h1{margin:0;font-size:1.9rem;color:var(--leaf-dark);text-shadow:0 3px 0 #fff}
+#roundInfo{font-size:1.3rem;background:#fff;display:inline-block;border-radius:16px;padding:2px 16px;border:4px solid var(--gold-dark)}
+.tools{display:flex;gap:10px;flex-wrap:wrap}
+
+/* ---------- Hauptlayout ---------- */
+.main{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,1fr);gap:16px;margin-top:8px;align-items:start}
+@media (max-width:1100px){.main{grid-template-columns:1fr}}
+.panel{background:rgba(255,255,255,.92);border-radius:24px;border:5px solid #fff;box-shadow:0 6px 0 rgba(0,0,0,.12);padding:6px 14px 10px}
+
+.counter{text-align:center}
+.bigcount{font-size:1.6rem;font-weight:900;line-height:1.1}
+.bigcount b{line-height:1;vertical-align:-.1em;font-size:2.3rem;color:var(--leaf-dark);display:inline-block;min-width:1.6em}
+.bigcount b.tick{animation:hop .35s}
+.bar{position:relative;height:30px;background:#dee2e6;border-radius:16px;overflow:visible;border:3px solid var(--ink);margin:6px 8px 26px}
+.bar .fill{height:100%;border-radius:12px;background:var(--leaf);width:100%;transition:width .3s,background .3s}
+.bar .lim{position:absolute;left:50%;top:-8px;bottom:-8px;border-left:4px dashed var(--danger)}
+.bar .lim span{position:absolute;top:100%;left:-1em;font-size:1rem;color:var(--danger);white-space:nowrap;margin-top:2px}
+#msg{font-size:1.3rem;min-height:1.7em;display:flex;align-items:center;justify-content:center;text-align:center;
+  background:#fff8db;border:4px solid var(--gold-dark);border-radius:20px;padding:4px 14px;margin:8px 0}
+
+/* ---------- Wald ---------- */
+.forestwrap{position:relative;border-radius:28px;border:6px solid var(--leaf-dark);overflow:hidden;
+  background:linear-gradient(#bfe6ff 0%,#e3f6dd 28%,var(--field1) 45%,var(--field2) 100%);transition:filter .8s}
+body.sad .forestwrap{filter:grayscale(.85) brightness(.85)}
+.forest{position:relative;z-index:2;display:grid;grid-template-columns:repeat(10,1fr);gap:2px 0;padding:10px 8px 0}
+.slot{position:relative;aspect-ratio:1.6/1;cursor:pointer;border-radius:14px}
+.slot svg{width:100%;height:100%;display:block;overflow:visible}
+.slot .g-stump{display:none}
+.slot.stump .g-tree{display:none}
+.slot.stump .g-stump,.slot.falling .g-stump{display:inline}
+.slot .g-tree{transform-origin:50px 94px;animation:sway 4s ease-in-out infinite;animation-delay:var(--d,0s)}
+@keyframes sway{50%{transform:rotate(1.8deg)}}
+.slot.marked::after{content:"";position:absolute;inset:0;border:5px solid var(--c);border-radius:14px;
+  background:color-mix(in srgb,var(--c) 28%,transparent);animation:pulse .5s ease-in-out infinite alternate;z-index:3}
+@keyframes pulse{to{transform:scale(1.07)}}
+.slot.falling .g-tree{animation:fall .95s ease-in forwards}
+@keyframes fall{0%{transform:rotate(0)}15%{transform:rotate(-7deg)}30%{transform:rotate(6deg)}100%{transform:rotate(88deg) translateY(6px);opacity:0}}
+.slot.sprout .g-tree{animation:sprout 1.2s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes sprout{0%{transform:scale(.05)}55%{transform:scale(1.25) rotate(-4deg)}75%{transform:scale(.92) rotate(4deg)}100%{transform:scale(1)}}
+.slot.wiggle .g-tree{animation:wiggle .7s}
+@keyframes wiggle{20%{transform:rotate(-9deg)}40%{transform:rotate(8deg)}60%{transform:rotate(-5deg)}80%{transform:rotate(3deg)}}
+@keyframes hop{30%{transform:translateY(-22px) scale(1.1)}60%{transform:translateY(0) scale(.95)}}
+
+.strip{position:relative;z-index:2;height:72px;background:linear-gradient(#5fb96b,#3d9a4d);border-top:4px solid var(--leaf-dark)}
+.strip::before{content:"🌼 🌷 🌼 🌸 🌼 🌷 🌼 🌸 🌼 🌷 🌼 🌸 🌼 🌷 🌼";position:absolute;inset:auto 0 4px 0;font-size:1rem;opacity:.55;white-space:nowrap;overflow:hidden;letter-spacing:.9em}
+#animals{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+.an{position:absolute;pointer-events:auto;cursor:pointer;font-size:2.6rem;line-height:1;background:none;border:0;padding:0;user-select:none}
+.an.ground{bottom:6px;animation:idle 3s ease-in-out infinite}
+@keyframes idle{50%{transform:translateY(-5px)}}
+.an.bird,.an.fly{animation:fly linear infinite}
+@keyframes fly{from{left:-8%;margin-top:0}25%{margin-top:-26px}50%{margin-top:8px}75%{margin-top:-20px}to{left:104%;margin-top:0}}
+.an.hop{animation:hop .7s!important}
+.an .bubble{position:absolute;bottom:105%;left:50%;transform:translateX(-50%);background:#fff;color:var(--ink);
+  border:3px solid var(--ink);border-radius:14px;padding:2px 12px;font-size:1rem;white-space:nowrap;display:none}
+.an.say .bubble{display:block}
+.an.wave{transform-origin:50% 100%;animation:wave 1.4s ease-in-out infinite}
+@keyframes wave{25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
+.an.bye{animation:bye 3s ease-in forwards!important}
+.an.bye .bubble{display:block}
+@keyframes bye{0%{transform:translateX(0)}20%{transform:translateX(0)}100%{transform:translateX(130vw)}}
+.stumpbase{position:absolute;left:-6px;bottom:-8px;width:64px;height:26px;background:var(--wood);border-radius:8px;border-top:6px solid #e0b27a;z-index:-1}
+.an.squirrel{padding-bottom:16px}
+
+.rainbow{position:absolute;left:8%;right:8%;bottom:80px;z-index:1;display:none;opacity:.9}
+body.party .rainbow{display:block;animation:rb 1.6s ease-out}
+@keyframes rb{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+body.party .an{animation:dance .7s ease-in-out infinite!important}
+@keyframes dance{25%{transform:translateY(-16px) rotate(-10deg)}75%{transform:translateY(-16px) rotate(10deg)}}
+.nowood{position:absolute;inset:0;z-index:4;display:none;align-items:center;justify-content:center;flex-direction:column;
+  background:rgba(40,40,50,.55);color:#fff;text-align:center;font-size:3rem;font-weight:900;text-shadow:0 4px 0 #000}
+.nowood span{font-size:4.5rem}
+body.sad .nowood{display:flex}
+
+.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
+.actions .btn{flex:1 1 200px}
+
+/* ---------- Zeitleiste ---------- */
+.timeline{display:flex;gap:6px;margin-top:14px;align-items:stretch}
+.timeline .tl{flex:1;background:#fff;border-radius:14px;border:4px solid #ced4da;text-align:center;padding:2px 0;min-width:0}
+.timeline .tl.head{flex:0 0 auto;padding:2px 10px;border:0;background:none;display:flex;align-items:center;font-size:1.1rem}
+.timeline .tl .y{display:block;font-size:1rem;color:#495057}
+.timeline .tl .e{display:block;font-size:1.7rem;line-height:1.1}
+.timeline .tl .n{display:block;font-size:1rem}
+.timeline .tl.cur{border-color:var(--btn);background:#e7f5ff;transform:translateY(-4px)}
+.timeline .tl.todo .e,.timeline .tl.todo .n{opacity:.35}
+
+/* ---------- Teams ---------- */
+.teamhead{font-size:1.1rem;text-align:center;margin:0 0 4px}
+#teams{display:flex;flex-direction:column;gap:8px}
+.team{background:#fff;border-radius:20px;border:5px solid var(--c);padding:4px 10px 6px;transition:transform .2s, box-shadow .2s}
+.team.active{transform:scale(1.03);box-shadow:0 0 0 6px var(--gold)}
+.row1,.row2{display:flex;align-items:center;gap:8px}
+.row2{margin-top:6px;justify-content:space-between;flex-wrap:wrap}
+.pos{width:38px;height:38px;border-radius:50%;background:var(--c);color:#fff;font-size:1.1rem;display:grid;place-items:center;flex:none}
+.tanim{font-size:2.2rem;line-height:1}
+.tname{flex:1;font-size:1.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kasse{display:flex;align-items:flex-end;gap:8px}
+.coinstack{display:flex;flex-direction:column-reverse;width:48px;height:56px;justify-content:flex-start}
+.coinstack i{display:block;height:5px;margin-top:-1px;border-radius:50%;background:linear-gradient(#ffe066,#fab005);border:2px solid var(--gold-dark)}
+.coins{font-size:1.4rem;font-weight:900;min-width:3.3em;text-align:right;align-self:center}
+.coins.up{animation:hop .3s}
+.stepper{display:flex;align-items:center;gap:4px}
+.rb{width:64px;height:64px;border-radius:18px;border:0;font-size:2rem;font-weight:900;cursor:pointer;color:#fff;background:var(--c);box-shadow:0 5px 0 rgba(0,0,0,.35)}
+.rb:active:not(:disabled){transform:translateY(4px);box-shadow:0 1px 0 rgba(0,0,0,.35)}
+.rb:disabled{opacity:.35;cursor:not-allowed}
+.wish{width:92px;height:64px;font-size:1.7rem;text-align:center;border:4px solid var(--c);border-radius:16px;background:#fff;font-weight:900}
+.wish:disabled{background:#f1f3f5}
+.res{font-size:1.05rem;flex:1;text-align:right}
+.arrows{display:flex;gap:6px}
+.arrows .rb{width:56px;background:#495057}
+.rankbar{height:12px;background:#e9ecef;border-radius:8px;margin-top:8px;position:relative}
+.rankbar i{display:block;height:100%;border-radius:8px;background:var(--c);transition:width .5s}
+.rankbar .medal{position:absolute;right:0;top:-14px;font-size:1.3rem}
+
+/* ---------- Overlays ---------- */
+.overlay{position:fixed;inset:0;z-index:50;background:rgba(10,30,20,.72);display:grid;place-items:center;padding:16px}
+.dialog{background:#fff;border-radius:30px;border:8px solid var(--gold);padding:22px 28px;max-width:1100px;width:100%;text-align:center}
+.dialog h2{margin:0 0 10px;font-size:1.7rem}
+.dialog .btns{display:flex;gap:16px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+.drawstage{display:flex;align-items:center;gap:20px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+.sack{font-size:5rem;position:relative}
+.sq{font-size:4.5rem}
+.sq.jump{animation:hop .5s}
+.dslots{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.dslot{width:150px;height:150px;border-radius:22px;border:6px dashed #adb5bd;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:1rem;background:#f8f9fa}
+.dslot small{font-size:1rem;color:#495057}
+.dslot.full{border:6px solid var(--c);background:#fff;animation:cardin .8s cubic-bezier(.3,1.4,.5,1)}
+.dslot .de{font-size:3.2rem;line-height:1}
+@keyframes cardin{from{transform:translate(var(--dx),var(--dy)) scale(.3) rotate(-200deg);opacity:.2}to{transform:none;opacity:1}}
+
+/* Fliegende Extras */
+.fx{position:fixed;z-index:60;pointer-events:none;font-size:2rem;font-weight:900}
+.fx.pop{color:#fff;text-shadow:0 0 4px #000,0 0 4px #000;animation:floatup 1s ease-out forwards}
+@keyframes floatup{to{transform:translateY(-60px) scale(1.3);opacity:0}}
+.fx.bird{animation:flyaway 1.8s ease-in forwards;font-size:2.4rem}
+@keyframes flyaway{to{transform:translate(var(--dx),-260px) rotate(20deg);opacity:0}}
+.fx.coin{transition:transform .8s cubic-bezier(.5,-.2,.6,1),opacity .8s}
+.fx.spark{animation:spark 1.1s ease-out forwards;font-size:1.6rem}
+@keyframes spark{to{transform:translateY(-50px) scale(1.6) rotate(90deg);opacity:0}}
+.confetti{position:fixed;top:-20px;z-index:70;pointer-events:none;animation:confall linear forwards}
+@keyframes confall{to{transform:translateY(112vh) rotate(720deg)}}
+
+/* ---------- Auswertung ---------- */
+#end h1{text-align:center;font-size:2.4rem;margin:.2em 0;color:var(--leaf-dark);text-shadow:0 3px 0 #fff}
+.verdict{font-size:1.6rem;text-align:center;background:#fff;border:6px solid var(--leaf);border-radius:24px;padding:8px 16px;margin:8px auto;max-width:1300px}
+.endgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
+@media (max-width:1100px){.endgrid{grid-template-columns:1fr}}
+.panel h2{margin:.1em 0 .3em;font-size:1.4rem;text-align:center}
+.legend{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;font-size:1rem}
+.legend .sw{display:inline-block;width:22px;height:22px;border-radius:6px;vertical-align:-4px;margin-right:4px;border:2px solid var(--ink)}
+.chart svg{width:100%;height:auto;display:block}
+.chart text{font-family:inherit;font-weight:800;fill:var(--ink)}
+.tbar{display:grid;grid-template-columns:230px 1fr;gap:8px;align-items:center;margin:8px 0}
+.tbar .lbl{font-size:1.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tbar .track{position:relative;height:46px;background:#e9ecef;border-radius:14px;border:3px solid var(--ink)}
+.tbar .track i{display:flex;align-items:center;justify-content:flex-end;padding-right:8px;height:100%;background:var(--c);border-radius:10px;color:#fff;font-size:1.05rem;text-shadow:0 0 3px #000;min-width:2px;animation:grow 1.2s ease-out}
+@keyframes grow{from{width:0}}
+.tbar .goal{position:absolute;top:-8px;bottom:-8px;border-left:4px dashed var(--danger)}
+.goalnote{font-size:1.05rem;text-align:center;margin-top:4px}
+.compare{font-size:1.1rem;text-align:center;margin-top:8px;background:#fff8db;border:4px solid var(--gold-dark);border-radius:16px;padding:4px 10px}
+.qcard{background:#fff;border:8px solid var(--btn);border-radius:30px;padding:16px 24px;text-align:center;min-height:250px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;animation:cardin2 .5s}
+@keyframes cardin2{from{transform:scale(.8) rotate(-4deg);opacity:0}}
+.qcard .qe{font-size:4rem}
+.qcard .qt{font-size:1.9rem;font-weight:900}
+.qcard .qh{font-size:1.2rem;color:#343a40}
+.qnav{display:flex;gap:14px;justify-content:center;align-items:center;margin-top:12px;flex-wrap:wrap}
+.dots{display:flex;gap:8px}.dots i{width:22px;height:22px;border-radius:50%;background:#ced4da;border:3px solid var(--ink)}.dots i.on{background:var(--btn)}
+
+/* ---------- Ruhige Ansicht ---------- */
+body.calm *,body.calm *::before,body.calm *::after{animation:none!important;transition:none!important}
+body.calm .rainbow{display:none}
+@media (prefers-reduced-motion:reduce){
+  body:not(.motion-ok) *,body:not(.motion-ok) *::before,body:not(.motion-ok) *::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="skybg" aria-hidden="true">
+  <div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
+  <div class="rain" id="rain"></div>
+</div>
+
+<div class="app">
+
+<!-- ============ STARTBILDSCHIRM ============ -->
+<section id="start">
+  <div class="hero-trees" aria-hidden="true"><span>🌳</span><span>🌲</span><span>🌳</span><span>🐿️</span><span>🌳</span><span>🌲</span><span>🌳</span></div>
+  <h1>UnaSilva</h1>
+  <div style="font-size:1.5rem">Das Waldspiel</div>
+  <div class="rules">
+    <div>🌳 50 Bäume</div><div>👥 5 Teams</div><div>🔟 10 Runden</div><div>🪓 1 Baum = 100 🪙</div>
+  </div>
+  <div style="font-size:1.2rem">Wie heißen die Teams?</div>
+  <div class="teamsetup" id="teamSetup"></div>
+  <button class="btn big green" id="btnStart">🌳 Spiel starten</button>
+  <div class="tools" style="justify-content:center;margin-top:16px">
+    <button class="btn light keep" data-tool="sound">🔇 Ton aus</button>
+    <button class="btn light keep" data-tool="calm">🐢 Ruhige Ansicht: aus</button>
+  </div>
+</section>
+
+<!-- ============ SPIELBILDSCHIRM ============ -->
+<section id="game" hidden>
+  <header class="top">
+    <div class="sunbox" id="sunbox" title="Sonne" role="img" aria-label="Sonne mit Gesicht"></div>
+    <div class="headtext">
+      <h1>UnaSilva 🌳</h1>
+      <div id="roundInfo"></div>
+    </div>
+    <div class="tools">
+      <button class="btn light keep" data-tool="sound">🔇 Ton aus</button>
+      <button class="btn light keep" data-tool="calm">🐢 Ruhige Ansicht: aus</button>
+      <button class="btn light" id="btnUndo">↩️ Rückgängig</button>
+      <button class="btn light" id="btnNew">🆕 Neues Spiel</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <div>
+      <div class="panel counter">
+        <div class="bigcount">🌳 Bäume im Wald: <b id="cnt">50</b> von 50</div>
+        <div class="bar" aria-hidden="true"><div class="fill" id="barfill"></div><div class="lim"><span>25</span></div></div>
+        <div id="msg" aria-live="polite"></div>
+        <div class="forestwrap" id="forestwrap">
+          <svg class="rainbow" viewBox="0 0 400 200" id="rainbow" aria-hidden="true"></svg>
+          <div class="forest" id="forest"></div>
+          <div class="strip"></div>
+          <div id="animals"></div>
+          <div class="nowood"><span>🪵</span>Kein Holz mehr!</div>
+        </div>
+        <div class="actions">
+          <button class="btn brown" id="btnDraw">🎲 Ziehen!</button>
+          <button class="btn red" id="btnFell">🪓 Bäume fällen</button>
+          <button class="btn green" id="btnGrow">🌱 Wald wächst nach</button>
+          <button class="btn" id="btnNext">➡️ Nächste Runde</button>
+        </div>
+        <div class="timeline" id="timeline"></div>
+      </div>
+    </div>
+    <aside class="panel">
+      <h2 class="teamhead">👥 Teams und Kasse 🪙 Forstlinge</h2>
+      <div id="teams"></div>
+    </aside>
+  </div>
+</section>
+
+<!-- ============ AUSWERTUNG ============ -->
+<section id="end" hidden>
+  <h1>📊 Auswertung</h1>
+  <div class="verdict" id="verdict"></div>
+  <div class="endgrid">
+    <div class="panel chart">
+      <h2>🌳 Bäume im Wald pro Runde</h2>
+      <div id="treeChart"></div>
+      <div class="legend">
+        <span><span class="sw" style="background:#a0622d"></span>nach dem Fällen</span>
+        <span><span class="sw" style="background:#2b9348"></span>nach dem Nachwachsen</span>
+        <span style="color:#c92a2a">- - Grenze 25</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>🪙 Forstlinge pro Team</h2>
+      <div id="teamChart"></div>
+      <div class="goalnote">- - So viel wäre nachhaltig: 5.000 🪙</div>
+      <div class="compare" id="compare"></div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:16px">
+    <h2>💬 Sprechen wir darüber</h2>
+    <div class="qcard" id="qcard"></div>
+    <div class="qnav">
+      <button class="btn" id="qPrev">⬅️ Zurück</button>
+      <div class="dots" id="qdots"></div>
+      <button class="btn" id="qNext">Weiter ➡️</button>
+    </div>
+  </div>
+  <div class="actions" style="justify-content:center">
+    <button class="btn light" id="btnBack">🌳 Zurück zum Wald</button>
+    <button class="btn light" id="btnNew2">🆕 Neues Spiel</button>
+  </div>
+</section>
+
+</div>
+
+<!-- Ziehen-Animation -->
+<div class="overlay" id="drawOverlay" hidden>
+  <div class="dialog">
+    <h2>🎲 Wer ist zuerst dran?</h2>
+    <div class="drawstage">
+      <div class="sack" id="sack">🎒</div>
+      <div class="sq" id="sq">🐿️</div>
+    </div>
+    <div class="dslots" id="dslots" style="margin-top:14px"></div>
+  </div>
+</div>
+
+<!-- Sicherheitsabfrage -->
+<div class="overlay" id="confirmOverlay" hidden>
+  <div class="dialog" style="max-width:760px">
+    <h2 id="confirmText"></h2>
+    <div class="btns">
+      <button class="btn red" id="confirmYes">Ja</button>
+      <button class="btn light" id="confirmNo">Nein</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================
+   1. KONSTANTEN
+   ===================================================================== */
+const MAX_TREES = 50;          // Baumplätze im Wald
+const TEAM_COUNT = 5;
+const ROUNDS = 10;             // 1 Runde = 1 Jahrzehnt
+const COINS_PER_TREE = 100;    // Forstlinge pro gefälltem Baum
+const REGROW_LIMIT = 25;       // ab 25 Bäumen wird der Wald wieder voll
+const SUSTAINABLE_PER_TEAM = 5000;   // 5 Bäume × 10 Runden × 100
+
+const TEAM_STYLE = [
+  { color:'#e03131', animal:'🦊' },
+  { color:'#1971c2', animal:'🐧' },
+  { color:'#e08a00', animal:'🐝' },
+  { color:'#7048e8', animal:'🦉' },
+  { color:'#0b7285', animal:'🐢' },
+];
+
+const QUESTIONS = [
+  { e:'🌳', t:'Was ist mit unserem Wald passiert?', h:'Wie viele Bäume gab es am Anfang? Wie viele jetzt?' },
+  { e:'🤔', t:'Was hätten wir anders machen können?', h:'Wie viele Bäume wären gut für alle gewesen?' },
+  { e:'😢', t:'Wie war es, wenn kein Baum mehr für euch da war?', h:'Wer ist leer ausgegangen? Wie hat sich das angefühlt?' },
+  { e:'🤝', t:'Was hilft, damit der Wald bleibt?', h:'Miteinander reden. Nicht zu viel nehmen. Aufpassen.' },
+  { e:'🌍', t:'Was können wir im echten Leben für den Wald tun?', h:'Papier sparen. Bäume pflanzen. Nichts wegwerfen.' },
+];
+
+/* =====================================================================
+   2. SPIELZUSTAND (zentral)
+   ===================================================================== */
+let S = newState(['Team 1','Team 2','Team 3','Team 4','Team 5']);
+let snaps = [];          // Momentaufnahmen jeweils am Rundenanfang (für „Rückgängig“)
+let busy = false;        // true, solange eine Animation läuft
+let soundOn = false;
+let audioCtx = null;
+let qIndex = 0;
+
+function newState(names){
+  return {
+    view: 'start',                       // 'start' | 'game' | 'end'
+    round: 1,                            // 1..10
+    phase: 'wish',                       // 'wish' → 'drawn' → 'felled' → 'grown'
+    slots: Array(MAX_TREES).fill(true),  // true = Baum steht
+    teams: names.map(n => ({ name:n, coins:0 })),
+    wishes: Array(TEAM_COUNT).fill(0),
+    order: [...Array(TEAM_COUNT).keys()],// Reihenfolge der Teams (Team-Indizes)
+    results: Array(TEAM_COUNT).fill(null), // {wish, got} nach dem Fällen
+    stats: [],                           // je Runde: {afterFell, afterGrow}
+    note: '',                            // Text für die Sprechblase
+  };
+}
+const clone = o => JSON.parse(JSON.stringify(o));
+const countTrees = slots => slots.filter(Boolean).length;
+
+/* =====================================================================
+   3. SPIELREGELN (rein, ohne Darstellung)
+   ===================================================================== */
+function shuffle(a, rnd = Math.random){
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+
+/** Bestätigung: Teams kommen in `order` dran. Jedes bekommt min(Wunsch, Rest). */
+function planFelling(presentSlots, wishes, order, rnd = Math.random){
+  const pool = shuffle(presentSlots.slice(), rnd);   // zufällige Bäume werden gefällt
+  return order.map(team => {
+    const wish = wishes[team];
+    const got = Math.min(wish, pool.length);
+    return { team, wish, got, slots: pool.splice(0, got) };
+  });
+}
+
+/** Nachwuchs: >= 25 Bäume → Wald wieder voll (50). 1..24 → Verdopplung. 0 → nichts. */
+function regrowTarget(count){
+  if(count <= 0) return 0;
+  if(count >= REGROW_LIMIT) return MAX_TREES;
+  return Math.min(MAX_TREES, count * 2);
+}
+/** Welche leeren Plätze bekommen neue Bäume? */
+function planGrowth(slots, rnd = Math.random){
+  const count = countTrees(slots);
+  const need = regrowTarget(count) - count;
+  const empty = [];
+  slots.forEach((s,i) => { if(!s) empty.push(i); });
+  return shuffle(empty, rnd).slice(0, need);
+}
+
+/** Beispielspiele zur Kontrolle der Regeln (Ausgabe in der Browser-Konsole). */
+function selfTest(){
+  const ok = (name, cond) => console.assert(cond, 'REGELTEST FEHLT: ' + name);
+  const full = Array(MAX_TREES).fill(true);
+  const idx = full.map((_,i)=>i);
+  const ord = [0,1,2,3,4];
+  // 5 Teams à 5 Bäume → 25 gefällt, 25 bleiben → wieder 50
+  let p = planFelling(idx,[5,5,5,5,5],ord);
+  ok('5x5 gefällt', p.reduce((s,x)=>s+x.got,0) === 25);
+  ok('5x5 → 50', regrowTarget(50-25) === 50);
+  // 5 Teams à 8 → 40 gefällt, 10 bleiben → 20
+  p = planFelling(idx,[8,8,8,8,8],ord);
+  ok('5x8 → 10 übrig', 50 - p.reduce((s,x)=>s+x.got,0) === 10);
+  ok('10 → 20', regrowTarget(10) === 20);
+  // 30 + 30: Team 1 bekommt 30, Team 2 nur den Rest 20, Rest leer
+  p = planFelling(idx,[30,30,5,0,0],ord);
+  ok('Rest-Regel', p[0].got===30 && p[1].got===20 && p[2].got===0);
+  ok('0 Bäume bleiben 0', regrowTarget(0) === 0);
+  ok('24 → 48', regrowTarget(24) === 48);
+  ok('25 → 50', regrowTarget(25) === 50);
+  // Nachwuchs füllt genau bis zum Ziel auf
+  const s = full.slice(); for(let i=0;i<40;i++) s[i]=false;
+  ok('Wuchs 10 → 10 neue', planGrowth(s).length === 10);
+  const t = full.slice(); for(let i=0;i<30;i++) t[i]=false;
+  ok('20 Bäume → 40, also 20 neue', planGrowth(t).length === 20);
+}
+selfTest();
+
+/* =====================================================================
+   4. HILFSFUNKTIONEN: Warten, Ton, Effekte
+   ===================================================================== */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const isCalm = () => document.body.classList.contains('calm');
+const sleep = ms => new Promise(r => setTimeout(r, isCalm() ? Math.min(ms*0.15, 150) : ms));
+const fmt = n => n.toLocaleString('de-DE');
+
+function tone(freq, dur=.15, type='sine', vol=.15, delay=0, slideTo=null){
+  if(!soundOn || !audioCtx) return;
+  const t0 = audioCtx.currentTime + delay;
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t0);
+  if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0+dur);
+  g.gain.setValueAtTime(vol, t0);
+  g.gain.exponentialRampToValueAtTime(.0001, t0+dur);
+  o.connect(g).connect(audioCtx.destination);
+  o.start(t0); o.stop(t0+dur+.05);
+}
+const sfx = {
+  thud:  () => tone(140,.3,'sine',.35,0,45),
+  pling: (n=0) => { tone(880+n*60,.25,'triangle',.15); tone(1320+n*90,.3,'sine',.08,.08); },
+  coin:  () => { tone(1250,.07,'square',.05); tone(1700,.12,'square',.05,.06); },
+  card:  n => tone(400+n*90,.2,'triangle',.18),
+  squeak:() => tone(600+Math.random()*500,.12,'square',.06),
+  fanfare: () => [523,659,784,1047].forEach((f,i)=>tone(f,.3,'triangle',.15,i*.16)),
+  sad:   () => [392,330,262].forEach((f,i)=>tone(f,.4,'sine',.15,i*.3)),
+};
+
+function fxAt(rect, cls, text, extra={}){
+  const el = document.createElement('div');
+  el.className = 'fx ' + cls; el.textContent = text;
+  el.style.left = (rect.left + rect.width/2 - 14) + 'px';
+  el.style.top  = (rect.top  + rect.height/2 - 14) + 'px';
+  Object.entries(extra).forEach(([k,v]) => el.style.setProperty(k,v));
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2200);
+  return el;
+}
+
+function confetti(n=140){
+  if(isCalm()) return;
+  const cols = ['#e03131','#1971c2','#f59f00','#7048e8','#2b9348','#e64980','#22b8cf'];
+  for(let i=0;i<n;i++){
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.left = Math.random()*100 + 'vw';
+    c.style.width = (8+Math.random()*10)+'px'; c.style.height = (12+Math.random()*12)+'px';
+    c.style.background = cols[i%cols.length];
+    c.style.animationDuration = (2.5+Math.random()*3)+'s';
+    c.style.animationDelay = (Math.random()*1.5)+'s';
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 8000);
+  }
+}
+
+/* =====================================================================
+   5. DARSTELLUNG – Wald, Sonne, Tiere, Zähler
+   ===================================================================== */
+/* --- Baum-SVG: enthält Baum UND Baumstumpf, per CSS-Klasse umgeschaltet --- */
+function treeSVG(i){
+  const greens = ['#2f9e44','#37b24d','#2b8a3e'];
+  const g = greens[i % 3];
+  const pine = i % 3 === 1;
+  const st = 'stroke="#1b5e20" stroke-width="2.5" stroke-linejoin="round"';
+  const crown = pine
+    ? `<polygon points="50,4 76,42 62,42 86,72 14,72 38,42 24,42" fill="${g}" ${st}/>
+       <polygon points="50,14 60,32 50,30" fill="#8ce99a" opacity=".6"/>`
+    : `<circle cx="32" cy="54" r="19" fill="${g}" ${st}/><circle cx="68" cy="54" r="19" fill="${g}" ${st}/>
+       <circle cx="50" cy="38" r="26" fill="${g}" ${st}/>
+       <circle cx="42" cy="30" r="8" fill="#8ce99a" opacity=".65"/>
+       ${i%4===0 ? '<circle cx="58" cy="46" r="4" fill="#e03131"/><circle cx="38" cy="56" r="4" fill="#e03131"/>':''}`;
+  return `<svg viewBox="0 0 100 100" aria-hidden="true">
+    <ellipse cx="50" cy="95" rx="30" ry="5" fill="rgba(0,0,0,.2)"/>
+    <g class="g-stump"><rect x="34" y="74" width="32" height="20" rx="5" fill="#8b5a2b" stroke="#5a3a17" stroke-width="2"/>
+      <ellipse cx="50" cy="74" rx="16" ry="7" fill="#e0b27a" stroke="#5a3a17" stroke-width="2"/>
+      <ellipse cx="50" cy="74" rx="8" ry="3.2" fill="none" stroke="#b07a3d" stroke-width="2"/></g>
+    <g class="g-tree"><rect x="44" y="60" width="12" height="35" rx="3" fill="#8b5a2b" stroke="#5a3a17" stroke-width="2"/>${crown}</g>
+  </svg>`;
+}
+
+function buildForest(){
+  const f = $('#forest'); f.innerHTML = '';
+  for(let i=0;i<MAX_TREES;i++){
+    const d = document.createElement('div');
+    d.className = 'slot'; d.dataset.i = i;
+    d.style.setProperty('--d', (-(i*0.37)%4).toFixed(2)+'s');
+    d.innerHTML = treeSVG(i);
+    d.addEventListener('click', () => {
+      if(d.classList.contains('stump')) return;
+      d.classList.remove('wiggle'); void d.offsetWidth; d.classList.add('wiggle');
+      sfx.squeak();
+    });
+    f.appendChild(d);
+  }
+  // Regenbogen
+  const cols = ['#e03131','#f76707','#fcc419','#40c057','#228be6','#7048e8'];
+  $('#rainbow').innerHTML = cols.map((c,k) => {
+    const r = 190 - k*11;
+    return `<path d="M ${200-r} 200 A ${r} ${r} 0 0 1 ${200+r} 200" fill="none" stroke="${c}" stroke-width="11"/>`;
+  }).join('');
+}
+const slotEl = i => $('#forest').children[i];
+function paintSlots(){
+  S.slots.forEach((on,i) => {
+    const el = slotEl(i);
+    el.classList.remove('falling','marked','sprout');
+    el.classList.toggle('stump', !on);
+  });
+}
+
+/* --- Sonne mit Gesicht --- */
+function buildSun(){
+  let rays = '';
+  for(let k=0;k<12;k++) rays += `<line x1="50" y1="6" x2="50" y2="16" stroke="#f59f00" stroke-width="5" stroke-linecap="round" transform="rotate(${k*30} 50 50)"/>`;
+  $('#sunbox').innerHTML = `<svg viewBox="0 0 100 100"><g class="rays">${rays}</g>
+    <circle cx="50" cy="50" r="30" fill="#ffd43b" stroke="#f08c00" stroke-width="3"/>
+    <circle class="eye" cx="40" cy="45" r="4" fill="#222"/><circle class="eye" cx="60" cy="45" r="4" fill="#222"/>
+    <circle cx="33" cy="55" r="5" fill="#ff8787" opacity=".7"/><circle cx="67" cy="55" r="5" fill="#ff8787" opacity=".7"/>
+    <path id="sunMouth" d="M38 56 Q50 70 62 56" stroke="#222" stroke-width="3.5" fill="none" stroke-linecap="round"/></svg>`;
+  $('#sunbox').addEventListener('click', () => {
+    const b = $('#sunbox'); b.classList.remove('hop'); void b.offsetWidth; b.classList.add('hop'); sfx.pling();
+  });
+}
+function setSunMood(n){
+  const d = n >= REGROW_LIMIT ? 'M38 56 Q50 70 62 56' : n > 0 ? 'M39 62 Q50 58 61 62' : 'M38 64 Q50 52 62 64';
+  const m = $('#sunMouth'); if(m) m.setAttribute('d', d);
+}
+
+/* --- Tiere: je weniger Bäume, desto weniger Tiere --- */
+const ANIMALS = [
+  { id:'squirrel', e:'🐿️', min:10, left:6,  say:'Hallo!', kind:'ground squirrel wave' },
+  { id:'hedgehog', e:'🦔', min:20, left:28, say:'Schnuff!', kind:'ground' },
+  { id:'rabbit',   e:'🐰', min:30, left:52, say:'Hoppel!', kind:'ground' },
+  { id:'deer',     e:'🦌', min:45, left:86, say:'Juhu!', kind:'ground' },
+  { id:'bird1',    e:'🐦', min:1,  top:6,  say:'Piep!', kind:'fly', dur:16, delay:-2 },
+  { id:'bird2',    e:'🐦', min:20, top:22, say:'Tschirp!', kind:'fly', dur:21, delay:-9 },
+  { id:'bird3',    e:'🦜', min:40, top:12, say:'Hui!', kind:'fly', dur:26, delay:-15 },
+  { id:'fly1',     e:'🦋', min:30, top:38, say:'Flatter!', kind:'fly', dur:30, delay:-5 },
+];
+let animalSig = '';
+let animalsShown = 0;
+let byeTimer = null;
+function updateAnimals(n){
+  const list = ANIMALS.filter(a => n >= a.min);
+  const sig = list.map(a => a.id).join(',');
+  if(sig === animalSig) return;
+  animalSig = sig;
+  const box = $('#animals');
+  if(n === 0 && animalsShown > 0){         // Tiere verabschieden sich
+    $$('#animals .an').forEach(el => {
+      el.classList.add('bye');
+      el.querySelector('.bubble').textContent = 'Tschüss!';
+    });
+    animalsShown = 0; sfx.sad();
+    clearTimeout(byeTimer);
+    byeTimer = setTimeout(() => { if(countTrees(S.slots) === 0) box.innerHTML = ''; }, 3300);
+    return;
+  }
+  clearTimeout(byeTimer);
+  box.innerHTML = '';
+  list.forEach(a => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'an ' + a.kind; b.setAttribute('aria-label', a.e + ' Tier');
+    if(a.left != null) b.style.left = a.left + '%';
+    if(a.top  != null) { b.style.top = a.top + '%'; b.style.animationDuration = a.dur + 's'; b.style.animationDelay = a.delay + 's'; }
+    b.innerHTML = (a.id === 'squirrel' ? '<span class="stumpbase"></span>' : '') + a.e + '<span class="bubble"></span>';
+    b.addEventListener('click', () => {
+      if(b.classList.contains('bye')) return;
+      b.querySelector('.bubble').textContent = a.say;
+      b.classList.remove('hop'); void b.offsetWidth; b.classList.add('hop','say');
+      sfx.squeak();
+      setTimeout(() => b.classList.remove('hop','say'), 1200);
+    });
+    box.appendChild(b);
+  });
+  animalsShown = list.length;
+}
+
+/* --- Zähler, Stimmung: alles hängt nur an der Baumzahl n --- */
+function applyCount(n){
+  const c = $('#cnt');
+  if(c.textContent !== String(n)){
+    c.textContent = n; c.classList.remove('tick'); void c.offsetWidth; c.classList.add('tick');
+  }
+  const fill = $('#barfill');
+  fill.style.width = (n / MAX_TREES * 100) + '%';
+  fill.style.background = n >= REGROW_LIMIT ? 'var(--leaf)' : n > 0 ? '#f08c00' : '#c92a2a';
+  document.body.classList.toggle('sad', n === 0);
+  document.body.classList.toggle('worry', n > 0 && n < REGROW_LIMIT);
+  setSunMood(n);
+  updateAnimals(n);
+}
+
+function setMsg(text){ $('#msg').textContent = text; }
+
+/* =====================================================================
+   6. DARSTELLUNG – Teams, Zeitleiste, Buttons
+   ===================================================================== */
+function coinStackHTML(v){
+  const n = v <= 0 ? 0 : Math.min(10, Math.max(1, Math.ceil(v/500)));
+  return '<i></i>'.repeat(n);
+}
+function barPct(v){
+  const maxC = Math.max(SUSTAINABLE_PER_TEAM, ...S.teams.map(t => t.coins));
+  return Math.min(100, v / maxC * 100);
+}
+function updateCoinUI(i, v){
+  const card = $(`.team[data-i="${i}"]`); if(!card) return;
+  const c = card.querySelector('.coins'); c.textContent = fmt(v);
+  c.classList.remove('up'); void c.offsetWidth; c.classList.add('up');
+  card.querySelector('.coinstack').innerHTML = coinStackHTML(v);
+  card.querySelector('.rankbar i').style.width = barPct(v) + '%';
+}
+
+function resultText(r){
+  if(!r) return '';
+  if(r.wish === 0) return '🙂 Kein Baum gewünscht';
+  if(r.got === 0) return '😢 Leer ausgegangen';
+  if(r.got < r.wish) return `😕 Nur ${r.got} von ${r.wish} Bäumen`;
+  return `😀 ${r.got} ${r.got === 1 ? 'Baum' : 'Bäume'} bekommen`;
+}
+
+function renderTeams(){
+  const box = $('#teams'); box.innerHTML = '';
+  const canEdit = !busy && (S.phase === 'wish' || S.phase === 'drawn');
+  const ranks = S.teams.map(t => 1 + S.teams.filter(o => o.coins > t.coins).length);
+  S.order.forEach((ti, pos) => {
+    const t = S.teams[ti], st = TEAM_STYLE[ti];
+    const el = document.createElement('div');
+    el.className = 'team'; el.dataset.i = ti; el.style.setProperty('--c', st.color);
+    const showArrows = S.phase === 'drawn' && !busy;
+    el.innerHTML = `
+      <div class="row1">
+        <span class="pos" title="Reihenfolge">${S.phase === 'wish' ? '·' : pos+1}</span>
+        <span class="tanim">${st.animal}</span>
+        <span class="tname"></span>
+        <span class="kasse"><span class="coinstack">${coinStackHTML(t.coins)}</span><span class="coins">${fmt(t.coins)}</span></span>
+      </div>
+      <div class="row2">
+        <div class="stepper">
+          <button class="rb minus" aria-label="weniger Bäume" ${canEdit?'':'disabled'}>−</button>
+          <input class="wish" type="number" inputmode="numeric" min="0" max="${MAX_TREES}" value="${S.wishes[ti]}" aria-label="Baumwunsch ${t.name}" ${canEdit?'':'disabled'}>
+          <button class="rb plus" aria-label="mehr Bäume" ${canEdit?'':'disabled'}>+</button>
+        </div>
+        ${showArrows ? `<div class="arrows"><button class="rb up" aria-label="früher" ${pos===0?'disabled':''}>▲</button><button class="rb down" aria-label="später" ${pos===TEAM_COUNT-1?'disabled':''}>▼</button></div>`
+                     : `<div class="res">${(S.phase==='felled'||S.phase==='grown') ? resultText(S.results[ti]) : '🌳 Wunsch'}</div>`}
+      </div>
+      <div class="rankbar"><i style="width:${barPct(t.coins)}%"></i>${t.coins>0 && ranks[ti]<=3 ? `<span class="medal">${['🥇','🥈','🥉'][ranks[ti]-1]}</span>`:''}</div>`;
+    el.querySelector('.tname').textContent = t.name;
+    const inp = el.querySelector('.wish');
+    const setWish = v => { S.wishes[ti] = Math.max(0, Math.min(MAX_TREES, Math.round(Number(v)||0))); renderTeams(); };
+    el.querySelector('.minus').onclick = () => setWish(S.wishes[ti]-1);
+    el.querySelector('.plus').onclick  = () => setWish(S.wishes[ti]+1);
+    inp.onchange = () => setWish(inp.value);
+    inp.onfocus = () => inp.select();
+    const up = el.querySelector('.up'), down = el.querySelector('.down');
+    if(up) up.onclick = () => moveTeam(pos, -1);
+    if(down) down.onclick = () => moveTeam(pos, +1);
+    box.appendChild(el);
+  });
+}
+function moveTeam(pos, dir){
+  const o = S.order, j = pos + dir;
+  if(j < 0 || j >= o.length) return;
+  [o[pos], o[j]] = [o[j], o[pos]];
+  renderTeams();
+}
+
+function treeEmoji(n){ return n >= 40 ? '🌳' : n >= REGROW_LIMIT ? '🌲' : n > 0 ? '🌱' : '🪵'; }
+function renderTimeline(){
+  let h = '<div class="tl head">📅 Jahr</div>';
+  for(let r=1;r<=ROUNDS;r++){
+    const st = S.stats[r-1];
+    const done = st && st.afterGrow != null;
+    const cls = r === S.round ? 'cur' : done ? '' : 'todo';
+    h += `<div class="tl ${cls}"><span class="y">${r*10}</span><span class="e">${done ? treeEmoji(st.afterGrow) : '⏳'}</span><span class="n">${done ? st.afterGrow : '–'}</span></div>`;
+  }
+  $('#timeline').innerHTML = h;
+}
+
+function updateButtons(){
+  const p = S.phase;
+  const set = (id, on, cur) => { const b = $(id); b.disabled = busy || !on; b.classList.toggle('next-step', !busy && on && cur); };
+  set('#btnDraw', p==='wish'||p==='drawn', p==='wish');
+  $('#btnDraw').textContent = p === 'drawn' ? '🎲 Neu ziehen' : '🎲 Ziehen!';
+  set('#btnFell', p==='drawn', p==='drawn');
+  set('#btnGrow', p==='felled', p==='felled');
+  set('#btnNext', p==='grown', p==='grown');
+  $('#btnNext').textContent = S.round === ROUNDS ? '📊 Auswertung' : '➡️ Nächste Runde';
+  const canUndo = !busy && (p !== 'wish' || snaps.length > 1);
+  $('#btnUndo').disabled = !canUndo;
+  $('#btnNew').disabled = busy;
+}
+
+function phaseMessage(){
+  switch(S.phase){
+    case 'wish':   return '📝 Jedes Team schreibt seinen Baumwunsch auf. Dann: Ziehen!';
+    case 'drawn':  return S.note || '🎲 So ist die Reihenfolge. Jetzt: Bäume fällen!';
+    case 'felled': return S.note || '🌱 Jetzt wächst der Wald nach.';
+    case 'grown':  return S.note || (S.round === ROUNDS ? '📊 Geschafft! Jetzt kommt die Auswertung.' : '➡️ Weiter zur nächsten Runde.');
+  }
+  return '';
+}
+
+/* --- Gesamtdarstellung aus dem Zustand --- */
+function render(){
+  ['start','game','end'].forEach(v => $('#'+v).hidden = S.view !== v);
+  if(S.view === 'start'){ document.body.classList.remove('sad','worry','party'); return; }
+  if(S.view === 'end') { renderEnd(); return; }
+  const n = countTrees(S.slots);
+  paintSlots();
+  applyCount(n);
+  $('#roundInfo').textContent = `Runde ${S.round} von ${ROUNDS} · Jahr ${S.round*10}`;
+  setMsg(phaseMessage());
+  renderTeams(); renderTimeline(); updateButtons();
+  document.body.classList.toggle('party', S.round === ROUNDS && S.phase === 'grown' && n >= MAX_TREES);
+  document.body.classList.toggle('busy', busy);
+}
+
+/* =====================================================================
+   7. SPIELABLAUF (Aktionen mit Animation)
+   ===================================================================== */
+async function run(fn){
+  if(busy) return;
+  busy = true; render();
+  try { await fn(); } finally { busy = false; render(); }
+}
+
+/* --- Ziehen: Eichhörnchen zieht Karten aus dem Sack --- */
+function doDraw(){ return run(async () => {
+  const order = shuffle([...Array(TEAM_COUNT).keys()]);
+  const ov = $('#drawOverlay'), slots = $('#dslots');
+  slots.innerHTML = order.map((_,i) => `<div class="dslot"><small>Platz ${i+1}</small></div>`).join('');
+  ov.hidden = false;
+  await sleep(500);
+  for(let i=0;i<order.length;i++){
+    const sq = $('#sq'); sq.classList.remove('jump'); void sq.offsetWidth; sq.classList.add('jump');
+    await sleep(350);
+    const slot = slots.children[i], ti = order[i], st = TEAM_STYLE[ti];
+    const sr = $('#sack').getBoundingClientRect(), dr = slot.getBoundingClientRect();
+    slot.style.setProperty('--c', st.color);
+    slot.style.setProperty('--dx', (sr.left - dr.left) + 'px');
+    slot.style.setProperty('--dy', (sr.top - dr.top) + 'px');
+    slot.className = 'dslot full';
+    slot.innerHTML = `<small>Platz ${i+1}</small><span class="de">${st.animal}</span><span></span>`;
+    slot.lastChild.textContent = S.teams[ti].name;
+    sfx.card(i);
+    await sleep(900);
+  }
+  await sleep(1000);
+  ov.hidden = true;
+  S.order = order; S.phase = 'drawn'; S.note = '';
+}); }
+
+/* --- Bäume fällen --- */
+function doFell(){ return run(async () => {
+  const present = []; S.slots.forEach((on,i) => { if(on) present.push(i); });
+  const plan = planFelling(present, S.wishes, S.order);
+  let count = present.length;
+  const shown = S.teams.map(t => t.coins);
+  setMsg('🪓 Los geht\'s!');
+  await sleep(600);
+
+  for(const p of plan){
+    const t = S.teams[p.team], st = TEAM_STYLE[p.team];
+    const card = $(`.team[data-i="${p.team}"]`);
+    card.classList.add('active');
+    card.scrollIntoView({block:'nearest', behavior: isCalm() ? 'auto' : 'smooth'});
+    if(p.wish === 0){
+      setMsg(`${st.animal} ${t.name} wünscht sich keinen Baum.`);
+      await sleep(900); card.classList.remove('active'); continue;
+    }
+    if(p.got === 0){
+      setMsg(`😢 ${t.name} geht leer aus. Es ist kein Baum mehr da.`);
+      await sleep(1600); card.classList.remove('active'); continue;
+    }
+    setMsg(p.got === p.wish
+      ? `${st.animal} ${t.name} bekommt ${p.got} ${p.got===1?'Baum':'Bäume'}!`
+      : `${st.animal} ${t.name} wollte ${p.wish}. Es gibt nur noch ${p.got}.`);
+    // 1) Bäume in Teamfarbe markieren
+    p.slots.forEach(i => { const e = slotEl(i); e.style.setProperty('--c', st.color); e.classList.add('marked'); });
+    await sleep(900);
+    // 2) nacheinander umfallen: wackeln, Plumps, vertriebene Vögel
+    const gap = Math.min(150, 3500 / p.slots.length);
+    const words = ['Plumps!','Rums!','Bumm!','Krach!'];
+    for(const i of p.slots){
+      const e = slotEl(i), r = e.getBoundingClientRect();
+      e.classList.remove('marked'); e.classList.add('falling');
+      sfx.thud();
+      if(!isCalm()){
+        fxAt(r, 'pop', words[Math.floor(Math.random()*words.length)]);
+        if(Math.random() < .45) fxAt(r, 'bird', '🐦', {'--dx': (Math.random()*300-100)+'px'});
+      }
+      count--; applyCount(count);
+      setTimeout(() => { e.classList.remove('falling'); e.classList.add('stump'); }, isCalm() ? 0 : 950);
+      await sleep(gap);
+    }
+    await sleep(1000);
+    // 3) Münzen fliegen in die Kasse
+    const gain = p.got * COINS_PER_TREE;
+    const target = $(`.team[data-i="${p.team}"] .coinstack`).getBoundingClientRect();
+    const nCoins = Math.min(p.got, 10);
+    if(isCalm()){
+      shown[p.team] += gain; updateCoinUI(p.team, shown[p.team]);
+    } else {
+      const from = slotEl(p.slots[0]).getBoundingClientRect();
+      const arrivals = [];
+      for(let k=0;k<nCoins;k++){
+        const c = fxAt(from, 'coin', '🪙');
+        arrivals.push(new Promise(res => setTimeout(() => {
+          c.style.transform = `translate(${target.left - from.left}px, ${target.top - from.top}px) scale(.8)`;
+          setTimeout(() => {
+            shown[p.team] += gain / nCoins; sfx.coin();
+            updateCoinUI(p.team, Math.round(shown[p.team])); c.style.opacity = 0; res();
+          }, 800);
+        }, 40 + k*110)));
+      }
+      await Promise.all(arrivals);
+      shown[p.team] = S.teams[p.team].coins + gain; updateCoinUI(p.team, shown[p.team]);
+    }
+    S.teams[p.team].coins += gain;        // Kasse wird erst jetzt endgültig gebucht
+    await sleep(500);
+    card.classList.remove('active');
+  }
+  // Endgültig buchen
+  plan.forEach(p => { p.slots.forEach(i => S.slots[i] = false); S.results[p.team] = { wish:p.wish, got:p.got }; });
+  const left = countTrees(S.slots);
+  const stat = { afterFell: left, afterGrow: null };
+  S.stats[S.round-1] = stat;
+  S.phase = 'felled';
+  S.note = left === 0 ? '😢 Kein Baum ist mehr da! Kein Holz mehr!'
+         : `🪓 Es stehen noch ${left} Bäume. Jetzt wächst der Wald nach.`;
+  if(left === 0) sfx.sad();
+}); }
+
+/* --- Nachwuchs --- */
+function doGrow(){ return run(async () => {
+  let count = countTrees(S.slots);
+  const fresh = planGrowth(S.slots);
+  const before = count;
+  if(before === 0){
+    setMsg('😢 Ohne Bäume wächst nichts mehr.'); await sleep(1800);
+    S.note = '😢 Es gibt keine Bäume mehr. Nichts wächst nach.';
+  } else {
+    setMsg(before >= REGROW_LIMIT
+      ? `🎉 Es sind mindestens ${REGROW_LIMIT} Bäume da! Der Wald wird wieder voll.`
+      : `🌱 Weniger als ${REGROW_LIMIT} Bäume. Es wachsen nur doppelt so viele.`);
+    await sleep(1400);
+    const gap = Math.min(140, 4200 / Math.max(1, fresh.length));
+    for(let k=0;k<fresh.length;k++){
+      const e = slotEl(fresh[k]);
+      e.classList.remove('stump'); e.classList.add('sprout');
+      count++; applyCount(count);
+      sfx.pling(k % 8);
+      if(!isCalm()) fxAt(e.getBoundingClientRect(), 'spark', k%2 ? '✨' : '⭐');
+      await sleep(gap);
+    }
+    await sleep(1300);
+    S.note = count >= MAX_TREES ? '🌳 Der Wald ist wieder voll!' :
+             `🌱 Jetzt sind es ${count} Bäume.`;
+  }
+  fresh.forEach(i => S.slots[i] = true);
+  S.stats[S.round-1].afterGrow = countTrees(S.slots);
+  S.phase = 'grown';
+  if(S.round === ROUNDS && countTrees(S.slots) >= MAX_TREES){
+    S.note = '🎉 Der Wald ist voll! Ihr habt gut auf den Wald aufgepasst!';
+    sfx.fanfare(); confetti();
+  }
+}); }
+
+/* --- Nächste Runde / Auswertung --- */
+function doNext(){
+  if(busy || S.phase !== 'grown') return;
+  if(S.round === ROUNDS){ S.view = 'end'; qIndex = 0; render(); if(document.body.classList.contains('party')){ sfx.fanfare(); confetti(); } return; }
+  S.round++; S.phase = 'wish'; S.note = '';
+  S.wishes.fill(0); S.order = [...Array(TEAM_COUNT).keys()]; S.results.fill(null);
+  snaps.push(clone(S));
+  render();
+}
+
+/* --- Rückgängig: Runde neu beginnen bzw. zur vorigen Runde --- */
+async function doUndo(){
+  if(busy) return;
+  const started = S.phase !== 'wish';
+  const ok = await askConfirm(started ? '↩️ Diese Runde noch einmal von vorn?' : '↩️ Zurück zur letzten Runde?', 'Ja, zurück');
+  if(!ok) return;
+  if(!started) snaps.pop();
+  S = clone(snaps[snaps.length-1]); S.view = 'game';
+  render();
+}
+
+/* --- Neues Spiel --- */
+async function doNew(){
+  if(busy) return;
+  const ok = await askConfirm('🆕 Wirklich ein neues Spiel starten? Alles wird gelöscht.', 'Ja, neu starten');
+  if(!ok) return;
+  const names = S.teams.map(t => t.name);
+  S = newState(names); snaps = []; animalSig = ''; animalsShown = 0; $('#animals').innerHTML = '';
+  buildTeamSetup(); render();
+}
+
+function askConfirm(text, yesLabel){
+  return new Promise(res => {
+    $('#confirmText').textContent = text; $('#confirmYes').textContent = yesLabel;
+    const ov = $('#confirmOverlay'); ov.hidden = false;
+    const done = v => { ov.hidden = true; $('#confirmYes').onclick = $('#confirmNo').onclick = null; res(v); };
+    $('#confirmYes').onclick = () => done(true);
+    $('#confirmNo').onclick = () => done(false);
+    $('#confirmNo').focus();
+  });
+}
+
+/* =====================================================================
+   8. STARTBILDSCHIRM
+   ===================================================================== */
+function buildTeamSetup(){
+  $('#teamSetup').innerHTML = S.teams.map((t,i) => `
+    <div class="tsbox" style="--c:${TEAM_STYLE[i].color}">
+      <span class="big-emoji">${TEAM_STYLE[i].animal}</span>
+      <input maxlength="14" aria-label="Name von Team ${i+1}" data-i="${i}" placeholder="Team ${i+1}">
+    </div>`).join('');
+  $$('#teamSetup input').forEach(inp => inp.value = S.teams[+inp.dataset.i].name);
+}
+function startGame(){
+  const names = $$('#teamSetup input').map((inp,i) => inp.value.trim() || `Team ${i+1}`);
+  S = newState(names); S.view = 'game';
+  snaps = [clone(S)];
+  animalSig = ''; animalsShown = 0; $('#animals').innerHTML = '';
+  render();
+}
+
+/* =====================================================================
+   9. AUSWERTUNG
+   ===================================================================== */
+function renderEnd(){
+  const n = countTrees(S.slots);
+  const party = n >= MAX_TREES;
+  document.body.classList.toggle('party', party);
+  document.body.classList.toggle('sad', n === 0);
+  document.body.classList.toggle('worry', n > 0 && n < REGROW_LIMIT);
+  $('#verdict').textContent =
+    n >= MAX_TREES ? '🌈 Toll! Der Wald ist voll. Ihr habt gut aufgepasst! 🎉' :
+    n >= REGROW_LIMIT ? `🌳 Der Wald steht noch. Es sind ${n} Bäume. Er ist nicht ganz voll.` :
+    n > 0 ? `😟 Der Wald ist klein. Es sind nur noch ${n} Bäume.` :
+    '😢 Kein Holz mehr! Der Wald ist weg.';
+
+  // --- Diagramm: Bäume pro Runde (SVG) ---
+  const yv = v => 310 - v*5, gx = r => 80 + (r-1)*91;
+  let s = `<svg viewBox="0 0 1000 390" role="img" aria-label="Bäume im Wald pro Runde">`;
+  [0,25,50].forEach(v => {
+    s += `<line x1="70" x2="995" y1="${yv(v)}" y2="${yv(v)}" stroke="${v===25?'#c92a2a':'#adb5bd'}" stroke-width="${v===25?3:2}" ${v===25?'stroke-dasharray="10 8"':''}/>
+          <text x="62" y="${yv(v)+9}" text-anchor="end" font-size="26">${v}</text>`;
+  });
+  for(let r=1;r<=ROUNDS;r++){
+    const st = S.stats[r-1], x = gx(r);
+    s += `<text x="${x+40}" y="348" text-anchor="middle" font-size="26">${r*10}</text>`;
+    if(!st) continue;
+    const bar = (bx, v, col) => v == null ? '' :
+      `<rect x="${bx}" y="${yv(v)}" width="40" height="${Math.max(2, v*5)}" rx="6" fill="${col}" stroke="#12251a" stroke-width="2"/>
+       <text x="${bx+20}" y="${yv(v)-8}" text-anchor="middle" font-size="24">${v}</text>`;
+    s += bar(x, st.afterFell, '#a0622d') + bar(x+44, st.afterGrow, '#2b9348');
+  }
+  s += `<text x="535" y="382" text-anchor="middle" font-size="26">Jahr</text></svg>`;
+  $('#treeChart').innerHTML = s;
+
+  // --- Balken: Forstlinge pro Team ---
+  const maxC = Math.max(SUSTAINABLE_PER_TEAM, ...S.teams.map(t => t.coins));
+  const goalPct = SUSTAINABLE_PER_TEAM / maxC * 100;
+  const sorted = S.teams.map((t,i) => ({t,i})).sort((a,b) => b.t.coins - a.t.coins);
+  $('#teamChart').innerHTML = sorted.map(({t,i}) => `
+    <div class="tbar" style="--c:${TEAM_STYLE[i].color}">
+      <div class="lbl">${TEAM_STYLE[i].animal} <span class="nm"></span></div>
+      <div class="track"><i style="width:${t.coins/maxC*100}%">${fmt(t.coins)}</i><span class="goal" style="left:${goalPct}%"></span></div>
+    </div>`).join('');
+  $$('#teamChart .nm').forEach((el,k) => el.textContent = sorted[k].t.name);
+  const totalTrees = S.stats.reduce((sum,st,idx) => sum + (idx === 0 ? MAX_TREES : S.stats[idx-1].afterGrow) - st.afterFell, 0);
+  const totalCoins = S.teams.reduce((a,t) => a + t.coins, 0);
+  $('#compare').textContent = `🪓 ${fmt(totalTrees)} Bäume gefällt = ${fmt(totalCoins)} 🪙. Nachhaltig wären 250 Bäume = ${fmt(SUSTAINABLE_PER_TEAM*TEAM_COUNT)} 🪙 (5 Bäume je Team und Runde).`;
+  renderQuestion();
+}
+function renderQuestion(){
+  const q = QUESTIONS[qIndex];
+  const card = $('#qcard'); card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
+  card.innerHTML = `<div class="qe">${q.e}</div><div class="qt">${q.t}</div><div class="qh">${q.h}</div>`;
+  $('#qdots').innerHTML = QUESTIONS.map((_,i) => `<i class="${i===qIndex?'on':''}"></i>`).join('');
+  $('#qPrev').disabled = qIndex === 0; $('#qNext').disabled = qIndex === QUESTIONS.length-1;
+}
+
+/* =====================================================================
+   10. WERKZEUGE (Ton, Ruhige Ansicht) UND START
+   ===================================================================== */
+function toggleSound(){
+  soundOn = !soundOn;
+  if(soundOn){
+    if(!audioCtx){ try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ soundOn = false; } }
+    if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    sfx.pling();
+  }
+  syncTools();
+}
+function toggleCalm(){
+  document.body.classList.toggle('calm');
+  document.body.classList.toggle('motion-ok', !document.body.classList.contains('calm'));
+  syncTools();
+}
+function syncTools(){
+  $$('[data-tool="sound"]').forEach(b => { b.textContent = soundOn ? '🔊 Ton an' : '🔇 Ton aus'; b.setAttribute('aria-pressed', soundOn); });
+  const calm = document.body.classList.contains('calm');
+  $$('[data-tool="calm"]').forEach(b => { b.textContent = '🐢 Ruhige Ansicht: ' + (calm ? 'an' : 'aus'); b.setAttribute('aria-pressed', calm); });
+}
+
+(function init(){
+  // Betriebssystem-Einstellung „Bewegung reduzieren“ übernehmen
+  if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) document.body.classList.add('calm');
+  // Regentropfen
+  $('#rain').innerHTML = Array.from({length:40}, (_,i) =>
+    `<i style="left:${(i*2.5+Math.random()*2).toFixed(1)}%;animation-delay:${(-Math.random()).toFixed(2)}s;animation-duration:${(.7+Math.random()*.6).toFixed(2)}s"></i>`).join('');
+  buildForest(); buildSun(); buildTeamSetup();
+  $('#btnStart').onclick = startGame;
+  $('#btnDraw').onclick = doDraw;
+  $('#btnFell').onclick = doFell;
+  $('#btnGrow').onclick = doGrow;
+  $('#btnNext').onclick = doNext;
+  $('#btnUndo').onclick = doUndo;
+  $('#btnNew').onclick = doNew; $('#btnNew2').onclick = doNew;
+  $('#btnBack').onclick = () => { S.view = 'game'; render(); };
+  $('#qPrev').onclick = () => { qIndex = Math.max(0, qIndex-1); renderQuestion(); };
+  $('#qNext').onclick = () => { qIndex = Math.min(QUESTIONS.length-1, qIndex+1); renderQuestion(); };
+  $$('[data-tool="sound"]').forEach(b => b.onclick = toggleSound);
+  $$('[data-tool="calm"]').forEach(b => b.onclick = toggleCalm);
+  syncTools(); render();
+})();
+</script>
+</body>
+</html>
