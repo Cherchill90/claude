@@ -1,0 +1,1589 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Formkurve Lauftraining</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: Stadion-Anzeigetafel oben, darunter Trainingsbuch (Wochenplan) links und Athletenakte rechts */
+:root{
+  --bg:#EDF1EF; --surface:#FFFFFF; --surface-2:#F5F8F6; --ink:#13201B; --muted:#5A6A63; --line:#D3DCD7;
+  --tartan:#B4432E; --tartan-soft:#F3DCD5; --infield:#2B6A4D; --infield-soft:#D7EBE0;
+  --board:#0F1517; --board-2:#182126; --board-ink:#E9F1EC; --board-dim:#8A9A93; --led:#FFB547;
+  --good:#2E8A57; --warn:#C98512; --bad:#C0392B;
+  --z1:#9CB9CB; --z2:#4B8DB3; --z3:#DDB13E; --z4:#E07A36; --z5:#C2412D; --z6:#7B3A92;
+  --t-run:#B4432E; --t-kraft:#3E5563; --t-sprung:#C98512; --t-koord:#23807A; --t-mob:#7B3A92; --t-alt:#3E78B2;
+  --shadow:0 1px 2px rgba(19,32,27,.06),0 4px 14px rgba(19,32,27,.05);
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",system-ui,-apple-system,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1412; --surface:#161F1B; --surface-2:#1B2621; --ink:#E4ECE8; --muted:#93A39C; --line:#2A3631;
+    --tartan:#E26A52; --tartan-soft:#3A221C; --infield:#55A980; --infield-soft:#1B3328;
+    --board:#080C0D; --board-2:#121A1D;
+    --good:#4CB37A; --warn:#E3A33A; --bad:#E5654F;
+    --z1:#6F92A8; --z2:#4B9AC9; --z3:#E2BC52; --z4:#EC8A49; --z5:#E2604A; --z6:#A465BD;
+    --t-run:#E26A52; --t-kraft:#8DA7B6; --t-sprung:#E3A33A; --t-koord:#3FB2AA; --t-mob:#A465BD; --t-alt:#5C9BDA;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.25);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1412; --surface:#161F1B; --surface-2:#1B2621; --ink:#E4ECE8; --muted:#93A39C; --line:#2A3631;
+  --tartan:#E26A52; --tartan-soft:#3A221C; --infield:#55A980; --infield-soft:#1B3328;
+  --board:#080C0D; --board-2:#121A1D;
+  --good:#4CB37A; --warn:#E3A33A; --bad:#E5654F;
+  --z1:#6F92A8; --z2:#4B9AC9; --z3:#E2BC52; --z4:#EC8A49; --z5:#E2604A; --z6:#A465BD;
+  --t-run:#E26A52; --t-kraft:#8DA7B6; --t-sprung:#E3A33A; --t-koord:#3FB2AA; --t-mob:#A465BD; --t-alt:#5C9BDA;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.25);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{background:var(--bg)}
+body{color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+h1,h2,h3,h4{font-family:var(--f-display);font-weight:600;letter-spacing:.01em;margin:0;text-wrap:balance;line-height:1.1}
+.num,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--f-display);text-transform:uppercase;letter-spacing:.12em;font-size:12.5px;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}
+.wrap{max-width:1440px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+:focus-visible{outline:2px solid var(--tartan);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- Anzeigetafel ---------- */
+.board{background:var(--board);color:var(--board-ink);border-bottom:4px solid var(--tartan)}
+.board .wrap{padding-block:14px;display:grid;grid-template-columns:minmax(0,1.2fr) auto minmax(0,1fr);gap:20px;align-items:center}
+.brand{display:flex;gap:12px;align-items:center;min-width:0}
+.brand-mark{width:38px;height:38px;flex:none}
+.brand h1{font-size:26px;letter-spacing:.14em;font-weight:700}
+.brand .sub{font-size:13px;color:var(--board-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.led-block{text-align:center}
+.led-label{font-family:var(--f-display);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--board-dim)}
+.led{font-family:var(--f-mono);font-weight:600;font-size:40px;line-height:1;color:var(--led);letter-spacing:.02em;text-shadow:0 0 18px rgba(255,181,71,.35)}
+.led-delta{font-family:var(--f-mono);font-size:13px;margin-top:4px}
+.led-delta.good{color:#6FD39A}.led-delta.bad{color:#FF8A73}
+.board-right{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;align-items:center}
+.bpill{background:var(--board-2);border:1px solid #26333A;border-radius:6px;padding:6px 10px;min-width:92px}
+.bpill .k{font-family:var(--f-display);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--board-dim)}
+.bpill .v{font-family:var(--f-mono);font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.dot.good{background:#4CB37A}.dot.warn{background:#E3A33A}.dot.bad{background:#E5654F}
+.board .btn-ghost{color:var(--board-ink);border-color:#2F3D44}
+@media (max-width:980px){.board .wrap{grid-template-columns:1fr;text-align:left}.led-block{text-align:left}.board-right{justify-content:flex-start}}
+
+/* ---------- Grundbausteine ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}
+.card-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:14px 16px 10px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.card-h h2{font-size:22px}
+.card-b{padding:14px 16px}
+.btn{border:1px solid var(--line);background:var(--surface-2);border-radius:7px;padding:7px 12px;cursor:pointer;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn-primary{background:var(--tartan);border-color:var(--tartan);color:#fff}
+.btn-primary:hover{filter:brightness(1.07);border-color:var(--tartan)}
+.btn-big{font-family:var(--f-display);font-size:20px;letter-spacing:.06em;text-transform:uppercase;padding:12px 22px;border-radius:8px}
+.btn-ghost{background:transparent}
+.btn-sm{padding:4px 9px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:12.5px;font-weight:600;background:var(--surface-2);border:1px solid var(--line);white-space:nowrap}
+.chip.good{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,var(--line))}
+.chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,var(--line))}
+.chip.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,var(--line))}
+select,input[type=number],input[type=text]{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+input[type=range]{accent-color:var(--tartan);width:100%}
+input[type=checkbox],input[type=radio]{accent-color:var(--tartan)}
+.grid-main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;padding-block:18px 40px}
+@media (max-width:1180px){.grid-main{grid-template-columns:1fr}}
+.stack{display:flex;flex-direction:column;gap:18px;min-width:0}
+
+/* ---------- Setup ---------- */
+.setup{padding-block:22px 48px;display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px}
+@media (max-width:1100px){.setup{grid-template-columns:1fr}}
+.dist-scale{display:grid;grid-template-columns:repeat(auto-fill,minmax(122px,1fr));gap:8px}
+.dist{position:relative;border:1px solid var(--line);border-radius:8px;padding:10px 10px 8px;background:var(--surface-2);cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:6px;min-height:96px}
+.dist:hover{border-color:var(--muted)}
+.dist[aria-pressed="true"]{border-color:var(--tartan);background:var(--tartan-soft);box-shadow:inset 0 0 0 1px var(--tartan)}
+.dist .dl{font-family:var(--f-display);font-weight:700;font-size:22px;line-height:1}
+.dist .dk{font-size:12px;color:var(--muted)}
+.ebar{display:flex;height:7px;border-radius:4px;overflow:hidden;background:var(--line);margin-top:auto}
+.ebar i{display:block;height:100%}
+.e-alac{background:var(--z6)}.e-lac{background:var(--z5)}.e-aer{background:var(--z2)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.opt-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--surface-2);cursor:pointer;text-align:left}
+.opt[aria-pressed="true"]{border-color:var(--infield);background:var(--infield-soft);box-shadow:inset 0 0 0 1px var(--infield)}
+.opt b{display:block;font-family:var(--f-display);font-size:18px;font-weight:600}
+.opt small{color:var(--muted);font-size:12.5px;line-height:1.3;display:block}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-weight:600;font-size:13.5px}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.section-t{display:flex;gap:10px;align-items:baseline;margin:6px 0 10px}
+.section-t .n{font-family:var(--f-mono);font-size:12px;color:var(--tartan);font-weight:600}
+.section-t h3{font-size:20px}
+
+/* ---------- Wochenplan ---------- */
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.life{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--surface-2);font-size:13.5px}
+.life label{display:flex;align-items:center;gap:6px}
+.life select{padding:3px 6px}
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;border-bottom:1px solid var(--line)}
+.day{border-right:1px solid var(--line);min-height:210px;display:flex;flex-direction:column;min-width:0}
+.day:last-child{border-right:0}
+.day-h{padding:8px 8px 6px;display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px dashed var(--line)}
+.day-h b{font-family:var(--f-display);font-size:17px;letter-spacing:.04em}
+.day-h span{font-size:11.5px;color:var(--muted)}
+.day.race{background:repeating-linear-gradient(135deg,var(--tartan-soft) 0 8px,transparent 8px 16px)}
+.day-b{padding:6px;display:flex;flex-direction:column;gap:6px;flex:1}
+.sess{border:1px solid var(--line);border-left:4px solid var(--c,var(--t-run));background:var(--surface);border-radius:6px;padding:6px 7px;cursor:pointer;text-align:left;width:100%;display:flex;flex-direction:column;gap:3px}
+.sess:hover{border-color:var(--muted);border-left-color:var(--c)}
+.sess .st{font-weight:700;font-size:13px;line-height:1.2}
+.sess .sl{font-family:var(--f-mono);font-size:11px;color:var(--muted);line-height:1.3}
+.sess .zb{display:flex;height:4px;border-radius:2px;overflow:hidden;background:var(--line)}
+.sess.fail{border-style:dashed}
+.sess .warnline{font-size:11px;color:var(--bad);font-weight:600}
+.add{border:1px dashed var(--line);background:transparent;border-radius:6px;padding:5px;font-size:12.5px;color:var(--muted);cursor:pointer;margin-top:auto}
+.add:hover{color:var(--ink);border-color:var(--muted)}
+.rest{font-size:12px;color:var(--muted);text-align:center;padding:10px 0;font-style:italic}
+@media (max-width:820px){.week{grid-template-columns:1fr}.day{border-right:0;border-bottom:1px solid var(--line);min-height:0}.day-b{flex-direction:row;flex-wrap:wrap}.sess{width:auto;flex:1 1 180px}.add{margin-top:0}}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px}
+.stat{padding:8px 10px;border-radius:8px;background:var(--surface-2);border:1px solid var(--line)}
+.stat .k{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--f-display);font-weight:600}
+.stat .v{font-family:var(--f-mono);font-size:19px;font-weight:600;line-height:1.2}
+.stat .s{font-size:12px;color:var(--muted)}
+.zonebar{display:flex;height:16px;border-radius:4px;overflow:hidden;background:var(--line)}
+.zonebar i{display:block;height:100%}
+.hints{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.hints li{display:flex;gap:8px;align-items:flex-start;font-size:14px;padding:7px 10px;border-radius:7px;background:var(--surface-2);border-left:3px solid var(--muted)}
+.hints li.warn{border-left-color:var(--warn)}.hints li.bad{border-left-color:var(--bad)}.hints li.good{border-left-color:var(--good)}.hints li.info{border-left-color:var(--t-alt)}
+.hints li .tag{font-family:var(--f-display);font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;min-width:58px;padding-top:1px}
+.hints li.warn .tag{color:var(--warn)}.hints li.bad .tag{color:var(--bad)}.hints li.good .tag{color:var(--good)}.hints li.info .tag{color:var(--t-alt)}
+.reiz{display:grid;grid-template-columns:minmax(0,170px) minmax(0,1fr) 56px;gap:6px 10px;align-items:center;font-size:13.5px}
+.reiz .rb{position:relative;height:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.reiz .rb i{position:absolute;left:0;top:0;bottom:0;border-radius:5px}
+.reiz .rb b{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink);opacity:.55}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+@media (max-width:760px){.two{grid-template-columns:1fr}}
+.cta-row{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:14px 16px}
+
+/* ---------- Athlet ---------- */
+.cap-g{margin-top:12px}
+.cap-g h4{font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between}
+.cap{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;padding:5px 0;border-bottom:1px dashed var(--line)}
+.cap:last-child{border-bottom:0}
+.cap .cn{font-size:13.5px;font-weight:600;display:flex;gap:6px;align-items:center;min-width:0}
+.cap .cv{font-family:var(--f-mono);font-size:12.5px;text-align:right}
+.cap .cbar{grid-column:1/-1;position:relative;height:6px;border-radius:3px;background:var(--surface-2);border:1px solid var(--line)}
+.cap .cbar i{position:absolute;left:0;top:0;bottom:0;background:var(--infield);border-radius:3px}
+.cap .cbar .st{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--muted)}
+.cap .cbar .ce{position:absolute;top:-3px;bottom:-3px;width:0;border-left:2px dotted var(--tartan)}
+.rel{display:inline-flex;gap:2px}
+.rel i{width:5px;height:5px;border-radius:50%;background:var(--line)}
+.rel i.on{background:var(--tartan)}
+.delta{font-family:var(--f-mono);font-size:11.5px}
+.delta.up{color:var(--good)}.delta.down{color:var(--bad)}
+table.kv{width:100%;border-collapse:collapse;font-size:13.5px}
+table.kv td{padding:5px 0;border-bottom:1px dashed var(--line);vertical-align:top}
+table.kv td:last-child{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+table.kv tr.hl td{font-weight:700;color:var(--tartan)}
+.radar-wrap{display:flex;justify-content:center}
+.radar-wrap svg{max-width:300px;width:100%}
+
+/* ---------- Tabs & Charts ---------- */
+.tabs{display:flex;gap:2px;padding:0 10px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{background:none;border:0;padding:10px 12px;cursor:pointer;font-family:var(--f-display);font-size:16px;letter-spacing:.04em;color:var(--muted);border-bottom:3px solid transparent;font-weight:600;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--tartan)}
+.chart svg{width:100%;height:auto;display:block}
+.chart text{fill:var(--muted);font-family:var(--f-mono);font-size:10.5px}
+.chart .grid line{stroke:var(--line);stroke-width:1}
+.chart-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:6px}
+.chart-legend span{display:inline-flex;gap:6px;align-items:center}
+.chart-legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
+.log{list-style:none;margin:0;padding:0;max-height:380px;overflow:auto;font-size:13.5px}
+.log li{display:grid;grid-template-columns:76px minmax(0,1fr);gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.log li .when{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.log li.bad{color:var(--bad)}.log li.warn{color:var(--warn)}.log li.good{color:var(--good)}
+.theory{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.theory article{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px}
+.theory h4{font-size:17px;margin-bottom:6px}
+.theory p{margin:0 0 6px;font-size:14px}
+.empty{padding:24px;text-align:center;color:var(--muted)}
+
+/* ---------- Modal ---------- */
+.modal-bg{position:fixed;inset:0;background:rgba(8,12,11,.55);z-index:50;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:max(24px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) max(24px,env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
+.modal{width:min(1040px,100%);background:var(--surface);border-radius:12px;border:1px solid var(--line);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.modal-h{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.modal-h h2{font-size:24px}
+.modal-b{padding:16px 18px}
+.modal-f{display:flex;justify-content:space-between;gap:10px;padding:12px 18px;border-top:1px solid var(--line);flex-wrap:wrap}
+.ed{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px}
+@media (max-width:860px){.ed{grid-template-columns:1fr}}
+.typebar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.typebtn{border:1px solid var(--line);border-left:4px solid var(--c);border-radius:6px;background:var(--surface-2);padding:6px 10px;cursor:pointer;font-weight:600;font-size:13.5px}
+.typebtn[aria-pressed="true"]{background:var(--surface);box-shadow:inset 0 0 0 1px var(--c);border-color:var(--c)}
+.presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.presets .chip{cursor:pointer}
+.presets .chip:hover{border-color:var(--muted)}
+.norm{display:grid;grid-template-columns:minmax(0,150px) minmax(0,1fr) 92px;gap:6px 12px;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line)}
+.norm .nl{font-weight:600;font-size:13.5px;line-height:1.2}
+.norm .nl small{display:block;font-weight:500;color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em}
+.norm input[type=number]{width:100%;text-align:right;font-family:var(--f-mono)}
+.norm.off{opacity:.38}
+.norm .unit{font-size:11.5px;color:var(--muted);grid-column:3;margin-top:-4px;text-align:right}
+@media (max-width:520px){.norm{grid-template-columns:1fr 92px}.norm input[type=range]{grid-column:1/-1;grid-row:2}}
+.daypick{display:flex;gap:4px;flex-wrap:wrap}
+.daypick button{border:1px solid var(--line);background:var(--surface-2);border-radius:5px;padding:4px 9px;cursor:pointer;font-family:var(--f-display);font-weight:600}
+.daypick button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.preview{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:12px;align-self:start;position:sticky;top:10px}
+.preview .method{font-family:var(--f-display);font-size:21px;font-weight:600;line-height:1.1}
+.pv-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.pv{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:6px 8px}
+.pv .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--f-display);font-weight:600}
+.pv .v{font-family:var(--f-mono);font-size:15px;font-weight:600}
+.effect{display:grid;grid-template-columns:minmax(0,1fr) 90px;gap:4px 8px;align-items:center;font-size:13px}
+.effect .eb{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.effect .eb i{display:block;height:100%;background:var(--infield)}
+.feas{padding:8px 10px;border-radius:7px;font-size:13.5px;font-weight:600}
+.feas.ok{background:var(--infield-soft);color:var(--good)}
+.feas.no{background:var(--tartan-soft);color:var(--bad)}
+
+/* ---------- Wochenbericht ---------- */
+.ticker{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-bottom:14px}
+.tick{border:1px solid var(--line);border-radius:8px;padding:8px;min-height:92px;background:var(--surface-2);opacity:.35;transition:opacity .25s,transform .25s;font-size:12px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.tick.on{opacity:1}
+.tick b{font-family:var(--f-display);font-size:16px}
+.tick .ld{font-family:var(--f-mono);font-size:12px}
+.tick.ill{background:color-mix(in srgb,var(--warn) 14%,var(--surface-2))}
+.tick.inj{background:color-mix(in srgb,var(--bad) 14%,var(--surface-2))}
+@media (max-width:700px){.ticker{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+/* ---------- Wettkampf ---------- */
+.race-stage{background:var(--board);border-radius:10px;padding:12px;color:var(--board-ink)}
+.race-stage canvas{width:100%;display:block;border-radius:6px}
+.race-hud{display:flex;gap:18px;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;margin-bottom:10px}
+.race-hud .led{font-size:46px}
+.hud-k{font-family:var(--f-display);letter-spacing:.14em;text-transform:uppercase;font-size:11.5px;color:var(--board-dim)}
+.hud-v{font-family:var(--f-mono);font-size:18px;font-weight:600}
+.splits{width:100%;border-collapse:collapse;font-size:13px}
+.splits th,.splits td{padding:4px 6px;border-bottom:1px dashed var(--line);text-align:right;font-family:var(--f-mono)}
+.splits th{font-family:var(--f-display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.splits td:first-child,.splits th:first-child{text-align:left}
+.splits-wrap{max-height:300px;overflow:auto}
+.grade{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.grade .np{font-family:var(--f-display);font-weight:700;font-size:64px;line-height:.9;color:var(--tartan)}
+.result-time{font-family:var(--f-mono);font-size:34px;font-weight:600}
+.scroll-x{overflow-x:auto}
+</style>
+
+</head>
+<body>
+<div id="app"></div>
+<div id="modal-root"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   FORMKURVE – Trainingssimulation Lauf (100 m bis 100 km Ultratrail)
+   Modellkern: physiologische Leistungsmodelle + Fitness-Ermüdungs-Modell
+   ===================================================================== */
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const pl=(x,pts)=>{if(x<=pts[0][0])return pts[0][1];for(let i=1;i<pts.length;i++){if(x<=pts[i][0]){const[a,b]=pts[i-1],[c,d]=pts[i];return b+(d-b)*(x-a)/(c-a);}}return pts[pts.length-1][1];};
+const bell=(x,m,w)=>Math.exp(-(((x-m)/w)**2));
+const fx=(x,d=1)=>(+x).toFixed(d).replace('.',',');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let S=null; // globaler Spielstand
+
+function rand(){ let t=S.rng=(S.rng+0x6D2B79F5)|0; t=Math.imul(t^(t>>>15),1|t); t=(t+Math.imul(t^(t>>>7),61|t))^t; return((t^(t>>>14))>>>0)/4294967296; }
+function gauss(){ let u=0,v=0; while(!u)u=rand(); while(!v)v=rand(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+
+/* ---------- Distanzen ---------- */
+const DIST={
+ '100':{label:'100 m',d:100,kind:'sprint',cat:'Sprint',venue:'bahn'},
+ '200':{label:'200 m',d:200,kind:'sprint',cat:'Sprint',venue:'bahn'},
+ '400':{label:'400 m',d:400,kind:'sprint',cat:'Langsprint',venue:'bahn'},
+ '800':{label:'800 m',d:800,kind:'mittel',cat:'Mittelstrecke',venue:'bahn'},
+ '1500':{label:'1500 m',d:1500,kind:'mittel',cat:'Mittelstrecke',venue:'bahn'},
+ '5000':{label:'5000 m',d:5000,kind:'lang',cat:'Langstrecke',venue:'bahn'},
+ '10000':{label:'10 000 m',d:10000,kind:'lang',cat:'Langstrecke',venue:'bahn'},
+ 'HM':{label:'Halbmarathon',d:21097.5,kind:'lang',cat:'Straße 21,1 km',venue:'strasse'},
+ 'M':{label:'Marathon',d:42195,kind:'lang',cat:'Straße 42,2 km',venue:'strasse'},
+ '50T':{label:'50 km Trail',d:50000,kind:'ultra',cat:'Ultra · Trail',venue:'trail',hm:2200},
+ '100T':{label:'100 km Ultratrail',d:100000,kind:'ultra',cat:'Ultra · Trail',venue:'trail',hm:5000}
+};
+const DKEYS=Object.keys(DIST);
+const groupOf=k=>({sprint:'sprint',mittel:'mittel',lang:'lang',ultra:'ultra'})[DIST[k].kind];
+
+/* Anforderungsprofile (Leistungsrelevanz 0–3) */
+const REQ={
+ '100':{vmax:3,accel:3,maxk:3,coord:2,anae:1,mob:1,hyp:1},
+ '200':{vmax:3,anae:2,accel:2,maxk:2,coord:2,mob:1,hyp:1},
+ '400':{anae:3,vmax:3,maxk:2,vo2:1,ka:1,coord:1,accel:1},
+ '800':{anae:3,vo2:3,vmax:2,lt:1,eco:1,ka:1,maxk:1},
+ '1500':{vo2:3,anae:2,lt:2,eco:2,vmax:1,maxk:1},
+ '5000':{vo2:3,lt:3,eco:2,anae:1,maxk:1},
+ '10000':{lt:3,vo2:3,eco:2,dur:1,maxk:1},
+ 'HM':{lt:3,vo2:2,eco:2,dur:2,fat:1},
+ 'M':{lt:3,dur:3,fat:2,eco:2,vo2:2},
+ '50T':{dur:3,climb:3,fat:2,ecc:2,lt:2,vo2:2,coord:1,ka:1},
+ '100T':{dur:3,fat:3,climb:3,ecc:3,lt:2,ka:2,coord:1,vo2:1,tissue:1}
+};
+
+/* ---------- Fähigkeiten (Indexskala 0–100 → reale Einheiten) ---------- */
+const GROUPS={aus:'Ausdauer',kraft:'Kraft',schnell:'Schnelligkeit',bew:'Beweglichkeit',koord:'Koordination',bel:'Belastbarkeit'};
+const CAPS={
+ vo2:{n:'VO₂max',g:'aus',up:35,down:28,u:(i,A)=>fx((30+0.55*i)*A.mass0/massOf(A),1)+' ml/kg/min',d:'Maximale Sauerstoffaufnahme pro kg Körpergewicht.'},
+ lt:{n:'Laktatschwelle (IANS)',g:'aus',up:30,down:24,u:i=>Math.round((0.68+0.0028*i)*100)+' % vVO₂max',d:'Anteil der vVO₂max, der ohne Laktatanhäufung gelaufen werden kann.'},
+ fat:{n:'Fettstoffwechsel',g:'aus',up:40,down:40,u:i=>fx(0.2+0.008*i,2)+' g/min',d:'Maximale Fettoxidation – schont Glykogen auf langen Strecken.'},
+ dur:{n:'Ermüdungswiderstand',g:'aus',up:45,down:40,u:i=>Math.round(i)+' Pkt',d:'Leistung über viele Stunden halten können (Langzeitausdauer).'},
+ maxk:{n:'Maximalkraft',g:'kraft',up:35,down:50,u:(i,A)=>Math.round((0.6+0.02*i)*massOf(A))+' kg 1RM',d:'Kniebeuge-1RM. Basis für Schnellkraft und Laufökonomie.'},
+ accel:{n:'Schnellkraft',g:'kraft',up:40,down:40,u:i=>fx(22+0.38*i,1)+' cm CMJ',d:'Explosive Kraftentfaltung; prägt Start und Beschleunigung.'},
+ ka:{n:'Kraftausdauer',g:'kraft',up:25,down:25,u:i=>Math.round(i)+' Pkt',d:'Ermüdungswiderstand bei wiederholten Krafteinsätzen.'},
+ hyp:{n:'Muskelquerschnitt',g:'kraft',up:50,down:60,u:(i,A)=>fx(massOf(A),1)+' kg KG',d:'Hypertrophie erhöht Kraft, aber auch das Körpergewicht.'},
+ ecc:{n:'Exzentrische Kraft',g:'kraft',up:30,down:35,u:i=>Math.round(i)+' Pkt',d:'Bremsarbeit der Muskulatur – entscheidend bergab.'},
+ climb:{n:'Bergauf-Kraft',g:'kraft',up:35,down:35,u:i=>Math.round(i)+' Pkt',d:'Kraft und Technik für Anstiege und Power-Hiking.'},
+ vmax:{n:'Max. Sprintgeschwindigkeit',g:'schnell',up:55,down:50,u:i=>fx(6.6+0.052*i,2)+' m/s',d:'Höchste erreichbare Laufgeschwindigkeit (Aktionsschnelligkeit).'},
+ anae:{n:'Schnelligkeitsausdauer',g:'schnell',up:21,down:18,u:i=>Math.round(15+0.45*i)+' ml O₂-Äq.',d:'Anaerobe Kapazität / Laktattoleranz (Stehvermögen).'},
+ mob:{n:'Beweglichkeit',g:'bew',up:20,down:25,u:i=>{const v=Math.round(-15+0.4*i);return(v>0?'+':'')+v+' cm Sit & Reach';},d:'Gelenkigkeit und Dehnfähigkeit.'},
+ coord:{n:'Technik & Koordination',g:'koord',up:40,down:60,u:i=>Math.round(i)+' Pkt',d:'Lauftechnik, Frequenz, Reaktion, Trittsicherheit im Gelände.'},
+ eco:{n:'Laufökonomie',g:'koord',up:80,down:110,u:i=>Math.round(240-0.6*i)+' ml/kg/km',d:'Sauerstoffkosten pro km – niedriger ist besser.'},
+ tissue:{n:'Strukturelle Belastbarkeit',g:'bel',up:90,down:60,u:i=>Math.round(i)+' Pkt',d:'Sehnen, Knochen, Bänder. Passt sich langsam an.'}
+};
+const CK=Object.keys(CAPS);
+const massOf=A=>A.mass0+0.1*(A.c.hyp-A.start.hyp);
+
+/* ---------- Abgeleitete Leistungsparameter ---------- */
+function derive(A){
+ const c=A.c, mass=massOf(A);
+ const vo2=(30+0.55*c.vo2)*A.mass0/mass;
+ const lt=Math.min(0.95,0.68+0.0028*c.lt);
+ const eco=(240-0.6*c.eco)*(1-0.0006*(c.maxk-40))*(1-0.0004*(c.accel-40))*(1-0.0003*(c.coord-50))*(1-0.0001*(c.mob-50));
+ const vVO2=vo2/eco*1000/60;
+ const vmax=(6.6+0.052*c.vmax)*(1+0.0005*(c.maxk-40)+0.0005*(c.accel-40)+0.0003*(c.coord-50));
+ const tauA=Math.max(0.6,(1.55-0.0075*c.accel)*(1-0.0012*(c.maxk-40)));
+ const D={A,c,mass,vo2,lt,eco,vVO2,vmax,tauA,tauS:25+45*c.anae/100,Acap:15+0.45*c.anae,react:0.2-0.0006*c.coord,hfmax:Math.round(208-0.7*A.age),cache:{}};
+ D.CS=vo2*fAer(40,D)/eco*1000/60;
+ return D;
+}
+function fAer(T,D){
+ const c=D.c; let f=T<=6?1:D.lt+(1-D.lt)*Math.exp(-(T-6)/18);
+ if(T>60) f*=Math.pow(T/60,-(0.085-0.045*c.dur/100-0.02*c.fat/100));
+ if(T>180) f*=Math.pow(T/180,-(0.15-0.08*(c.dur+c.ecc)/200));
+ if(T>360) f*=Math.pow(T/360,-(0.16-0.08*(c.dur+c.fat)/200));
+ return f;
+}
+const aerDist=(D,T)=>(D.vo2*fAer(T,D)*T+D.Acap)/D.eco*1000;
+function aerTime(D,d){let lo=0.2,hi=6000;for(let i=0;i<60;i++){const m=(lo+hi)/2;if(aerDist(D,m)<d)lo=m;else hi=m;}return(lo+hi)*30;}
+function sprintRun(D,d,rec){
+ const dt=0.005,vs=D.vVO2*0.95;let t=0,x=0,next=10;const pts=rec?[[0,0]]:null;
+ while(x<d&&t<300){t+=dt;const tt=t-D.react;if(tt<=0)continue;
+  const v=D.vmax*(1-Math.exp(-tt/D.tauA))*(vs+(D.vmax-vs)*Math.exp(-Math.max(0,tt-3)/D.tauS))/D.vmax;
+  x+=v*dt;if(rec&&x>=next){pts.push([next,t]);next+=10;}}
+ return rec?{t,pts}:t;
+}
+function bestTime(D,d){
+ const k=Math.round(d);if(D.cache[k])return D.cache[k];let t;
+ if(d<=400)t=sprintRun(D,d);else if(d>=800)t=aerTime(D,d);
+ else{const w=Math.log(d/400)/Math.log(2),vs=d/sprintRun(D,d),va=d/aerTime(D,d);t=d/(Math.pow(vs,1-w)*Math.pow(va,w));}
+ return D.cache[k]=t;
+}
+const bestSpeed=(D,d)=>d/bestTime(D,d);
+function minetti(i){i=clamp(i,-0.45,0.45);return 155.4*i**5-30.4*i**4-43.3*i**3+46.3*i**2+19.5*i+3.6;}
+const climbAdj=c=>0.88+0.24*c.climb/100;
+const downCap=(c,g)=>(2.6+2.4*c.ecc/100+0.8*c.coord/100)*(1-Math.max(0,Math.abs(g)-0.1)*1.5);
+
+/* ---------- Formatierung ---------- */
+function fmtT(sec,dist){
+ if(!isFinite(sec))return'–';
+ if(dist!==undefined&&dist<=400) return fx(sec,2)+' s';
+ if(sec<60) return fx(sec,1)+' s';
+ const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
+ if(h>0) return h+':'+String(m).padStart(2,'0')+':'+String(Math.floor(s)).padStart(2,'0');
+ if(dist!==undefined&&dist<=1500) return m+':'+(s<10?'0':'')+fx(Math.floor(s*10)/10,1);
+ return m+':'+String(Math.round(s)===60?59:Math.round(s)).padStart(2,'0');
+}
+function fmtPace(v){if(!v||!isFinite(v))return'–';const s=1000/v;let m=Math.floor(s/60),r=Math.round(s%60);if(r===60){m++;r=0;}return m+':'+String(r).padStart(2,'0')+' /km';}
+function fmtDur(min){if(min<60)return Math.round(min)+' min';const h=Math.floor(min/60),m=Math.round(min%60);return h+' h '+String(m).padStart(2,'0');}
+function fmtDelta(sec,dist){const s=Math.abs(sec);const sign=sec<0?'−':'+';if(dist<=400||s<60)return sign+fx(s,2)+' s';return sign+fmtT(s,dist);}
+const DAYS=['Mo','Di','Mi','Do','Fr','Sa','So'];
+const DAYS_L=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
+const ZONES=['Regeneration','GA1','GA2 / Schwelle','VO₂max','Laktazid','Alaktazid'];
+const ZCOL=['var(--z1)','var(--z2)','var(--z3)','var(--z4)','var(--z5)','var(--z6)'];
+
+/* ---------- Einheiten: Voreinstellungen ---------- */
+const TYPES={
+ run:{n:'Lauf',c:'var(--t-run)'},kraft:{n:'Kraft',c:'var(--t-kraft)'},sprung:{n:'Sprung',c:'var(--t-sprung)'},
+ koord:{n:'Koordination',c:'var(--t-koord)'},mob:{n:'Beweglichkeit',c:'var(--t-mob)'},alt:{n:'Alternativ',c:'var(--t-alt)'}
+};
+const DEF={
+ run:{reps:1,sets:1,dist:8000,pct:80,pause:0,setPause:0,hm:0,grade:0,terrain:'strasse',warm:false},
+ kraft:{pct:70,reps:10,sets:3,pause:90,ex:4,tempo:'zuegig',focus:'beine'},
+ sprung:{contacts:10,sets:4,level:2,pause:90},
+ koord:{dur:20,level:2,speed:80},
+ mob:{dur:15,method:'statisch',level:2},
+ alt:{kind:'rad',dur:60,hf:70}
+};
+const PRESETS={
+ run:[
+  ['reg','Regenerationslauf',{dist:6000,pct:68}],
+  ['ga1','Lockerer Dauerlauf (GA1)',{dist:10000,pct:80}],
+  ['long','Langer Lauf',{dist:20000,pct:82}],
+  ['tdl','Tempodauerlauf (GA2)',{dist:6000,pct:92}],
+  ['hilly','Hügeliger Dauerlauf',{dist:12000,pct:80,hm:250,terrain:'trail'}],
+  ['trail','Trail-Langlauf mit Höhenmetern',{dist:26000,pct:80,hm:1100,terrain:'trail'}],
+  ['ext','Extensive Intervalle 3 × 3000 m',{reps:3,dist:3000,pct:82,pause:150,warm:true,terrain:'bahn'}],
+  ['int1000','Intensive Intervalle 5 × 1000 m',{reps:5,dist:1000,pct:84,pause:180,warm:true,terrain:'bahn'}],
+  ['int400','Intensive Intervalle 8 × 400 m',{reps:8,dist:400,pct:80,pause:90,warm:true,terrain:'bahn'}],
+  ['i3030','Kurzintervalle 15 × 200 m',{reps:15,dist:200,pct:65,pause:35,warm:true,terrain:'bahn'}],
+  ['exttempo','Extensive Tempoläufe 10 × 100 m',{reps:10,dist:100,pct:75,pause:60,warm:true,terrain:'bahn'}],
+  ['tempo300','Tempoläufe 6 × 300 m',{reps:6,dist:300,pct:90,pause:300,warm:true,terrain:'bahn'}],
+  ['sa150','Schnelligkeitsausdauer 2 × 3 × 150 m',{reps:3,sets:2,dist:150,pct:95,pause:240,setPause:600,warm:true,terrain:'bahn'}],
+  ['stei','Steigerungsläufe 6 × 80 m',{reps:6,dist:80,pct:88,pause:90,warm:true}],
+  ['acc30','Beschleunigungen 6 × 30 m (Tiefstart)',{reps:6,dist:30,pct:100,pause:180,warm:true,terrain:'bahn'}],
+  ['fly60','Sprints 5 × 60 m',{reps:5,dist:60,pct:98,pause:240,warm:true,terrain:'bahn'}],
+  ['hill60','Bergsprints 8 × 60 m (8 %)',{reps:8,dist:60,pct:95,pause:150,grade:8,warm:true}],
+  ['hill400','Bergintervalle 6 × 400 m (6 %)',{reps:6,dist:400,pct:85,pause:120,grade:6,warm:true}]
+ ],
+ kraft:[
+  ['ik','Maximalkraft (IK) 4 × 3 @ 90 %',{pct:90,reps:3,sets:4,pause:180,ex:3,tempo:'zuegig',focus:'beine'}],
+  ['hyp','Hypertrophie 4 × 10 @ 72 %',{pct:72,reps:10,sets:4,pause:90,ex:4,tempo:'langsam',focus:'ganz'}],
+  ['sk','Schnellkraft 5 × 5 @ 45 % explosiv',{pct:45,reps:5,sets:5,pause:120,ex:3,tempo:'explosiv',focus:'beine'}],
+  ['kaz','Kraftausdauer-Zirkel 3 × 20 @ 40 %',{pct:40,reps:20,sets:3,pause:30,ex:6,tempo:'zuegig',focus:'ganz'}],
+  ['core','Rumpfstabilisation',{pct:35,reps:15,sets:3,pause:45,ex:5,tempo:'langsam',focus:'rumpf'}]
+ ],
+ sprung:[
+  ['skip','Seilspringen & Hopserläufe',{contacts:30,sets:5,level:1,pause:60}],
+  ['bound','Sprungläufe & Hürdensprünge',{contacts:10,sets:5,level:2,pause:90}],
+  ['drop','Niedersprünge (Drop Jumps)',{contacts:8,sets:4,level:3,pause:150}]
+ ],
+ koord:[
+  ['abc','Lauf-ABC',{dur:20,level:2,speed:80}],
+  ['tech','Sprinttechnik & Frequenz',{dur:25,level:3,speed:95}],
+  ['trailtech','Trailtechnik bergab',{dur:30,level:2,speed:75}]
+ ],
+ mob:[
+  ['stat','Statisches Dehnen',{dur:15,method:'statisch',level:2}],
+  ['dyn','Dynamische Mobilisation',{dur:15,method:'dynamisch',level:2}],
+  ['pnf','PNF-Dehnen',{dur:20,method:'pnf',level:2}]
+ ],
+ alt:[
+  ['rad','Radfahren GA1',{kind:'rad',dur:60,hf:70}],
+  ['aqua','Aqua-Jogging',{kind:'aqua',dur:40,hf:78}],
+  ['swim','Schwimmen',{kind:'schwimmen',dur:40,hf:72}],
+  ['ski','Skilanglauf / Crosstrainer',{kind:'ski',dur:50,hf:74}]
+ ]
+};
+let uid=1;
+function mkSess(type,pid,day,over){
+ const pr=pid?PRESETS[type].find(p=>p[0]===pid):null;
+ return{id:'s'+(Date.now().toString(36))+(uid++),type,day,name:pr?pr[1]:TYPES[type].n,pid:pid||null,p:Object.assign({},DEF[type],pr?pr[2]:{},over||{})};
+}
+
+/* ---------- Bewertung einer Einheit ---------- */
+const VO2P=[[.5,.08],[.65,.2],[.8,.5],[.9,.8],[1,1],[1.15,.85],[1.4,.45],[2,.15]];
+const LTP=[[.7,.08],[.85,.35],[.95,.85],[1.02,1],[1.1,.7],[1.3,.3],[1.8,.05]];
+const FATP=[[.6,.6],[.85,.75],[.95,.45],[1.05,.15],[1.15,0]];
+const RPEP=[[.4,1.5],[.6,2.5],[.75,3.5],[.85,5],[.95,7],[1.05,8.5],[1.2,9.3],[1.5,9.7]];
+const zeroStim=()=>Object.fromEntries(CK.map(k=>[k,0]));
+function energySplit(tRep,over){
+ if(over<=0) return[0,0.02,0.98];
+ const an=(1-tRep/(tRep+75))*Math.min(1,over*1.2), al=12/(12+tRep);
+ return[an*al,an*(1-al),1-an];
+}
+function hrOf(r,D){return Math.round(D.hfmax*Math.min(1,0.4+0.6*Math.min(r,1)));}
+
+function evalRun(p,A,fat=1){
+ const D=derive(A),c=D.c;
+ const reps=Math.max(1,Math.round(p.reps)),sets=Math.max(1,Math.round(p.sets)),d=clamp(+p.dist||100,20,120000),pct=clamp(+p.pct,40,100)/100;
+ const n=reps*sets,cont=n===1;
+ const vb=bestSpeed(D,d),vE=pct*vb;
+ let g=0,vAct=vE,up=0,down=0;
+ if(cont&&p.hm>0){g=Math.min(0.35,p.hm/(d/2));const vu=vE*3.6/minetti(g)*climbAdj(c),vd=Math.min(vE*3.6/minetti(-g),downCap(c,g));vAct=d/((d/2)/vu+(d/2)/vd);up=down=+p.hm;}
+ else if(!cont&&p.grade>0){g=p.grade/100;vAct=vE*3.6/minetti(g)*climbAdj(c);up=d*g*n;down=up;}
+ if(p.terrain==='trail')vAct*=0.93+0.05*c.coord/100;
+ const tRep=d/vAct,r=vE/D.vVO2,q=r/D.lt;
+ const spF=d<=400?(d>=30?0.98:0.85+0.0065*(d-10)):d>=800?vb/D.vmax:lerp(0.98,vb/D.vmax,(d-400)/400);
+ const sv=pct*spF;
+ const sprint=sv>0.8&&tRep<16;
+ const over=vb>D.CS?Math.max(0,(vE-D.CS)/(vb-D.CS)):0;
+ const dep=Math.pow(over,1.8)*Math.min(1,0.3+tRep/80)*fat;
+ const tau=(55+220*Math.min(1,tRep/90))*(1.25-0.5*c.vo2/100);
+ const st=zeroStim();const zones=[0,0,0,0,0,0];
+ let bal=1,done=0,fail=null,qSum=0,load=0,pauseMin=0,minBal=1;
+ const zi=sprint?5:r>=1.02?4:q>=1.03?3:q>=0.92?2:q>=0.8?1:0;
+ const tMin=tRep/60,kin=cont||p.pause<=1.5*tRep?1:tRep/(tRep+30);
+ const df=d<=60?0.8:d<=150?1:d<=300?0.6:0.3;
+ outer:for(let si=0;si<sets;si++){for(let ri=0;ri<reps;ri++){
+  if(bal-dep<-0.3){fail='Abbruch nach '+done+' von '+n+' Wiederholungen – Pausen zu kurz oder Intensität zu hoch.';break outer;}
+  const qb=clamp(bal,0,1);qSum+=qb;
+  st.vo2+=tMin*pl(r,VO2P)*kin;st.lt+=tMin*pl(q,LTP);st.fat+=tMin*pl(q,FATP);
+  st.eco+=tMin*(0.15+0.35*clamp((r-0.7)/0.5,0,1))+(sv>0.8?0.25*qb:0);
+  st.anae+=dep*3*(sprint?0.6:1)+(r>1.02&&!sprint?tMin*0.8:0);
+  if(sv>0.85)st.vmax+=Math.pow((sv-0.85)/0.15,1.5)*qb*df;
+  if(sv>0.8&&d<=60)st.accel+=((sv-0.8)/0.2)*qb*(1+3*g);
+  if(g>0.04&&d<=150&&!cont)st.maxk+=0.12*(1+5*g)*qb;
+  if(g>0.03)st.ka+=tMin*g*10;
+  if(d>=150&&d<=800&&r>0.95)st.ka+=tMin*0.4;
+  if(sprint)st.coord+=0.08;
+  load+=tMin*pl(r,RPEP)+dep*10+(sprint?2+4*sv:0);
+  zones[zi]+=tMin;bal-=dep;minBal=Math.min(minBal,bal);done++;
+  const last=si===sets-1&&ri===reps-1;
+  if(!last){const P=ri===reps-1?Math.max(p.setPause||0,p.pause||0):(p.pause||0);bal=1-(1-bal)*Math.exp(-P/tau);pauseMin+=P/60;if(!cont&&p.pause<=1.5*tRep)st.vo2+=(P/60)*pl(r,VO2P)*0.5;}
+ }}
+ const moveMin=tMin*done,frac=done/n;
+ if(cont){const T=moveMin;st.dur+=Math.max(0,T-60)+0.6*Math.max(0,T-120);st.fat+=0.5*Math.max(0,T-75);load+=T*Math.min(2,Math.max(0,(T-60)/80));}
+ st.climb+=up*frac/100*(r>0.55?1:0.6);
+ st.ecc+=down*frac/100*(cont?1:0.35);
+ if(p.terrain==='trail')st.coord+=moveMin*0.04;
+ load+=pauseMin*1.5;
+ let km=d*done/1000,minutes=moveMin+pauseMin;
+ if(p.warm){minutes+=20;const wr=0.62;st.vo2+=20*pl(wr,VO2P);st.fat+=20*pl(wr/D.lt,FATP);st.lt+=20*pl(wr/D.lt,LTP);st.eco+=3;load+=44;km+=20*60*wr*D.vVO2/1000;zones[0]+=20;st.coord+=0.3;}
+ const kmQ=d*done/1000;
+ const src={vol:km*(p.terrain==='trail'?0.95:p.terrain==='bahn'?1.05:1),sprint:sv>0.7?kmQ*2.2*(sv-0.7)/0.3:0,plyo:0,down:down*frac/1000*3};
+ const mech=src.vol+src.sprint+src.down;
+ st.tissue+=mech;
+ // Methode & Pausenart
+ const ratio=(p.pause||0)/tRep;
+ let method,pauseKind='';
+ if(cont){
+  method=q<0.92?'Dauermethode, extensiv':q<1.03?'Dauermethode, intensiv (Tempodauerlauf)':'Wettkampf- / Kontrollmethode';
+  if(p.hm>0)method+=' im Gelände';
+ }else{
+  const full=sprint?(p.pause>=Math.max(90,tRep*8)):ratio>=4;
+  pauseKind=full?'vollständige Pause':ratio<1.5&&!sprint?'kurze lohnende Pause':'lohnende Pause';
+  if(sprint&&full)method='Wiederholungsmethode (Schnelligkeit)';
+  else if(sprint)method='Intensive Intervallmethode (Schnelligkeitsausdauer)';
+  else if(full&&pct>=0.88)method='Wiederholungsmethode';
+  else if(pct>=0.85||r>=1.0)method='Intensive Intervallmethode';
+  else method='Extensive Intervallmethode';
+  if(g>0)method+=' am Berg';
+ }
+ const total=d*n;
+ const line=cont?`${fx(d/1000,d%1000?1:0)} km · ${Math.round(pct*100)} %${p.hm>0?' · '+p.hm+' Hm':''}`:`${sets>1?sets+' × ':''}${reps} × ${d>=1000?fx(d/1000,d%1000?1:0)+' km':d+' m'} · ${Math.round(pct*100)} % · P ${fmtPauseS(p.pause)}${g>0?' · '+p.grade+' %':''}`;
+ return{type:'run',stim:st,load,mech,src,km,min:minutes,zones,method,pauseKind,energy:energySplit(tRep,over),fail,done,n,line,
+  info:{pace:vAct,paceFlat:vE,hr:hrOf(r,D),zone:zi,r,q,tRep,quality:done?qSum/done:0,minBal,total}};
+}
+function fmtPauseS(s){s=Math.round(s||0);if(s<60)return s+' s';const m=Math.floor(s/60),r=s%60;return m+':'+String(r).padStart(2,'0')+' min';}
+
+function evalKraft(p,A,fat=1){
+ const D=derive(A),c=D.c,pp=clamp(p.pct,20,100)/100,reps=Math.max(1,Math.round(p.reps)),sets=Math.max(1,Math.round(p.sets)),ex=Math.max(1,Math.round(p.ex)),pause=+p.pause||0;
+ let repsMax=pp>=0.6?37-36*pp:15.4+(0.6-pp)*120;repsMax=Math.max(1,repsMax/Math.sqrt(fat));
+ const effort=Math.min(1.2,reps/repsMax),u=sets*ex;
+ const legF={beine:1,ganz:0.7,rumpf:0.25}[p.focus]||1,expl=p.tempo==='explosiv',slow=p.tempo==='langsam';
+ let fail=null;if(reps>repsMax*1.08)fail=`Bei ${Math.round(pp*100)} % 1RM sind nur etwa ${Math.floor(repsMax)} Wiederholungen möglich.`;
+ const eff=Math.min(1,effort),k=fail?0.5:1;
+ const st=zeroStim();
+ st.maxk=k*u*Math.pow(clamp((pp-0.55)/0.35,0,1),1.3)*(0.5+0.5*eff)*legF*(pause>=120?1:0.75);
+ st.hyp=k*u*bell(reps,10,5)*clamp(eff*1.2-0.3,0,1)*bell(pp,0.75,0.12)*(p.focus==='ganz'?1.2:legF)*(slow?1.15:1)*(pause>=60?1:0.8);
+ st.accel=k*u*(expl?(1-Math.max(0,eff-0.5))*(bell(pp,0.45,0.18)+0.6*clamp((pp-0.8)/0.15,0,1)):0.15*clamp((pp-0.7)/0.3,0,1))*legF;
+ st.ka=k*u*clamp((reps-10)/20,0,1.5)*(pause<=60?1.2:0.8)*clamp(1-(pp-0.6)/0.3,0,1);
+ st.eco=0.25*(st.maxk+st.accel)*legF;
+ st.tissue=u*clamp((pp-0.6)/0.3,0,1)*0.15*legF;
+ st.coord=p.focus==='rumpf'?0.2*u:0.03*u;
+ st.climb=0.15*(st.maxk+st.ka)*legF;st.ecc=(slow?0.25:0.1)*st.maxk;
+ if(pause<=60&&reps>=15){st.vo2=0.06*u;st.lt=0.05*u;}
+ const minutes=u*(reps*(slow?5:expl?1.5:3)+pause)/60+10;
+ const rpe=clamp(3+5*Math.max(eff,pp*0.9),2,10);
+ const load=rpe*minutes*0.8;
+ const mech=u*reps*0.002*legF;
+ let method;
+ if(pp>=0.85&&reps<=5)method='Maximalkraftmethode (IK-Training)';
+ else if(expl&&pp<=0.65)method='Schnellkraftmethode';
+ else if(pp>=0.62&&reps>=6&&reps<=15)method='Hypertrophiemethode (Muskelaufbau)';
+ else if(reps>=15||pp<0.55)method='Kraftausdauermethode';
+ else method='Allgemeines Krafttraining';
+ if(p.focus==='rumpf')method+=' · Rumpf';
+ const setT=reps*(slow?5:expl?1.5:3);
+ return{type:'kraft',stim:st,load,mech,src:{vol:0,sprint:0,plyo:mech,down:0},km:0,min:minutes,zones:[0,0,0,0,0,0],method,energy:energySplit(setT,0.9),fail,done:1,n:1,
+  line:`${sets} × ${reps} @ ${Math.round(pp*100)} % · ${ex} Übungen · P ${fmtPauseS(pause)}`,info:{repsMax,effort,rir:Math.max(0,Math.floor(repsMax-reps))}};
+}
+function evalSprung(p,A,fat=1){
+ const tot=Math.max(1,p.contacts*p.sets),L=[0.5,1,1.6][clamp(p.level,1,3)-1],pf=p.pause>=90?1:0.7;
+ const st=zeroStim();
+ st.accel=tot*L/40*pf/Math.sqrt(fat);st.vmax=tot*L/120*pf;st.eco=tot*L/80;st.ecc=tot*L/100;st.maxk=tot*L/300;st.coord=tot/200;
+ const mech=tot*L*0.03;st.tissue=mech;
+ const minutes=p.sets*(p.contacts*1+p.pause)/60+10,load=minutes*(4+p.level);
+ const lim=[300,160,70][p.level-1];
+ const fail=tot>lim*1.5?`Umfang zu hoch: Mehr als ${lim} Kontakte dieser Intensität überlasten Sehnen und Gelenke.`:null;
+ return{type:'sprung',stim:st,load,mech,src:{vol:0,sprint:0,plyo:mech*(tot>lim?1.6:1),down:0},km:0,min:minutes,zones:[0,0,0,0,0,0],
+  method:p.level===3?'Reaktivkraftmethode (Dehnungs-Verkürzungs-Zyklus)':'Sprungkrafttraining (Plyometrie)',energy:[0.85,0.1,0.05],fail,done:1,n:1,
+  line:`${p.sets} × ${p.contacts} Kontakte · Stufe ${p.level} · P ${fmtPauseS(p.pause)}`,info:{tot,lim}};
+}
+function evalKoord(p,A){
+ const st=zeroStim(),lv=clamp(p.level,1,3),sp=p.speed/100;
+ st.coord=p.dur*(0.4+0.3*lv)/10*sp;st.eco=p.dur*0.03*lv*sp;st.vmax=p.speed>=90?p.dur*0.012:0;st.mob=p.dur*0.01;st.tissue=p.dur*0.02;
+ const trail=p.speed<=78&&lv>=2; if(trail){st.ecc+=p.dur*0.02;}
+ return{type:'koord',stim:st,load:p.dur*(2+lv),mech:p.dur*0.02,src:{vol:p.dur*0.02,sprint:0,plyo:0,down:0},km:p.dur*0.08,min:p.dur,zones:[p.dur*0.5,0,0,0,0,0],
+  method:'Koordinationstraining (Variation, Präzision, Zeitdruck)',energy:[0.4,0.1,0.5],fail:null,done:1,n:1,line:`${p.dur} min · Stufe ${lv} · ${p.speed} % Tempo`,info:{}};
+}
+function evalMob(p){
+ const st=zeroStim(),f={statisch:1,dynamisch:0.8,pnf:1.3}[p.method]||1;
+ st.mob=p.dur*f*(0.6+0.3*p.level)/10;if(p.method==='dynamisch')st.coord=p.dur*0.02;
+ return{type:'mob',stim:st,load:p.dur*1.2,mech:0,src:{vol:0,sprint:0,plyo:0,down:0},km:0,min:p.dur,zones:[0,0,0,0,0,0],
+  method:{statisch:'Statische Dehnmethode',dynamisch:'Dynamische Dehnmethode',pnf:'PNF-Methode (Anspannen–Entspannen)'}[p.method],energy:[0,0,1],fail:null,done:1,n:1,line:`${p.dur} min · ${p.method} · Stufe ${p.level}`,info:{}};
+}
+const ALT={rad:{n:'Radfahren',vo2:.7,lt:.6,fat:.8,dur:.3,ka:.3,climb:.15},aqua:{n:'Aqua-Jogging',vo2:.85,lt:.7,fat:.7,dur:.3,eco:.1},schwimmen:{n:'Schwimmen',vo2:.45,lt:.35,fat:.5,dur:.15},ski:{n:'Skilanglauf',vo2:.8,lt:.65,fat:.8,dur:.35,climb:.2}};
+function evalAlt(p,A){
+ const D=derive(A),tf=ALT[p.kind]||ALT.rad,r=clamp((p.hf/100-0.4)/0.6,0.3,1.05),q=r/D.lt,st=zeroStim();
+ st.vo2=p.dur*pl(r,VO2P)*tf.vo2;st.lt=p.dur*pl(q,LTP)*tf.lt;st.fat=p.dur*pl(q,FATP)*tf.fat;st.dur=Math.max(0,p.dur-60)*tf.dur;
+ if(tf.ka)st.ka=p.dur*0.02*tf.ka*10;if(tf.climb)st.climb=p.dur*0.02*tf.climb*10;if(tf.eco)st.eco=p.dur*0.15*tf.eco;
+ const zi=q>=1.03?3:q>=0.92?2:q>=0.8?1:0;const zones=[0,0,0,0,0,0];zones[zi]=p.dur;
+ return{type:'alt',stim:st,load:p.dur*pl(r,RPEP)*0.9,mech:0,src:{vol:0,sprint:0,plyo:0,down:0},km:0,min:p.dur,zones,
+  method:tf.n+' – Dauermethode (gelenkschonend)',energy:[0,0.02,0.98],fail:null,done:1,n:1,line:`${p.dur} min · ${p.hf} % HFmax`,info:{hr:Math.round(D.hfmax*p.hf/100),zone:zi}};
+}
+function evalSession(s,A,fat=1){return({run:evalRun,kraft:evalKraft,sprung:evalSprung,koord:evalKoord,mob:evalMob,alt:evalAlt})[s.type](s.p,A,fat);}
+
+/* ---------- Wochenvorlagen (Periodisierung) ---------- */
+const PHASES={grund:'Grundlagen (allg. Vorbereitung)',aufbau:'Aufbau (spez. Vorbereitung)',wk:'Wettkampfvorbereitung',taper:'Tapering (Formaufbau)',regen:'Entlastungswoche'};
+const LONGK={'5000':14000,'10000':17000,'HM':21000,'M':28000,'50T':26000,'100T':30000};
+// [Tag, Typ, Preset, Überschreibungen, Priorität 1–3]
+const TPL={
+ sprint:{
+  grund:[[0,'run','exttempo',{},1],[0,'kraft','hyp',{},1],[1,'run','ga1',{dist:5000},2],[1,'mob','stat',{},1],[2,'sprung','skip',{},1],[2,'koord','abc',{},1],[2,'kraft','ik',{},2],[4,'run','stei',{},1],[4,'kraft','kaz',{},3],[5,'run','hill60',{},1],[5,'kraft','core',{},2],[6,'mob','dyn',{},3]],
+  aufbau:[[0,'run','acc30',{},1],[0,'kraft','ik',{},1],[1,'run','tempo300',{},1],[1,'mob','stat',{},2],[2,'koord','tech',{},1],[2,'sprung','bound',{},2],[3,'run','reg',{dist:4000},3],[3,'kraft','core',{},2],[4,'run','fly60',{},1],[4,'kraft','sk',{},1],[5,'run','sa150',{},1],[6,'mob','dyn',{},3]],
+  wk:[[0,'run','acc30',{},1],[0,'kraft','sk',{},1],[1,'run','sa150',{reps:2},1],[2,'run','reg',{dist:4000},2],[2,'mob','dyn',{},1],[3,'run','fly60',{},1],[3,'koord','tech',{dur:15},2],[5,'run','stei',{reps:4},1],[5,'sprung','drop',{sets:3},3]],
+  taper:[[0,'run','acc30',{reps:4},1],[1,'koord','abc',{dur:15},1],[1,'mob','dyn',{},1],[2,'run','fly60',{reps:3},1],[2,'kraft','sk',{sets:3},2],[4,'run','stei',{reps:4},1]],
+  regen:[[0,'run','reg',{dist:4000},1],[1,'mob','stat',{},1],[2,'run','stei',{reps:4},1],[2,'kraft','core',{},1],[4,'alt','rad',{dur:45},2],[5,'koord','abc',{},1]]
+ },
+ mittel:{
+  grund:[[0,'run','ga1',{},1],[0,'kraft','core',{},2],[1,'run','ext',{reps:3,dist:2000},1],[2,'run','ga1',{dist:8000},1],[2,'run','stei',{warm:false},2],[3,'kraft','hyp',{},1],[3,'koord','abc',{},2],[4,'run','reg',{},3],[5,'run','hilly',{},1],[6,'run','long',{dist:15000},1],[6,'mob','stat',{},2]],
+  aufbau:[[0,'run','ga1',{},1],[0,'run','stei',{warm:false},2],[1,'run','int1000',{},1],[2,'run','reg',{},2],[2,'kraft','ik',{},1],[3,'run','tempo300',{},1],[4,'run','ga1',{dist:8000},3],[4,'mob','stat',{},2],[5,'run','tdl',{dist:5000},1],[6,'run','long',{dist:14000},1]],
+  wk:[[0,'run','ga1',{dist:8000},1],[1,'run','int400',{reps:6,pct:88,pause:150},1],[2,'run','reg',{},1],[2,'kraft','sk',{},2],[3,'run','tempo300',{reps:4},1],[3,'mob','dyn',{},2],[5,'run','ga1',{dist:6000},1],[5,'run','stei',{warm:false},1],[6,'run','long',{dist:12000},2]],
+  taper:[[0,'run','reg',{dist:5000},1],[1,'run','int400',{reps:4,pct:88,pause:180},1],[2,'run','ga1',{dist:6000},1],[3,'mob','dyn',{},1],[4,'run','stei',{reps:4},1],[5,'run','reg',{dist:4000},2]],
+  regen:[[0,'run','reg',{},1],[1,'alt','rad',{},1],[2,'run','ga1',{dist:7000},1],[3,'kraft','core',{},1],[4,'run','stei',{},2],[5,'run','hilly',{dist:9000},1],[6,'mob','stat',{},1]]
+ },
+ lang:{
+  grund:[[0,'run','reg',{},1],[0,'kraft','core',{},2],[1,'run','ga1',{},1],[1,'run','stei',{warm:false},2],[2,'run','ext',{},1],[3,'run','ga1',{dist:8000},2],[3,'kraft','hyp',{},1],[4,'mob','stat',{},1],[5,'run','hilly',{},1],[6,'run','long',{dist:'L'},1]],
+  aufbau:[[0,'run','reg',{},2],[1,'run','int1000',{},1],[2,'run','ga1',{},1],[2,'kraft','ik',{},1],[3,'run','tdl',{dist:8000},1],[4,'mob','stat',{},1],[5,'run','ga1',{dist:8000},1],[5,'run','stei',{warm:false},2],[6,'run','long',{dist:'L'},1],[6,'koord','abc',{},3]],
+  wk:[[0,'run','reg',{},1],[1,'run','int1000',{reps:4},1],[2,'run','ga1',{},1],[2,'kraft','sk',{},2],[3,'run','tdl',{dist:5000},1],[4,'mob','dyn',{},2],[5,'run','ga1',{dist:6000},1],[5,'run','stei',{warm:false},1],[6,'run','long',{dist:'L0.75'},1]],
+  taper:[[0,'run','reg',{dist:5000},1],[1,'run','int1000',{reps:3},1],[2,'run','ga1',{dist:6000},1],[3,'mob','dyn',{},2],[4,'run','stei',{reps:4},1],[5,'run','reg',{dist:4000},1]],
+  regen:[[0,'run','reg',{},1],[1,'alt','rad',{},1],[2,'run','ga1',{},1],[3,'kraft','core',{},1],[5,'run','hilly',{dist:9000},1],[6,'run','long',{dist:'L0.6'},1]]
+ },
+ ultra:{
+  grund:[[0,'run','reg',{},1],[1,'run','ga1',{dist:12000},1],[2,'run','hill400',{},1],[2,'kraft','core',{},2],[3,'run','ga1',{},2],[3,'kraft','kaz',{},1],[4,'mob','stat',{},1],[5,'run','trail',{dist:'L',hm:1000},1],[6,'run','long',{dist:'L0.6',pct:80},1]],
+  aufbau:[[0,'run','reg',{},2],[1,'run','tdl',{dist:8000,hm:150},1],[2,'run','ga1',{dist:12000},1],[2,'kraft','ik',{},1],[3,'run','hill400',{},1],[3,'koord','trailtech',{},2],[4,'mob','stat',{},2],[5,'run','trail',{dist:'L1.25',hm:1800},1],[6,'run','hilly',{dist:15000,hm:400},1]],
+  wk:[[0,'run','reg',{},1],[1,'run','tdl',{dist:6000},1],[2,'run','ga1',{dist:10000},1],[2,'kraft','kaz',{},2],[3,'run','hill400',{reps:4},1],[5,'run','trail',{dist:'L',hm:1200},1],[6,'run','hilly',{dist:10000,hm:300},2]],
+  taper:[[0,'run','reg',{},1],[1,'run','tdl',{dist:5000},1],[2,'run','ga1',{dist:8000},1],[3,'mob','dyn',{},1],[4,'run','stei',{reps:4},1],[5,'run','reg',{dist:5000},2]],
+  regen:[[0,'run','reg',{},1],[1,'alt','rad',{dur:75},1],[2,'run','hilly',{dist:10000},1],[3,'kraft','core',{},1],[5,'run','trail',{dist:'L0.6',hm:600},1],[6,'mob','stat',{},1]]
+ }
+};
+const LEVELS={
+ ein:{n:'Einsteiger:in',d:'Läuft 2–3 × pro Woche ohne Plan.',vol:0.65,prio:1,head:32},
+ ver:{n:'Vereinsathlet:in',d:'Trainiert 4–6 × pro Woche im Verein.',vol:1,prio:2,head:22},
+ lei:{n:'Leistungssportler:in',d:'Kaderniveau, 7–10 Einheiten pro Woche.',vol:1.3,prio:3,head:13}
+};
+const ATYPES={sprint:{n:'Sprinttyp',d:'Viele schnelle Fasern, hohe Explosivität.'},all:{n:'Allrounder',d:'Ausgeglichenes Fasertypprofil.'},aus:{n:'Ausdauertyp',d:'Viele langsame Fasern, hohe aerobe Kapazität.'}};
+function buildTemplate(group,phase,level,distKey){
+ const L=LEVELS[level],out=[];
+ for(const[day,type,pid,over,prio]of TPL[group][phase]){
+  if(prio>L.prio)continue;
+  const o=Object.assign({},over);
+  const pr=PRESETS[type].find(p=>p[0]===pid)[2];
+  if(type==='run'){
+   const base=Object.assign({},DEF.run,pr,o);
+   if(typeof o.dist==='string'){const f=o.dist.length>1?parseFloat(o.dist.slice(1)):1;base.dist=Math.round((LONGK[distKey]||16000)*f*L.vol/500)*500;}
+   else if(base.reps*base.sets===1){if(!(group==='sprint'&&pid==='reg'))base.dist=Math.max(3000,Math.round(base.dist*L.vol/500)*500);}
+   else if(base.reps>3&&!['acc30','fly60'].includes(pid))base.reps=Math.max(2,Math.round(base.reps*(0.6+0.4*L.vol)));
+   if(base.hm)base.hm=Math.round(base.hm*L.vol/50)*50;
+   Object.assign(o,base);
+  }else if(type==='kraft'&&level==='ein'){o.sets=Math.max(2,(o.sets||pr.sets)-1);}
+  else if(type==='alt'&&o.dur){o.dur=Math.round(o.dur*L.vol);}
+  out.push(mkSess(type,pid,day,o));
+ }
+ return out;
+}
+function phaseFor(w,W){const left=W-1-w;if(left===0)return'taper';if(left<=2)return'wk';if(w<Math.max(2,Math.round(W*0.4)))return(w>0&&w%4===3)?'regen':'grund';return(w%4===3)?'regen':'aufbau';}
+
+/* ---------- Athlet erzeugen ---------- */
+const BASE={
+ ein:{vo2:28,lt:38,fat:35,dur:25,maxk:25,accel:30,ka:30,hyp:35,ecc:20,climb:20,vmax:25,anae:30,mob:40,coord:35,eco:30,tissue:30},
+ ver:{vo2:44,lt:50,fat:50,dur:45,maxk:38,accel:42,ka:45,hyp:40,ecc:35,climb:35,vmax:40,anae:45,mob:50,coord:52,eco:50,tissue:50},
+ lei:{vo2:57,lt:63,fat:62,dur:60,maxk:50,accel:55,ka:58,hyp:45,ecc:48,climb:48,vmax:55,anae:58,mob:58,coord:65,eco:63,tissue:65}
+};
+const TYPEADJ={
+ sprint:{vmax:12,accel:12,maxk:12,anae:6,hyp:12,vo2:-8,lt:-8,fat:-10,dur:-12,eco:-4},
+ all:{},
+ aus:{vo2:7,lt:6,fat:8,dur:10,eco:5,vmax:-8,accel:-8,maxk:-6,hyp:-8}
+};
+const TYPEHEAD={sprint:{vmax:8,accel:8,maxk:8,anae:4,hyp:6,vo2:-6,lt:-6,fat:-6,dur:-6},all:{},aus:{vo2:8,lt:6,fat:6,dur:8,eco:4,vmax:-6,accel:-6,maxk:-4}};
+function createAthlete(st){
+ const c={},start={},floor={},ceil={};
+ const sexF=st.sex==='w';
+ for(const k of CK){
+  let v=BASE[st.level][k]+(TYPEADJ[st.type][k]||0);
+  if(sexF){v+={vo2:-9,vmax:-10,maxk:-10,accel:-6,hyp:-12,mob:12,fat:4,anae:-4}[k]||0;}
+  if(st.age>30&&['vmax','accel','anae'].includes(k))v-=(st.age-30)*0.35;
+  if(st.age>35&&k==='vo2')v-=(st.age-35)*0.3;
+  if(st.age<16&&['maxk','hyp','tissue'].includes(k))v-=(16-st.age)*3;
+  v=clamp(v,5,92);
+  let head=LEVELS[st.level].head+(TYPEHEAD[st.type][k]||0)+(st.age<=19?4:st.age>40?-4:0);
+  head*=({vmax:0.22,accel:0.4,anae:0.45,eco:0.8,tissue:0.8,maxk:1.1,climb:0.55,ecc:0.55,dur:0.7}[k]||1);
+  c[k]=start[k]=v;floor[k]=Math.max(0,v-14);ceil[k]=Math.min(100,v+Math.max(4,head));
+ }
+ const A={c,start,floor,ceil,age:st.age,sex:st.sex,mass0:sexF?58:70,M:{},h:{},s:{}};
+ // Gewohnheitstraining → Normierung der Reizschwellen
+ const hg={sprint:'sprint',all:'mittel',aus:'lang'}[st.type];
+ const hab=buildTemplate(hg,'grund',st.level,hg==='lang'?'10000':'1500');
+ const habF={ein:0.5,ver:0.75,lei:0.88}[st.level];
+ const sum=zeroStim();let hl=0,hm=0;
+ for(const s of hab){const e=evalSession(s,A);for(const k of CK)sum[k]+=e.stim[k];hl+=e.load;hm+=e.mech;}
+ const ref=zeroStim();
+ for(const g of['sprint','mittel','lang','ultra']){for(const s of buildTemplate(g,'grund','ver',g==='ultra'?'50T':'10000')){const e=evalSession(s,A);for(const k of CK)ref[k]+=e.stim[k]/4;}}
+ for(const k of CK){
+  const h=Math.max(sum[k]*habF,0.25*ref[k],0.01)/7;
+  const frac=clamp((c[k]-floor[k])/(ceil[k]-floor[k]),0.05,0.95);
+  A.h[k]=h;A.M[k]=h;A.s[k]=h/(-Math.log(1-frac));
+ }
+ A.hLoad=hl*Math.pow(habF,0.4)/7;A.hMech=Math.max(hm*Math.pow(habF,0.3)/7,1.5);A.hWeekLoad=hl*Math.pow(habF,0.4);
+ return A;
+}
+
+/* ---------- Tagessimulation ---------- */
+function recovery(life){
+ const sl={5:0.68,6:0.8,7:0.92,8:1,9:1.04,10:1.05}[life.sleep]||1;
+ const fo=[0.82,0.9,1,1.04,1.07][life.food-1];
+ const stv=[1,0.92,0.82][life.stress-1];
+ return sl*fo*stv;
+}
+const formRel=()=>(S.CTL-S.ATL)/Math.max(30,S.CTL)*100;
+const fatigueMul=()=>1+Math.max(0,S.ATL-S.CTL)/(S.CTL+30)*0.8;
+function formFactor(f){return 1+0.015*Math.tanh((f+5)/15)-0.03*Math.max(0,(-f-25)/30)-0.01*Math.max(0,(f-45)/30);}
+const INJ={
+ sprint:[{n:'Muskelfaserriss im hinteren Oberschenkel',d:[14,28]},{n:'Zerrung der Adduktoren',d:[7,14]}],
+ plyo:[{n:'Patellasehnenreizung',d:[10,21]},{n:'Achillessehnenreizung',d:[10,21]}],
+ down:[{n:'Iliotibiales Bandsyndrom (Läuferknie)',d:[10,21]},{n:'Muskelkater-Überlastung Quadrizeps',d:[4,8]}],
+ vol:[{n:'Schienbeinkantensyndrom',d:[10,21]},{n:'Plantarfasziitis',d:[14,28]},{n:'Achillessehnenreizung',d:[10,21]}]
+};
+function simulateDay(){
+ const A=S.A,dow=S.day%7,life=S.life,rec=recovery(life);
+ const out={day:S.day,dow,load:0,km:0,min:0,zones:[0,0,0,0,0,0],items:[],events:[],ill:false,inj:false};
+ if(S.ill&&S.day>=S.ill.until){out.events.push({k:'good',t:'Wieder gesund – Training kann fortgesetzt werden.'});S.ill=null;}
+ if(S.inj&&S.day>=S.inj.until){out.events.push({k:'good',t:`Verletzung auskuriert (${S.inj.n}).`});S.inj=null;}
+ const fat=fatigueMul();
+ const stim=zeroStim();let mech=0;const src={vol:0,sprint:0,plyo:0,down:0};let sprintExp=0,strengthToday=false;
+ const isRace=S.week===S.setup.weeks-1&&dow===6;
+ const sess=isRace?[]:S.plan.filter(s=>s.day===dow);
+ for(const s of sess){
+  if(S.ill){out.items.push({s,skip:'krank'});continue;}
+  if(S.inj&&!(s.type==='alt'||s.type==='mob'||(s.type==='kraft'&&s.p.focus==='rumpf'))){out.items.push({s,skip:'verletzt'});continue;}
+  const e=evalSession(s,A,fat);
+  out.items.push({s,e});
+  for(const k of CK)stim[k]+=e.stim[k];
+  out.load+=e.load;out.km+=e.km;out.min+=e.min;mech+=e.mech;
+  for(const k in src)src[k]+=e.src[k];
+  e.zones.forEach((z,i)=>out.zones[i]+=z);
+  if(s.type==='run'&&e.info.r&&e.info.tRep<16&&e.info.quality!==undefined)sprintExp+=e.done*(e.stim.vmax>0?1:0)/8;
+  if(s.type==='kraft')strengthToday=true;
+  if(e.fail)out.events.push({k:'warn',t:`${s.name}: ${e.fail}`});
+ }
+ if(S.inj&&out.items.some(x=>x.skip==='verletzt'))out.events.push({k:'bad',t:`Einheiten wegen Verletzung ausgefallen (${S.inj.n}).`});
+ if(S.ill&&sess.length)out.events.push({k:'warn',t:'Einheiten wegen Infekt ausgefallen.'});
+ // Fitness-Ermüdungs-Modell (Banister, EWMA)
+ const tsbBefore=S.CTL-S.ATL;
+ S.ATL+=(out.load/rec-S.ATL)*(1-Math.exp(-1/7));
+ S.CTL+=(out.load-S.CTL)*(1-Math.exp(-1/42));
+ const tsb=S.CTL-S.ATL,fr=formRel();
+ // Anpassung
+ S.over=fr<-35?(S.over||0)+1:Math.max(0,(S.over||0)-2);
+ let aMul=rec*(fr<-30?Math.max(0.2,1-(-30-fr)/30):1)*(S.ill?0.5:1);
+ if(S.over>10){aMul*=0.25;if(!S.overWarned||S.day-S.overWarned>14){S.overWarned=S.day;out.events.push({k:'bad',t:'Anzeichen von Übertraining: Leistung stagniert, Ruhepuls erhöht, schlechter Schlaf. Dringend entlasten!'});}}
+ for(const k of CK){
+  const st=k==='tissue'?stim.tissue:stim[k];
+  A.M[k]+=(st-A.M[k])*(1-Math.exp(-1/21));
+  const target=A.floor[k]+(A.ceil[k]-A.floor[k])*(1-Math.exp(-Math.max(0,A.M[k])/A.s[k]));
+  const cap=CAPS[k];
+  if(target>A.c[k])A.c[k]+=(target-A.c[k])/cap.up*aMul;else A.c[k]+=(target-A.c[k])/(cap.down*1.3);
+  if(S.over>10&&k!=='tissue')A.c[k]-=0.02;
+  A.c[k]=clamp(A.c[k],0,100);
+ }
+ // Gewebebelastung
+ const capM=A.hMech*(0.45+0.55*A.c.tissue/A.start.tissue)*(0.85+0.15*rec);
+ S.D=S.D*0.8+0.2*(mech/capM);
+ const acwr=S.ATL/Math.max(1,S.CTL);
+ S.loads.push(out.load);if(S.loads.length>28)S.loads.shift();
+ if(S.setup.random&&!S.inj&&!S.ill&&!isRace){
+  let p=0.0009*Math.exp(2.8*Math.max(0,acwr-1.2))*(1+5*Math.pow(Math.max(0,S.D-1.1),1.5))*(1+Math.max(0,-fr-35)/40)*(life.sleep<7?1.2:1)*(1.15-0.3*A.c.mob/100);
+  if(mech===0)p*=0.3;
+  p+=0.004*sprintExp*(1.4-A.c.mob/100)*(1.3-A.c.maxk/100)*fat*fat;
+  if(p>0.006&&rand()<0.4&&S.day-(S.lastNiggle||-9)>4){S.lastNiggle=S.day;out.events.push({k:'warn',t:'Warnsignal: leichte Beschwerden nach dem Training. Belastung reduzieren!'});}
+  if(rand()<p){
+   const w=[['sprint',src.sprint+sprintExp*2],['plyo',src.plyo*1.5],['down',src.down*1.2],['vol',src.vol*0.3+0.2]];
+   const tot=w.reduce((a,b)=>a+b[1],0);let x=rand()*tot,cat='vol';for(const[k,v]of w){if((x-=v)<=0){cat=k;break;}}
+   let inj=INJ[cat][Math.floor(rand()*INJ[cat].length)];
+   if(cat==='vol'&&S.D>1.6&&rand()<0.35)inj={n:'Ermüdungsfraktur (Mittelfuß)',d:[35,49]};
+   const dd=Math.round(lerp(inj.d[0],inj.d[1],rand()));
+   S.inj={n:inj.n,until:S.day+dd,days:dd};out.events.push({k:'bad',t:`Verletzung: ${inj.n} – ca. ${dd} Tage Laufpause. Erlaubt: Alternativtraining, Rumpfkraft, Beweglichkeit.`});
+   S.injDays+=dd;
+  }
+  const L=S.loads.slice(-7),mean=L.reduce((a,b)=>a+b,0)/L.length,sd=Math.sqrt(L.reduce((a,b)=>a+(b-mean)**2,0)/L.length)||1;
+  const mono=mean/sd,strain=mean*7*mono,hStrain=A.hWeekLoad*1.6;
+  let pi=0.0022*(1+Math.max(0,mono-1.8))*(1+Math.max(0,(strain-1.3*hStrain)/hStrain))*({5:2.5,6:1.7,7:1.2}[life.sleep]||1)*[1,1.3,1.7][life.stress-1]*(life.food<=2?1.3:1);
+  if(rand()<pi){const dd=3+Math.floor(rand()*5);S.ill={until:S.day+dd};out.events.push({k:'bad',t:`Infekt der oberen Atemwege – ${dd} Tage Trainingspause.`});S.illDays+=dd;}
+ }
+ out.ill=!!S.ill;out.inj=!!S.inj;
+ S.hist.daily.push({day:S.day,load:Math.round(out.load),atl:S.ATL,ctl:S.CTL,tsb,km:out.km,ill:out.ill,inj:out.inj,acwr});
+ for(const ev of out.events)S.hist.log.push({day:S.day,k:ev.k,t:ev.t});
+ S.day++;
+ return out;
+}
+
+/* ---------- Prognose ---------- */
+function predict(A,fresh=true,extra){
+ const D=derive(A),dist=DIST[S.setup.distKey];
+ if(dist.kind==='ultra')return trailRace(D,dist,Object.assign({speedMul:1,pacing:'even',kh:60,temp:15,quiet:true},extra||{})).time;
+ return bestTime(D,dist.d);
+}
+
+/* ---------- Trailstrecke ---------- */
+function courseProfile(dist){
+ const n=Math.round(dist.d/250),hm=S.setup.hm,alt=[0];
+ const ph=[1.3,2.1,4.7,0.6];
+ for(let i=1;i<=n;i++){const x=i/n;alt.push(Math.sin(x*Math.PI*2*3+ph[0])*1+Math.sin(x*Math.PI*2*7+ph[1])*0.55+Math.sin(x*Math.PI*2*15+ph[2])*0.25+Math.sin(x*Math.PI*2*1+ph[3])*0.6);}
+ const off=alt[0];for(let i=0;i<alt.length;i++)alt[i]-=off+(alt[n]-off)*i/n;
+ let asc=0;for(let i=1;i<alt.length;i++)asc+=Math.max(0,alt[i]-alt[i-1]);
+ const k=hm>0?hm/asc:0,sc=alt.map(a=>a*k),mn=Math.min(...sc);return sc.map(a=>a-mn+420);
+}
+function trailRace(D,dist,o){
+ const c=D.c,alt=courseProfile(dist),n=alt.length-1,seg=dist.d/n,tech=0.93+0.05*c.coord/100;
+ let T=dist.d/(D.vVO2*0.7);
+ const runOnce=(T,record)=>{
+  const vf=(D.vo2*fAer(T/60,D)+D.Acap/(T/60))/D.eco*1000/60*o.speedMul;
+  let t=0,cum=0;const pts=record?[[0,0]]:null;
+  for(let i=0;i<n;i++){
+   const g=(alt[i+1]-alt[i])/seg;let v;
+   const x=i/n,pace=o.pacing==='fast'?(x<0.25?1.05:1-0.05*(x-0.25)/0.75*1.6):o.pacing==='neg'?(x<0.5?0.985:1.012):1;
+   if(g>0.02)v=vf*3.6/minetti(g)*climbAdj(c);
+   else if(g<-0.02){cum+=-g*seg;const dmg=1-Math.min(0.35,cum/1000*0.04*(1.2-c.ecc/100));v=Math.min(vf*3.6/minetti(g),downCap(c,g)*dmg);}
+   else v=vf;
+   v*=tech*pace;if(o.bonkAt&&t>o.bonkAt)v*=0.8;
+   t+=seg/v;if(record)pts.push([(i+1)*seg,t]);
+  }
+  return record?{t,pts}:t;
+ };
+ for(let i=0;i<30;i++)T=runOnce(T,false);
+ const r=runOnce(T,true);
+ return{time:r.t,pts:r.pts,alt};
+}
+
+/* ---------- Wettkampf ---------- */
+function runRace(opt){
+ const A=S.A,D=derive(A),dist=DIST[S.setup.distKey],d=dist.d,ev=[];
+ const tsb=formRel(),form=formFactor(tsb);
+ const rnd=S.setup.random?1+gauss()*0.006:1;
+ const temp=S.setup.random?Math.round(6+rand()*22):15;
+ let time,pts,alt=null;
+ const base=predict(A);
+ if(d<=400){
+  const D2=Object.assign({},D,{vmax:D.vmax*form*rnd,cache:{}});
+  const react=D.react+(S.setup.random?Math.abs(gauss())*0.02:0);D2.react=react;
+  const r=sprintRun(D2,d,true);time=r.t;pts=r.pts;
+  ev.push({k:'info',t:`Reaktionszeit ${fx(react,3)} s`});
+ }else{
+  let T=dist.kind==='ultra'?null:bestTime(D,d);
+  let pace=1;
+  if(opt.pacing==='neg')pace=d>=5000?0.997:1.002;
+  if(opt.pacing==='fast')pace=d<=1500?(A.c.anae>60?0.997:1.012):1.012+0.025*Math.min(1,d/42195);
+  const heat=T&&T>600||dist.kind==='ultra'?Math.max(0,temp-14)*0.0035*Math.pow(((T||20000)/3600),0.3):0;
+  const speedMul=form*rnd/(1+heat);
+  if(heat>0.01)ev.push({k:'warn',t:`${temp} °C am Start – Hitze kostet etwa ${fx(heat*100,1)} % Tempo.`});
+  if(dist.kind==='ultra'){
+   let r=trailRace(D,dist,{speedMul:speedMul/pace,pacing:opt.pacing,kh:opt.kh});
+   const bonk=bonkTime(D,r.time,d,opt);
+   if(bonk.at<r.time){r=trailRace(D,dist,{speedMul:speedMul/pace,pacing:opt.pacing,kh:opt.kh,bonkAt:bonk.at});ev.push({k:'bad',t:`Hungerast nach ${fmtT(bonk.at)} – Glykogenspeicher leer, Tempo bricht ein.`});}
+   time=r.time;pts=r.pts;alt=r.alt;
+   if(bonk.gi){time*=1.05;pts=pts.map(([x,t])=>[x,t*1.05]);ev.push({k:'warn',t:'Magen-Darm-Probleme durch sehr hohe Kohlenhydratzufuhr.'});}
+  }else{
+   T=T*pace/speedMul;
+   const bonk=T>75*60?bonkTime(D,T,d,opt):{at:Infinity};
+   pts=[[0,0]];let t=0;const N=200,seg=d/N,v0=d/T;let bonked=false;
+   for(let i=0;i<N;i++){const x=i/N;let m=opt.pacing==='fast'?(x<0.3?1.035:1-0.035*0.3/0.7*1.25):opt.pacing==='neg'?(x<0.5?0.99:1.01):1;
+    if(t>bonk.at){m*=0.8;bonked=true;}t+=seg/(v0*m);pts.push([(i+1)*seg,t]);}
+   time=t;
+   if(bonked)ev.push({k:'bad',t:`Hungerast bei km ${fx(distAt(pts,bonk.at)/1000,1)} – der „Mann mit dem Hammer“.`});
+   if(bonk.gi){time*=1.03;pts=pts.map(([x,tt])=>[x,tt*1.03]);ev.push({k:'warn',t:'Magen-Darm-Probleme durch sehr hohe Kohlenhydratzufuhr.'});}
+  }
+ }
+ if(tsb<-20)ev.push({k:'warn',t:`Ermüdet an den Start gegangen (Form ${Math.round(tsb)} %) – das kostet Zeit.`});
+ else if(tsb>45)ev.push({k:'info',t:`Sehr lange Entlastung (Form +${Math.round(tsb)} %) – etwas Wettkampfschärfe verloren.`});
+ else if(tsb>0)ev.push({k:'good',t:`Gut erholt an den Start gegangen (Form +${Math.round(tsb)} %).`});
+ return{time,pts,alt,temp,ev,base,form,tsb};
+}
+function distAt(pts,t){for(let i=1;i<pts.length;i++)if(pts[i][1]>=t){const[a,b]=pts[i-1],[c,d]=pts[i];return a+(c-a)*(t-b)/(d-b);}return pts[pts.length-1][0];}
+function timeAt(pts,x){for(let i=1;i<pts.length;i++)if(pts[i][0]>=x){const[a,b]=pts[i-1],[c,d]=pts[i];return b+(d-b)*(x-a)/(c-a);}return pts[pts.length-1][1];}
+function bonkTime(D,T,d,opt){
+ const v=d/T,r=v/D.vVO2;
+ const rate=Math.max(20,(r-0.35)*420*(1.3-0.6*D.c.fat/100));
+ const G=450*(opt.carbo?1.2:1);
+ const net=rate-opt.kh;
+ const at=net<=0?Infinity:G/net*3600;
+ const gi=opt.kh>75&&S.setup.random&&rand()<(opt.kh-75)/60;
+ return{at,gi,rate};
+}
+
+/* ---------- Zustand ---------- */
+function newGame(setup){
+ S={setup,rng:(setup.seed>>>0)||12345,phase:'plan',day:0,week:0,life:{sleep:8,food:3,stress:1},ATL:0,CTL:0,D:1,ill:null,inj:null,loads:[],injDays:0,illDays:0,
+  hist:{daily:[],weeks:[],log:[],plans:[]},tab:'last',race:null};
+ S.A=createAthlete(setup);
+ S.ATL=S.CTL=S.A.hLoad;for(let i=0;i<7;i++)S.loads.push(S.A.hLoad);
+ S.startPred=predict(S.A);
+ S.startCaps=Object.assign({},S.A.c);
+ S.plan=buildTemplate(groupOf(setup.distKey),phaseFor(0,setup.weeks),setup.level,setup.distKey);
+ S.hist.log.push({day:0,k:'info',t:`Saisonstart: Ziel ${DIST[setup.distKey].label} in ${setup.weeks} Wochen. Startprognose ${fmtT(S.startPred,DIST[setup.distKey].d)}.`});
+ S.hist.weeks.push(weekSnapshot(-1));
+}
+function weekSnapshot(w,extra){
+ const A=S.A,g={};
+ for(const k of Object.keys(GROUPS))g[k]=groupScore(A,k);
+ return Object.assign({week:w,pred:predict(A),groups:g,caps:Object.assign({},A.c),ctl:S.CTL,atl:S.ATL},extra||{});
+}
+function groupScore(A,g){const ks=CK.filter(k=>CAPS[k].g===g);return ks.reduce((a,k)=>a+A.c[k],0)/ks.length;}
+function simulateWeek(){
+ const capsBefore=Object.assign({},S.A.c),predBefore=predict(S.A);
+ const days=[];const last=S.week===S.setup.weeks-1;
+ for(let i=0;i<(last?6:7);i++)days.push(simulateDay());
+ const sum={load:0,km:0,min:0,zones:[0,0,0,0,0,0],sessions:0,fails:0,skipped:0,strength:0,rest:0};
+ for(const d of days){sum.load+=d.load;sum.km+=d.km;sum.min+=d.min;d.zones.forEach((z,i)=>sum.zones[i]+=z);
+  let any=false;for(const it of d.items){if(it.skip)sum.skipped++;else{sum.sessions++;any=true;if(it.e.fail)sum.fails++;if(it.s.type==='kraft')sum.strength++;}}if(!any)sum.rest++;}
+ const snap=weekSnapshot(S.week,{load:sum.load,km:sum.km,min:sum.min,zones:sum.zones,sessions:sum.sessions,fails:sum.fails,skipped:sum.skipped,strength:sum.strength,rest:sum.rest,acwr:S.ATL/Math.max(1,S.CTL),tsb:formRel(),capsBefore,predBefore});
+ S.hist.weeks.push(snap);
+ S.hist.plans.push(JSON.parse(JSON.stringify(S.plan)));
+ const rep={week:S.week,days,sum,snap};
+ if(last){S.phase='race';}
+ else{S.week++;}
+ return rep;
+}
+
+/* ---------- Wochenanalyse (Planung) ---------- */
+function analyzePlan(){
+ const A=S.A,dist=DIST[S.setup.distKey];
+ const r={load:0,km:0,min:0,zones:[0,0,0,0,0,0],stim:zeroStim(),evals:[],hard:[0,0,0,0,0,0,0],runs:0,strength:0,count:0,days:new Set(),fails:[]};
+ const last=S.week===S.setup.weeks-1;
+ for(const s of S.plan){
+  if(last&&s.day===6)continue;
+  const e=evalSession(s,A,1);r.evals.push([s,e]);r.count++;r.days.add(s.day);
+  r.load+=e.load;r.km+=e.km;r.min+=e.min;e.zones.forEach((z,i)=>r.zones[i]+=z);
+  for(const k of CK)r.stim[k]+=e.stim[k];
+  if(s.type==='run')r.runs++;if(s.type==='kraft')r.strength++;
+  if(e.zones[3]+e.zones[4]+e.zones[5]>4||e.load>480||(s.type==='kraft'&&s.p.pct>=80)||(s.type==='sprung'&&s.p.level===3))r.hard[s.day]++;
+  if(e.fail)r.fails.push([s,e]);
+ }
+ const hints=[];
+ const wkRatio=r.load/(S.CTL*7);
+ if(wkRatio>1.45)hints.push(['bad','Risiko',`Geplante Belastung ${Math.round(r.load)} AU liegt ${Math.round((wkRatio-1)*100)} % über dem chronischen Niveau – starker Belastungssprung, Verletzungsrisiko steigt deutlich.`]);
+ else if(wkRatio>1.2)hints.push(['warn','Steigerung',`Belastung +${Math.round((wkRatio-1)*100)} % gegenüber dem Trainingszustand. Mehr als 10–20 % pro Woche erhöht das Risiko.`]);
+ else if(wkRatio<0.6&&!last)hints.push(['info','Entlastung',`Belastung nur ${Math.round(wkRatio*100)} % des Gewohnten – gut als Entlastungswoche, dauerhaft droht Leistungsrückgang.`]);
+ const rest=7-r.days.size-(last?0:0);
+ if(r.days.size>=7)hints.push(['warn','Erholung','Kein Ruhetag geplant. Superkompensation braucht Phasen ohne Belastung.']);
+ for(let i=0;i<6;i++)if(r.hard[i]&&r.hard[i+1])hints.push(['warn','Abfolge',`${DAYS_L[i]} und ${DAYS_L[i+1]} sind beide intensiv – zwischen harten Reizen 48 h Erholung einplanen.`]);
+ const zt=r.zones.reduce((a,b)=>a+b,0)||1;
+ if(['lang','ultra'].includes(dist.kind)||dist.d>=1500){
+  const low=(r.zones[0]+r.zones[1])/zt,mid=r.zones[2]/zt;
+  if(mid>0.3)hints.push(['warn','Intensität',`${Math.round(mid*100)} % der Laufzeit im Schwellenbereich – viel „Grauzone“. Ausdauerspitzen trainieren meist ~80 % locker, ~20 % intensiv.`]);
+  else if(low>0.95&&r.runs>=3)hints.push(['info','Intensität','Fast ausschließlich lockere Umfänge – für Leistungssteigerung fehlen intensive Reize.']);
+ }
+ if(r.strength===0)hints.push(['info','Kraft','Kein Krafttraining geplant. Kraft verbessert Laufökonomie und schützt vor Verletzungen.']);
+ const req=REQ[S.setup.distKey];
+ const tops=Object.entries(req).sort((a,b)=>b[1]-a[1]).slice(0,4);
+ const cover=tops.map(([k,w])=>({k,w,ratio:(r.stim[k]/7)/Math.max(1e-6,A.M[k])}));
+ for(const cv of cover)if(cv.w>=3&&cv.ratio<0.75)hints.push(['warn','Spezifität',`${CAPS[cv.k].n} ist für ${dist.label} entscheidend, bekommt aber nur ${Math.round(cv.ratio*100)} % des Reizes, der das aktuelle Niveau hält.`]);
+ for(const[s,e]of r.fails)hints.push(['bad','Machbar?',`${DAYS[s.day]} · ${s.name}: ${e.fail}`]);
+ if(last){const prev=S.hist.weeks.slice(-3).filter(w=>w.load).map(w=>w.load);const avg=prev.length?prev.reduce((a,b)=>a+b,0)/prev.length:S.CTL*7;const tr=r.load/avg;
+  hints.push(tr>0.8?['warn','Tapering',`Wettkampfwoche mit ${Math.round(tr*100)} % der letzten Wochen – reduziere den Umfang auf etwa 40–60 % bei erhaltener Intensität.`]:tr<0.3?['info','Tapering','Sehr starke Reduktion – Schärfe kann verloren gehen. Kurze intensive Reize beibehalten.']:['good','Tapering',`Umfang auf ${Math.round(tr*100)} % reduziert – gute Voraussetzung für die Formspitze.`]);}
+ if(S.inj)hints.unshift(['bad','Verletzt',`${S.inj.n}: noch ${S.inj.until-S.day} Tage. Lauf- und Sprungeinheiten fallen aus.`]);
+ if(S.ill)hints.unshift(['bad','Krank',`Infekt: noch ${S.ill.until-S.day} Tage Pause.`]);
+ if(!hints.length)hints.push(['good','Plan','Keine Auffälligkeiten – Belastung und Erholung wirken ausgewogen.']);
+ r.hints=hints;r.cover=cover;r.wkRatio=wkRatio;r.restDays=7-r.days.size;
+ return r;
+}
+
+/* =====================================================================
+   DARSTELLUNG
+   ===================================================================== */
+const app=document.getElementById('app'),modalRoot=document.getElementById('modal-root');
+let SETUP={distKey:'10000',hm:2200,sex:'w',age:17,level:'ver',type:'all',weeks:12,random:true,seed:Math.floor(Math.random()*1e6)};
+
+function save(){try{localStorage.setItem('formkurve-v1',JSON.stringify(S));}catch(e){}}
+function load(){try{const t=localStorage.getItem('formkurve-v1');if(t){const s=JSON.parse(t);if(s&&s.A&&s.setup)return s;}}catch(e){}return null;}
+
+function boardHTML(){
+ if(!S){return`<header class="board"><div class="wrap"><div class="brand">${markSVG()}<div><h1>FORMKURVE</h1><div class="sub">Trainingssimulation für den Sport-Leistungskurs</div></div></div><div class="led-block"><div class="led-label">Saisonplanung</div><div class="led">--:--</div></div><div class="board-right"></div></div></header>`;}
+ const dist=DIST[S.setup.distKey],pred=predict(S.A),dlt=pred-S.startPred,tsb=formRel(),acwr=S.ATL/Math.max(1,S.CTL);
+ const formT=tsb>10?['good','frisch']:tsb>-10?['good','ausgeglichen']:tsb>-30?['warn','ermüdet']:['bad','überlastet'];
+ const riskT=acwr>1.5||S.D>1.5?['bad','hoch']:acwr>1.25||S.D>1.25?['warn','erhöht']:['good','niedrig'];
+ const hT=S.inj?['bad','verletzt']:S.ill?['warn','krank']:['good','fit'];
+ const wLeft=S.setup.weeks-S.week;
+ return`<header class="board"><div class="wrap">
+  <div class="brand">${markSVG()}<div style="min-width:0"><h1>FORMKURVE</h1><div class="sub">${esc(dist.label)}${dist.kind==='ultra'?' · '+S.setup.hm+' Hm':''} · ${LEVELS[S.setup.level].n} · ${S.phase==='race'||S.phase==='done'?'Wettkampftag':`Woche ${S.week+1} von ${S.setup.weeks} · noch ${wLeft} ${wLeft===1?'Woche':'Wochen'}`}</div></div></div>
+  <div class="led-block"><div class="led-label">Prognose ${esc(dist.label)} (ausgeruht)</div><div class="led">${fmtT(pred,dist.d)}</div><div class="led-delta ${dlt<0?'good':dlt>0?'bad':''}">${Math.abs(dlt)<0.005?'± 0':fmtDelta(dlt,dist.d)} seit Saisonstart</div></div>
+  <div class="board-right">
+   <div class="bpill"><div class="k">Form (TSB)</div><div class="v"><span class="dot ${formT[0]}"></span>${tsb>0?'+':''}${Math.round(tsb)} % <span style="font-size:12px;font-weight:500;color:var(--board-dim)">${formT[1]}</span></div></div>
+   <div class="bpill"><div class="k">Verletzungsrisiko</div><div class="v"><span class="dot ${riskT[0]}"></span>${riskT[1]} <span style="font-size:12px;font-weight:500;color:var(--board-dim)">ACWR ${fx(acwr,2)}</span></div></div>
+   <div class="bpill"><div class="k">Gesundheit</div><div class="v"><span class="dot ${hT[0]}"></span>${hT[1]}</div></div>
+   <button class="btn btn-ghost btn-sm" data-act="restart">Neue Saison</button>
+  </div></div></header>`;
+}
+function markSVG(){return`<svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><rect x="1" y="1" width="38" height="38" rx="8" fill="#B4432E"/><path d="M6 29 C12 29 13 13 19 13 S 26 24 34 10" fill="none" stroke="#FFB547" stroke-width="3" stroke-linecap="round"/><path d="M6 33 H34" stroke="#fff" stroke-width="1.5" stroke-dasharray="3 3"/></svg>`;}
+
+/* ---------- Setup ---------- */
+function renderSetup(){
+ const st=SETUP,dist=DIST[st.distKey];
+ let A,pred;try{A=createAthlete(st);const tmp=S;S={setup:st,A};pred=predict(A);S=tmp;}catch(e){pred=NaN;}
+ const D=A?derive(A):null;
+ const req=REQ[st.distKey];
+ app.innerHTML=boardHTML()+`<main class="wrap setup">
+ <section class="card"><div class="card-b" style="display:flex;flex-direction:column;gap:22px">
+  <div><div class="section-t"><span class="n">01</span><h3>Wettkampfdistanz wählen</h3></div>
+   <div class="dist-scale">${DKEYS.map(k=>{const d=DIST[k];const tt=raceDurGuess(k);const e=energySplit(tt,1);return`<button class="dist" data-act="dist" data-k="${k}" aria-pressed="${k===st.distKey}"><span class="dl">${d.label}</span><span class="dk">${d.cat}</span><span class="ebar" title="Energiebereitstellung"><i class="e-alac" style="width:${e[0]*100}%"></i><i class="e-lac" style="width:${e[1]*100}%"></i><i class="e-aer" style="width:${e[2]*100}%"></i></span></button>`;}).join('')}</div>
+   <div class="legend" style="margin-top:8px"><span><i class="e-alac"></i>anaerob-alaktazid (ATP/KrP)</span><span><i class="e-lac"></i>anaerob-laktazid</span><span><i class="e-aer"></i>aerob</span></div>
+   ${dist.kind==='ultra'?`<div class="field" style="margin-top:14px;max-width:420px"><label for="hm">Höhenmeter der Strecke (Aufstieg = Abstieg): <span class="num">${st.hm} Hm</span></label><input id="hm" type="range" min="0" max="${dist.d>=100000?9000:4000}" step="100" value="${st.hm}" data-set="hm"></div>`:''}
+  </div>
+  <div><div class="section-t"><span class="n">02</span><h3>Athlet:in festlegen</h3></div>
+   <div class="fields" style="margin-bottom:12px">
+    <div class="field"><label>Geschlecht</label><div class="opt-row" style="grid-template-columns:1fr 1fr">${[['w','weiblich'],['m','männlich']].map(([k,n])=>`<button class="opt" data-act="setopt" data-f="sex" data-v="${k}" aria-pressed="${st.sex===k}"><b>${n}</b></button>`).join('')}</div></div>
+    <div class="field"><label for="age">Alter: <span class="num">${st.age} Jahre</span></label><input id="age" type="range" min="14" max="60" value="${st.age}" data-set="age"></div>
+   </div>
+   <div class="field" style="margin-bottom:12px"><label>Leistungsniveau</label><div class="opt-row">${Object.entries(LEVELS).map(([k,l])=>`<button class="opt" data-act="setopt" data-f="level" data-v="${k}" aria-pressed="${st.level===k}"><b>${l.n}</b><small>${l.d}</small></button>`).join('')}</div></div>
+   <div class="field"><label>Talentprofil</label><div class="opt-row">${Object.entries(ATYPES).map(([k,l])=>`<button class="opt" data-act="setopt" data-f="type" data-v="${k}" aria-pressed="${st.type===k}"><b>${l.n}</b><small>${l.d}</small></button>`).join('')}</div></div>
+  </div>
+  <div><div class="section-t"><span class="n">03</span><h3>Rahmenbedingungen</h3></div>
+   <div class="fields">
+    <div class="field"><label for="weeks">Vorbereitungszeit: <span class="num">${st.weeks} Wochen</span></label><input id="weeks" type="range" min="4" max="24" value="${st.weeks}" data-set="weeks"></div>
+    <div class="field"><label><input type="checkbox" id="random" data-set="random" ${st.random?'checked':''}> Zufallsereignisse (Verletzung, Infekt, Wetter, Tagesform)</label><span class="muted" style="font-size:13px">Ohne Zufall läuft die Simulation deterministisch – gut zum Vergleichen von Plänen.</span></div>
+    <div class="field"><label for="seed">Startwert des Zufallsgenerators</label><input id="seed" type="number" value="${st.seed}" data-set="seed" style="max-width:160px"></div>
+   </div>
+  </div>
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn btn-primary btn-big" data-act="start">Saison starten</button>${load()?'<button class="btn" data-act="resume">Gespeicherte Saison fortsetzen</button>':''}</div>
+ </div></section>
+ <aside class="stack">
+  <section class="card"><div class="card-h"><div><div class="eyebrow">Anforderungsprofil</div><h2>${esc(dist.label)}</h2></div><span class="chip">${esc(dist.cat)}</span></div>
+   <div class="card-b">
+    <p style="margin:0 0 10px" class="muted">${distText(st.distKey)}</p>
+    <div style="display:flex;flex-direction:column;gap:6px">${Object.entries(req).sort((a,b)=>b[1]-a[1]).map(([k,w])=>`<div style="display:flex;justify-content:space-between;gap:8px;font-size:14px"><span>${CAPS[k].n}</span>${relDots(w)}</div>`).join('')}</div>
+   </div></section>
+  <section class="card"><div class="card-h"><div><div class="eyebrow">Eingangsdiagnostik</div><h2>Ausgangslage</h2></div></div>
+   <div class="card-b">${D?`<table class="kv">
+    <tr class="hl"><td>Prognose ${esc(dist.label)}</td><td>${fmtT(pred,dist.d)}</td></tr>
+    <tr><td>VO₂max</td><td>${fx(D.vo2,1)} ml/kg/min</td></tr>
+    <tr><td>Schwellentempo (IANS)</td><td>${fmtPace(D.vVO2*D.lt)}</td></tr>
+    <tr><td>Max. Sprintgeschwindigkeit</td><td>${fx(D.vmax,2)} m/s</td></tr>
+    <tr><td>100 m / 400 m</td><td>${fmtT(bestTime(D,100),100)} / ${fmtT(bestTime(D,400),400)}</td></tr>
+    <tr><td>5 km / Marathon</td><td>${fmtT(bestTime(D,5000),5000)} / ${fmtT(bestTime(D,42195),42195)}</td></tr>
+    <tr><td>Körpergewicht</td><td>${fx(A.mass0,0)} kg</td></tr></table>`:''}
+   <p class="muted" style="font-size:13px;margin:10px 0 0">Die Startwerte ergeben sich aus Niveau, Talentprofil, Geschlecht und Alter. Jede Fähigkeit hat eine individuelle Talentgrenze.</p></div></section>
+ </aside></main>`;
+}
+function raceDurGuess(k){return{'100':11,'200':23,'400':52,'800':125,'1500':260,'5000':1100,'10000':2300,'HM':5400,'M':11500,'50T':21000,'100T':50000}[k];}
+function distText(k){return{
+ '100':'Reiner Schnelligkeitswettbewerb: Reaktion, Beschleunigung bis ~60 m und das Halten der Maximalgeschwindigkeit. Energie fast ausschließlich aus ATP und Kreatinphosphat.',
+ '200':'Maximalgeschwindigkeit plus Kurventechnik. Ab ~120 m entscheidet die Schnelligkeitsausdauer.',
+ '400':'Längster Sprint: hohe Laktatwerte (über 20 mmol/l). Stehvermögen und Grundschnelligkeit gleichermaßen wichtig.',
+ '800':'Mischdisziplin: etwa zwei Drittel aerob, ein Drittel anaerob. Tempohärte und VO₂max zählen.',
+ '1500':'Überwiegend aerob, aber mit hohem Anteil an Laktattoleranz und einem schnellen Schlussspurt.',
+ '5000':'Gelaufen nahe der VO₂max (90–95 %). Schwelle und Laufökonomie bestimmen das Tempo.',
+ '10000':'Tempo knapp über der Laktatschwelle. Ökonomie und Schwellentempo entscheiden.',
+ 'HM':'Leicht unter der Schwelle. Neben Ökonomie wird der Ermüdungswiderstand wichtiger.',
+ 'M':'Glykogen ist der limitierende Faktor: Fettstoffwechsel, Ermüdungswiderstand und Verpflegung entscheiden.',
+ '50T':'Im Gelände mit vielen Höhenmetern: Bergauf-Kraft, exzentrische Belastbarkeit und Trittsicherheit.',
+ '100T':'Extremausdauer: Stunden im Fettstoffwechsel, massive exzentrische Belastung bergab, Verpflegung als Leistungsfaktor.'}[k];}
+function relDots(w){return`<span class="rel" title="Leistungsrelevanz ${w} von 3">${[1,2,3].map(i=>`<i class="${i<=w?'on':''}"></i>`).join('')}</span>`;}
+
+/* ---------- Hauptansicht ---------- */
+let UI={tab:'last',lastRep:null};
+function render(){
+ if(!S||S.phase==='setup'){renderSetup();return;}
+ const an=analyzePlan();
+ const scrollY=window.scrollY;
+ app.innerHTML=boardHTML()+`<main class="wrap grid-main">
+  <div class="stack">${plannerHTML(an)}${analysisHTML(an)}${chartsHTML()}</div>
+  <aside class="stack">${athleteHTML()}${diagHTML()}</aside></main>`;
+ window.scrollTo(0,scrollY);
+ if(S.phase==='race'&&!S.race)openRacePrep();
+}
+function plannerHTML(an){
+ const W=S.setup.weeks,last=S.week===W-1,ph=phaseFor(S.week,W),grp=groupOf(S.setup.distKey);
+ const byDay=[0,1,2,3,4,5,6].map(d=>an.evals.filter(([s])=>s.day===d));
+ return`<section class="card">
+  <div class="card-h"><div><div class="eyebrow">Wochenplan · Woche ${S.week+1} von ${W}</div><h2>Empfohlene Phase: ${PHASES[ph]}</h2></div>
+   <div class="toolbar"><label class="muted" for="tplsel" style="font-size:13px">Vorlage</label><select id="tplsel">${Object.entries(PHASES).map(([k,n])=>`<option value="${k}" ${k===ph?'selected':''}>${n}</option>`).join('')}</select>
+   <button class="btn btn-sm" data-act="tpl">Einsetzen</button><button class="btn btn-sm" data-act="clear">Woche leeren</button></div></div>
+  <div class="life"><b style="font-family:var(--f-display);letter-spacing:.06em;text-transform:uppercase;font-size:13px">Lebensstil</b>
+   <label for="l-sleep">Schlaf <select id="l-sleep" data-life="sleep">${[5,6,7,8,9,10].map(v=>`<option ${S.life.sleep===v?'selected':''} value="${v}">${v} h</option>`).join('')}</select></label>
+   <label for="l-food">Ernährung <select id="l-food" data-life="food">${['mangelhaft','einseitig','solide','sportgerecht','optimal'].map((n,i)=>`<option value="${i+1}" ${S.life.food===i+1?'selected':''}>${n}</option>`).join('')}</select></label>
+   <label for="l-stress">Alltagsstress <select id="l-stress" data-life="stress">${['gering','Klausurenphase','sehr hoch'].map((n,i)=>`<option value="${i+1}" ${S.life.stress===i+1?'selected':''}>${n}</option>`).join('')}</select></label>
+   <span class="muted">Erholungsfaktor <b class="num">${fx(recovery(S.life),2)}</b></span></div>
+  <div class="week">${byDay.map((list,d)=>{const race=last&&d===6;return`<div class="day ${race?'race':''}"><div class="day-h"><b>${DAYS[d]}</b><span>Tag ${S.week*7+d+1}</span></div><div class="day-b">
+   ${race?`<div class="sess" style="--c:var(--tartan);cursor:default"><span class="st">Wettkampf</span><span class="sl">${esc(DIST[S.setup.distKey].label)}</span></div>`:''}
+   ${!race?list.map(([s,e])=>sessCard(s,e)).join(''):''}
+   ${!race&&!list.length?'<div class="rest">Ruhetag</div>':''}
+   ${!race?`<button class="add" data-act="add" data-day="${d}">+ Einheit</button>`:''}</div></div>`;}).join('')}</div>
+  <div class="cta-row"><div class="muted" style="font-size:13.5px">Häufigkeit: <b>${an.count}</b> Einheiten an <b>${an.days.size}</b> Tagen · davon <b>${an.runs}</b> Läufe, <b>${an.strength}</b> × Kraft · <b>${an.restDays}</b> Ruhetag${an.restDays===1?'':'e'}</div>
+   <button class="btn btn-primary btn-big" data-act="sim">${last?'Wettkampfwoche simulieren':'Woche simulieren'} ▶</button></div>
+ </section>`;
+}
+function sessCard(s,e){
+ const zt=e.zones.reduce((a,b)=>a+b,0);
+ const stat=s.type==='run'?`≈ ${fmtPace(e.info.pace)} · ${fmtDur(e.min)} · ${Math.round(e.load)} AU`:`${fmtDur(e.min)} · ${Math.round(e.load)} AU`;
+ return`<button class="sess ${e.fail?'fail':''}" style="--c:${TYPES[s.type].c}" data-act="edit" data-id="${s.id}">
+  <span class="st">${esc(s.name)}</span><span class="sl">${esc(e.line)}</span><span class="sl">${stat}</span>
+  ${zt>0?`<span class="zb">${e.zones.map((z,i)=>z>0?`<i style="width:${z/zt*100}%;background:${ZCOL[i]}"></i>`:'').join('')}</span>`:''}
+  ${e.fail?`<span class="warnline">nicht vollständig machbar</span>`:''}</button>`;
+}
+function analysisHTML(an){
+ const zt=an.zones.reduce((a,b)=>a+b,0)||1;
+ const prevLoad=S.hist.weeks.length>1?S.hist.weeks[S.hist.weeks.length-1].load:null;
+ return`<section class="card"><div class="card-h"><div><div class="eyebrow">Vor dem Start der Woche</div><h2>Wochenanalyse</h2></div></div>
+ <div class="card-b" style="display:flex;flex-direction:column;gap:16px">
+  <div class="stats">
+   <div class="stat"><div class="k">Umfang</div><div class="v">${fx(an.km,1)} km</div><div class="s">Laufkilometer</div></div>
+   <div class="stat"><div class="k">Dauer</div><div class="v">${fmtDur(an.min)}</div><div class="s">Trainingszeit</div></div>
+   <div class="stat"><div class="k">Belastung</div><div class="v">${Math.round(an.load)}</div><div class="s">AU (sRPE)${prevLoad?` · Vorwoche ${Math.round(prevLoad)}`:''}</div></div>
+   <div class="stat"><div class="k">Relativ</div><div class="v" style="color:${an.wkRatio>1.45?'var(--bad)':an.wkRatio>1.2?'var(--warn)':'var(--ink)'}">${Math.round(an.wkRatio*100)} %</div><div class="s">vom Trainingszustand</div></div>
+  </div>
+  <div><div class="eyebrow" style="margin-bottom:6px">Intensitätsverteilung (Zeit)</div>
+   <div class="zonebar">${an.zones.map((z,i)=>z>0?`<i style="width:${z/zt*100}%;background:${ZCOL[i]}" title="${ZONES[i]}: ${Math.round(z)} min"></i>`:'').join('')}</div>
+   <div class="legend" style="margin-top:6px">${ZONES.map((n,i)=>`<span><i style="background:${ZCOL[i]}"></i>${n} ${Math.round(an.zones[i]/zt*100)} %</span>`).join('')}</div></div>
+  <div class="two">
+   <div><div class="eyebrow" style="margin-bottom:8px">Reizbilanz der wichtigsten Fähigkeiten</div>
+    <div class="reiz">${an.cover.map(cv=>{const pct=cv.ratio*100,col=pct>=110?'var(--good)':pct>=85?'var(--z3)':'var(--bad)';return`<span>${CAPS[cv.k].n} ${relDots(cv.w)}</span><span class="rb"><i style="width:${Math.min(100,pct/2)}%;background:${col}"></i><b style="left:50%"></b></span><span class="num" style="text-align:right">${Math.round(pct)} %</span>`;}).join('')}</div>
+    <p class="muted" style="font-size:12.5px;margin:8px 0 0">100 % (Strich) hält das aktuelle Niveau. Darüber entsteht ein Entwicklungsreiz, darunter bildet sich die Fähigkeit zurück.</p></div>
+   <div><div class="eyebrow" style="margin-bottom:8px">Hinweise der Trainerin</div><ul class="hints">${an.hints.slice(0,7).map(([k,t,x])=>`<li class="${k}"><span class="tag">${t}</span><span>${esc(x)}</span></li>`).join('')}</ul></div>
+  </div></div></section>`;
+}
+function athleteHTML(){
+ const A=S.A,req=REQ[S.setup.distKey];
+ const groups=Object.keys(GROUPS).filter(g=>g!=='bel');
+ return`<section class="card"><div class="card-h"><div><div class="eyebrow">Athletenakte</div><h2>Konditionelle Fähigkeiten</h2></div></div>
+ <div class="card-b"><div class="radar-wrap">${radarSVG(groups.map(g=>groupScore(A,g)),groups.map(g=>groupScore({c:S.startCaps},g)),groups.map(g=>GROUPS[g]),groups.map(g=>reqScore(g)))}</div>
+ <div class="chart-legend" style="justify-content:center"><span><i style="background:var(--infield)"></i>aktuell</span><span><i style="background:var(--muted)"></i>Saisonstart</span><span><i style="background:var(--tartan)"></i>Anforderung</span></div>
+ ${Object.keys(GROUPS).map(g=>`<div class="cap-g"><h4><span>${GROUPS[g]}</span><span class="num">${Math.round(groupScore(A,g))}</span></h4>${CK.filter(k=>CAPS[k].g===g).map(k=>{const v=A.c[k],d=v-S.startCaps[k];return`<div class="cap" title="${esc(CAPS[k].d)}"><span class="cn">${CAPS[k].n}${req[k]?relDots(req[k]):''}</span><span class="cv">${CAPS[k].u(v,A)} <span class="delta ${d>0.3?'up':d<-0.3?'down':''}">${d>=0.05?'+':d<=-0.05?'−':'±'}${fx(Math.abs(d),1)}</span></span><span class="cbar"><i style="width:${v}%"></i><span class="st" style="left:${S.startCaps[k]}%"></span><span class="ce" style="left:${A.ceil[k]}%" title="Talentgrenze"></span></span></div>`;}).join('')}</div>`).join('')}
+ <p class="muted" style="font-size:12.5px;margin:10px 0 0">Balken: Index 0–100 · grauer Strich: Saisonstart · gepunktet: individuelle Talentgrenze · Punkte: Relevanz für die Zieldistanz.</p>
+ </div></section>`;
+}
+function reqScore(g){const req=REQ[S.setup.distKey];const ks=CK.filter(k=>CAPS[k].g===g);const w=ks.reduce((a,k)=>a+(req[k]||0),0)/ks.length;return 20+w*26;}
+function diagHTML(){
+ const A=S.A,D=derive(A),dist=DIST[S.setup.distKey];
+ const preds=['100','400','800','1500','5000','10000','HM','M'];
+ const t30=sprintRun(D,30);
+ return`<section class="card"><div class="card-h"><div><div class="eyebrow">Leistungsdiagnostik</div><h2>Kennwerte heute</h2></div></div><div class="card-b">
+ <table class="kv">
+  <tr><td>VO₂max · vVO₂max</td><td>${fx(D.vo2,1)} · ${fmtPace(D.vVO2)}</td></tr>
+  <tr><td>Schwellentempo (IANS, ~4 mmol/l)</td><td>${fmtPace(D.vVO2*D.lt)}</td></tr>
+  <tr><td>Kritische Geschwindigkeit</td><td>${fmtPace(D.CS)}</td></tr>
+  <tr><td>Herzfrequenz max. (geschätzt)</td><td>${D.hfmax} /min</td></tr>
+  <tr><td>30 m Tiefstart · v<sub>max</sub></td><td>${fx(t30,2)} s · ${fx(D.vmax,2)} m/s</td></tr>
+  <tr><td>Kniebeuge 1RM</td><td>${Math.round((0.6+0.02*A.c.maxk)*D.mass)} kg</td></tr>
+  <tr><td>Counter-Movement-Jump</td><td>${fx(22+0.38*A.c.accel,1)} cm</td></tr>
+  <tr><td>Körpergewicht</td><td>${fx(D.mass,1)} kg</td></tr>
+ </table>
+ <div class="eyebrow" style="margin:14px 0 4px">Prognosen (ausgeruht, flach)</div>
+ <table class="kv">${preds.map(k=>`<tr class="${k===S.setup.distKey?'hl':''}"><td>${DIST[k].label}</td><td>${fmtT(bestTime(D,DIST[k].d),DIST[k].d)}</td></tr>`).join('')}
+ ${dist.kind==='ultra'?`<tr class="hl"><td>${dist.label} (${S.setup.hm} Hm)</td><td>${fmtT(predict(A),dist.d)}</td></tr>`:''}</table></div></section>`;
+}
+function chartsHTML(){
+ const tabs=[['last','Letzte Woche'],['pmc','Belastung'],['pred','Prognose'],['caps','Fähigkeiten'],['zones','Intensität'],['log','Protokoll'],['wissen','Wissen']];
+ return`<section class="card"><div class="tabs" role="tablist">${tabs.map(([k,n])=>`<button class="tab" role="tab" aria-selected="${UI.tab===k}" data-act="tab" data-k="${k}">${n}</button>`).join('')}</div>
+ <div class="card-b">${tabBody(UI.tab)}</div></section>`;
+}
+function tabBody(k){
+ const H=S.hist;
+ if(k==='last'){
+  const w=H.weeks.filter(x=>x.week>=0).slice(-1)[0];
+  if(!w)return`<div class="empty">Noch keine Woche simuliert. Plane die erste Woche und starte die Simulation – hier erscheint dann der Wochenbericht.</div>`;
+  return weekReportBody(w,null);
+ }
+ if(k==='pmc'){
+  if(H.daily.length<2)return`<div class="empty">Die Belastungskurven erscheinen nach der ersten simulierten Woche.</div>`;
+  const xs=H.daily.map(d=>d.day);
+  return`<div class="chart">${lineChart({h:120,series:[],bars:H.daily.map(d=>[d.day,d.load,d.inj?'var(--bad)':d.ill?'var(--warn)':'var(--z2)']),xMin:0,xMax:Math.max(7,xs[xs.length-1]),yMin:0,yFmt:v=>Math.round(v),xFmt:v=>'T'+(v+1),label:'Tagesbelastung (AU)'})}</div>
+  <div class="chart" style="margin-top:8px">${lineChart({h:220,series:[{data:H.daily.map(d=>[d.day,d.ctl]),color:'var(--z2)',w:2.4},{data:H.daily.map(d=>[d.day,d.atl]),color:'var(--tartan)',w:1.6},{data:H.daily.map(d=>[d.day,d.tsb]),color:'var(--z3)',w:1.6,dash:'4 3'}],xMin:0,xMax:Math.max(7,xs[xs.length-1]),zero:true,yFmt:v=>Math.round(v),xFmt:v=>'T'+(v+1)})}</div>
+  <div class="chart-legend"><span><i style="background:var(--z2)"></i>Fitness (CTL, 42 Tage)</span><span><i style="background:var(--tartan)"></i>Ermüdung (ATL, 7 Tage)</span><span><i style="background:var(--z3)"></i>Form (TSB = CTL − ATL)</span><span><i style="background:var(--bad)"></i>verletzt</span><span><i style="background:var(--warn)"></i>krank</span></div>`;
+ }
+ if(k==='pred'){
+  const d=DIST[S.setup.distKey].d,ws=H.weeks;
+  if(ws.length<2)return`<div class="empty">Die Prognosekurve erscheint nach der ersten simulierten Woche.</div>`;
+  const ys=ws.map(w=>w.pred);
+  return`<div class="chart">${lineChart({h:240,series:[{data:ws.map((w,i)=>[i,w.pred]),color:'var(--tartan)',w:2.6,dots:true}],xMin:0,xMax:Math.max(2,ws.length-1),yMin:Math.min(...ys)*0.995,yMax:Math.max(...ys)*1.005,invert:true,yFmt:v=>fmtT(v,d),xFmt:v=>v===0?'Start':'W'+v})}</div>
+  <p class="muted" style="font-size:13px;margin:6px 0 0">Prognostizierte Wettkampfzeit im ausgeruhten Zustand nach jeder Woche. Nach oben = schneller.</p>`;
+ }
+ if(k==='caps'){
+  const ws=H.weeks,gs=['aus','kraft','schnell','bew','koord'],cols=['var(--z2)','var(--t-kraft)','var(--tartan)','var(--t-mob)','var(--t-koord)'];
+  if(ws.length<2)return`<div class="empty">Der Verlauf der Fähigkeiten erscheint nach der ersten simulierten Woche.</div>`;
+  return`<div class="chart">${lineChart({h:240,series:gs.map((g,i)=>({data:ws.map((w,j)=>[j,w.groups[g]]),color:cols[i],w:2})),xMin:0,xMax:Math.max(2,ws.length-1),yFmt:v=>Math.round(v),xFmt:v=>v===0?'Start':'W'+v})}</div>
+  <div class="chart-legend">${gs.map((g,i)=>`<span><i style="background:${cols[i]}"></i>${GROUPS[g]}</span>`).join('')}</div>`;
+ }
+ if(k==='zones'){
+  const ws=H.weeks.filter(w=>w.zones);
+  if(!ws.length)return`<div class="empty">Die Intensitätsverteilung erscheint nach der ersten simulierten Woche.</div>`;
+  return`<div style="display:flex;flex-direction:column;gap:8px">${ws.map(w=>{const t=w.zones.reduce((a,b)=>a+b,0)||1;return`<div style="display:grid;grid-template-columns:44px minmax(0,1fr) 70px;gap:10px;align-items:center;font-size:13px"><span class="num">W${w.week+1}</span><span class="zonebar">${w.zones.map((z,i)=>z>0?`<i style="width:${z/t*100}%;background:${ZCOL[i]}" title="${ZONES[i]} ${Math.round(z)} min"></i>`:'').join('')}</span><span class="num" style="text-align:right">${fmtDur(t)}</span></div>`;}).join('')}</div>
+  <div class="legend" style="margin-top:10px">${ZONES.map((n,i)=>`<span><i style="background:${ZCOL[i]}"></i>${n}</span>`).join('')}</div>`;
+ }
+ if(k==='log'){
+  return`<ul class="log">${H.log.slice().reverse().map(l=>`<li class="${l.k}"><span class="when">W${Math.floor(l.day/7)+1} · ${DAYS[l.day%7]}</span><span>${esc(l.t)}</span></li>`).join('')}</ul>`;
+ }
+ if(k==='wissen')return theoryHTML();
+ return'';
+}
+function theoryHTML(){
+ const items=[
+  ['Belastungsnormative','Intensität (wie stark), Reizdauer (wie lange ein Reiz), Reizdichte (Verhältnis Belastung zu Pause), Reizumfang (Summe aller Reize einer Einheit) und Trainingshäufigkeit (Einheiten pro Woche). In jeder Einheit lassen sich alle fünf einstellen.'],
+  ['Intensität in % der Bestleistung','Die Intensität bezieht sich auf die aktuelle Bestleistung über genau die Reizstrecke. 90 % über 400 m sind deshalb viel schneller als 90 % über 10 km. Tempo und Herzfrequenz rechnet die Simulation daraus aus.'],
+  ['Trainingsmethoden','Dauermethode: ohne Pause. Extensive Intervallmethode: mittlere Intensität, kurze „lohnende“ Pausen. Intensive Intervallmethode: hohe Intensität, längere lohnende Pausen. Wiederholungsmethode: sehr hohe Intensität mit vollständiger Erholung. Wettkampfmethode: einmalige Maximalbelastung.'],
+  ['Superkompensation & Anpassung','Jede Fähigkeit passt sich an den durchschnittlichen Reiz der letzten Wochen an. Mit wachsendem Niveau sind immer größere Reize nötig (Prinzip der progressiven Belastungssteigerung). Ohne Reiz bildet sich die Fähigkeit zurück (Reversibilität).'],
+  ['Fitness, Ermüdung, Form','Fitness (CTL) ist der Mittelwert der Belastung über 42 Tage, Ermüdung (ATL) über 7 Tage. Form = Fitness − Ermüdung. Vor dem Wettkampf wird der Umfang reduziert (Tapering), damit die Ermüdung schneller sinkt als die Fitness.'],
+  ['Belastung in AU','Session-RPE: subjektive Anstrengung (0–10) × Dauer in Minuten. Kurze Sprints, Sprünge und schwere Kraftserien werden zusätzlich als neuromuskuläre Belastung bewertet.'],
+  ['Verletzungsrisiko (ACWR)','Das Verhältnis von akuter zu chronischer Belastung. Werte zwischen 0,8 und 1,3 gelten als günstig, über 1,5 steigt das Verletzungsrisiko deutlich. Sehnen und Knochen passen sich langsamer an als Herz und Muskulatur.'],
+  ['Energiebereitstellung','Anaerob-alaktazid (ATP, Kreatinphosphat; bis ~10 s), anaerob-laktazid (Glykolyse; ~10 s bis 2 min), aerob (Glykogen- und Fettoxidation; ab ~2 min dominierend). Die Pausenlänge bestimmt, welches System trainiert wird.'],
+  ['Kraftmethoden','Maximalkraft (IK): 85–100 % 1RM, 1–5 Wdh., lange Pausen. Hypertrophie: 65–85 %, 6–12 Wdh. bis nahe Ausbelastung. Schnellkraft: 30–60 %, explosiv, wenige Wdh. Kraftausdauer: unter 60 %, 15–30 Wdh., kurze Pausen.'],
+  ['Spezifität','Trainiert wird, was belastet wird. Sprinter brauchen vollständige Pausen für Schnelligkeit, Ultraläufer Höhenmeter und lange Läufe, Mittelstreckler beides. Die Reizbilanz zeigt, ob die entscheidenden Fähigkeiten genug Reize bekommen.']
+ ];
+ return`<div class="theory">${items.map(([h,p])=>`<article><h4>${h}</h4><p>${p}</p></article>`).join('')}</div>`;
+}
+
+/* ---------- Diagramme (SVG) ---------- */
+function niceTicks(a,b,n=5){const span=b-a||1;const step0=span/n;const mag=Math.pow(10,Math.floor(Math.log10(step0)));const st=[1,2,2.5,5,10].map(m=>m*mag).find(s=>s>=step0)||step0;const out=[];for(let v=Math.ceil(a/st)*st;v<=b+1e-9;v+=st)out.push(+v.toFixed(10));return out;}
+function lineChart(o){
+ const W=720,H=o.h||220,pl_=58,pr=12,pt=12,pb=26;
+ let ys=[];for(const s of o.series)for(const p of s.data)ys.push(p[1]);if(o.bars)for(const b of o.bars)ys.push(b[1]);
+ let yMin=o.yMin!==undefined?o.yMin:Math.min(...ys),yMax=o.yMax!==undefined?o.yMax:Math.max(...ys);
+ if(o.zero){yMin=Math.min(yMin,0);yMax=Math.max(yMax,0);}
+ if(yMax-yMin<1e-6){yMax+=1;yMin-=1;}
+ const pad=(yMax-yMin)*0.06;if(o.yMin===undefined)yMin-=pad;if(o.yMax===undefined)yMax+=pad;
+ const X=x=>pl_+(x-o.xMin)/(o.xMax-o.xMin||1)*(W-pl_-pr);
+ const Y=y=>o.invert?pt+(y-yMin)/(yMax-yMin)*(H-pt-pb):H-pb-(y-yMin)/(yMax-yMin)*(H-pt-pb);
+ const yt=niceTicks(yMin,yMax,4),xt=niceTicks(o.xMin,o.xMax,Math.min(8,o.xMax-o.xMin||1)).filter(v=>Number.isInteger(v));
+ let s=`<svg viewBox="0 0 ${W} ${H}" role="img">`;
+ s+=`<g class="grid">${yt.map(v=>`<line x1="${pl_}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}"/>`).join('')}</g>`;
+ s+=yt.map(v=>`<text x="${pl_-6}" y="${Y(v)+3.5}" text-anchor="end">${o.yFmt?o.yFmt(v):v}</text>`).join('');
+ s+=xt.map(v=>`<text x="${X(v)}" y="${H-8}" text-anchor="middle">${o.xFmt?o.xFmt(v):v}</text>`).join('');
+ if(o.zero&&yMin<0)s+=`<line x1="${pl_}" x2="${W-pr}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--muted)" stroke-width="1"/>`;
+ if(o.bars){const bw=Math.max(1.5,(W-pl_-pr)/((o.xMax-o.xMin)+1)*0.7);s+=o.bars.map(([x,y,c])=>`<rect x="${X(x)-bw/2}" y="${Y(Math.max(0,y))}" width="${bw}" height="${Math.max(0,Y(0)-Y(Math.max(0,y)))}" fill="${c||'var(--z2)'}" rx="1"/>`).join('');}
+ for(const se of o.series){if(!se.data.length)continue;const d=se.data.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ');
+  s+=`<path d="${d}" fill="none" stroke="${se.color}" stroke-width="${se.w||2}" ${se.dash?`stroke-dasharray="${se.dash}"`:''} stroke-linejoin="round" stroke-linecap="round"/>`;
+  if(se.dots)s+=se.data.map((p,i)=>`<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="${i===se.data.length-1?4.5:2.6}" fill="${se.color}"/>`).join('');
+  else{const p=se.data[se.data.length-1];s+=`<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="3.5" fill="${se.color}"/>`;}}
+ if(o.label)s+=`<text x="${pl_+4}" y="${pt+8}">${o.label}</text>`;
+ return s+'</svg>';
+}
+function radarSVG(vals,start,labels,req){
+ const n=vals.length,cx=150,cy=135,R=95,pt=(i,v)=>{const a=-Math.PI/2+i*2*Math.PI/n;return[cx+Math.cos(a)*R*v/100,cy+Math.sin(a)*R*v/100];};
+ const poly=(arr)=>arr.map((v,i)=>pt(i,v).map(x=>x.toFixed(1)).join(',')).join(' ');
+ let s=`<svg viewBox="0 0 300 270" role="img" aria-label="Radardiagramm der konditionellen Fähigkeiten">`;
+ for(const lv of[25,50,75,100])s+=`<polygon points="${poly(Array(n).fill(lv))}" fill="none" stroke="var(--line)"/>`;
+ for(let i=0;i<n;i++){const[x,y]=pt(i,100);s+=`<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="var(--line)"/>`;}
+ s+=`<polygon points="${poly(req)}" fill="none" stroke="var(--tartan)" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+ s+=`<polygon points="${poly(start)}" fill="none" stroke="var(--muted)" stroke-width="1.2"/>`;
+ s+=`<polygon points="${poly(vals)}" fill="var(--infield)" fill-opacity=".25" stroke="var(--infield)" stroke-width="2"/>`;
+ for(let i=0;i<n;i++){const[x,y]=pt(i,120);s+=`<text x="${x}" y="${y+4}" text-anchor="middle" style="fill:var(--ink);font-family:var(--f-display);font-size:13px;font-weight:600">${labels[i]}</text><text x="${x}" y="${y+18}" text-anchor="middle" style="fill:var(--muted);font-family:var(--f-mono);font-size:11px">${Math.round(vals[i])}</text>`;}
+ return s+'</svg>';
+}
+
+/* ---------- Einheiten-Editor ---------- */
+let ED=null;
+const NORMS={
+ run:[
+  ['reps','Wiederholungen','Umfang',1,40,1,'×'],['sets','Serien','Umfang',1,6,1,'×'],['dist','Reizstrecke','Reizdauer',20,60000,0,'m'],
+  ['pct','Intensität','Intensität',50,100,1,'% Bestl.'],['pause','Pause zwischen Wdh.','Reizdichte',0,600,5,'s'],['setPause','Serienpause','Reizdichte',0,900,15,'s'],
+  ['hm','Höhenmeter (auf = ab)','Gelände',0,3000,10,'Hm'],['grade','Steigung je Wdh.','Gelände',0,20,1,'%']],
+ kraft:[['pct','Last','Intensität',20,100,1,'% 1RM'],['reps','Wiederholungen','Reizdauer',1,50,1,'×'],['sets','Serien','Umfang',1,8,1,'×'],['ex','Übungen','Umfang',1,10,1,'×'],['pause','Serienpause','Reizdichte',15,300,15,'s']],
+ sprung:[['contacts','Bodenkontakte je Serie','Reizdauer',4,60,1,'×'],['sets','Serien','Umfang',1,10,1,'×'],['level','Intensitätsstufe','Intensität',1,3,1,'Stufe'],['pause','Pause','Reizdichte',20,300,10,'s']],
+ koord:[['dur','Dauer','Umfang',5,60,5,'min'],['level','Komplexität','Intensität',1,3,1,'Stufe'],['speed','Ausführungstempo','Intensität',50,100,5,'%']],
+ mob:[['dur','Dauer','Umfang',5,45,5,'min'],['level','Dehnintensität','Intensität',1,3,1,'Stufe']],
+ alt:[['dur','Dauer','Umfang',15,180,5,'min'],['hf','Herzfrequenz','Intensität',55,95,1,'% HFmax']]
+};
+const distToSl=d=>Math.round(Math.log(d/20)/Math.log(3000)*1000);
+const slToDist=v=>{const d=20*Math.pow(3000,v/1000);const st=d<200?10:d<1000?50:d<5000?100:500;return Math.round(d/st)*st;};
+function openEditor(sess,isNew){ED={s:JSON.parse(JSON.stringify(sess)),isNew};renderEditor();}
+function renderEditor(){
+ const s=ED.s,t=s.type;
+ modalRoot.innerHTML=`<div class="modal-bg" data-act="closebg"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="ed-title">
+ <div class="modal-h"><div><div class="eyebrow">${ED.isNew?'Neue Einheit':'Einheit bearbeiten'} · ${DAYS_L[s.day]}</div><h2 id="ed-title">${esc(s.name)}</h2></div><button class="btn btn-ghost" data-act="close" aria-label="Schließen">✕</button></div>
+ <div class="modal-b"><div class="ed"><div style="min-width:0">
+  <div class="typebar">${Object.entries(TYPES).map(([k,v])=>`<button class="typebtn" style="--c:${v.c}" data-act="etype" data-k="${k}" aria-pressed="${k===t}">${v.n}</button>`).join('')}</div>
+  <div class="eyebrow" style="margin-bottom:6px">Vorlagen</div>
+  <div class="presets">${PRESETS[t].map(p=>`<button class="chip" data-act="epreset" data-k="${p[0]}">${p[1]}</button>`).join('')}</div>
+  <div class="field" style="margin-bottom:10px"><label for="e-name">Bezeichnung</label><input type="text" id="e-name" value="${esc(s.name)}" data-ename></div>
+  <div class="eyebrow" style="margin:6px 0 2px">Belastungsnormative</div>
+  <div id="norms">${NORMS[t].map(n=>normRow(n,s.p[n[0]],t)).join('')}${extraFields(t,s.p)}</div>
+  <div class="field" style="margin-top:12px"><label>Tag</label><div class="daypick">${DAYS.map((d,i)=>{const dis=S.week===S.setup.weeks-1&&i===6;return`<button data-act="eday" data-d="${i}" aria-pressed="${s.day===i}" ${dis?'disabled':''}>${d}</button>`;}).join('')}</div></div>
+ </div><aside class="preview" id="preview"></aside></div></div>
+ <div class="modal-f"><div style="display:flex;gap:8px">${ED.isNew?'':'<button class="btn" data-act="edel" style="color:var(--bad)">Löschen</button><button class="btn" data-act="edup">Duplizieren</button>'}</div>
+ <div style="display:flex;gap:8px"><button class="btn" data-act="close">Abbrechen</button><button class="btn btn-primary" data-act="esave">Übernehmen</button></div></div>
+ </div></div>`;
+ updateEditor();
+}
+function normRow(n,val,t){
+ const[k,l,norm,min,max,step,unit]=n;const isD=t==='run'&&k==='dist';
+ return`<div class="norm" data-norm="${k}"><span class="nl">${l}<small>${norm}</small></span>
+ <input type="range" id="r-${k}" min="${isD?0:min}" max="${isD?1000:max}" step="${isD?1:step}" value="${isD?distToSl(val):val}" data-nr="${k}" aria-label="${l}">
+ <input type="number" id="n-${k}" min="${min}" max="${max}" step="${step||1}" value="${val}" data-nn="${k}" aria-label="${l} (${unit})"><span class="unit">${unit}</span></div>`;
+}
+function extraFields(t,p){
+ if(t==='run')return`<div class="norm" data-norm="terrain"><span class="nl">Untergrund<small>Gelände</small></span><select id="e-terrain" data-esel="terrain">${[['bahn','Tartanbahn'],['strasse','Straße / Weg'],['trail','Trail / Gelände']].map(([k,n])=>`<option value="${k}" ${p.terrain===k?'selected':''}>${n}</option>`).join('')}</select><span></span></div>
+  <div class="norm"><span class="nl">Ein- & Auslaufen<small>Rahmen</small></span><label style="display:flex;gap:6px;align-items:center;font-size:13.5px"><input type="checkbox" id="e-warm" data-echk="warm" ${p.warm?'checked':''}> 20 min locker, Lauf-ABC</label><span></span></div>`;
+ if(t==='kraft')return`<div class="norm"><span class="nl">Bewegungstempo<small>Ausführung</small></span><select id="e-tempo" data-esel="tempo">${[['langsam','langsam, kontrolliert'],['zuegig','zügig'],['explosiv','explosiv']].map(([k,n])=>`<option value="${k}" ${p.tempo===k?'selected':''}>${n}</option>`).join('')}</select><span></span></div>
+  <div class="norm"><span class="nl">Schwerpunkt<small>Übungsauswahl</small></span><select id="e-focus" data-esel="focus">${[['beine','Beine (Kniebeuge, Ausfallschritt)'],['ganz','Ganzkörper'],['rumpf','Rumpf & Stabilisation']].map(([k,n])=>`<option value="${k}" ${p.focus===k?'selected':''}>${n}</option>`).join('')}</select><span></span></div>`;
+ if(t==='mob')return`<div class="norm"><span class="nl">Methode<small>Ausführung</small></span><select id="e-method" data-esel="method">${[['statisch','statisch (30–60 s halten)'],['dynamisch','dynamisch (federnd, schwingend)'],['pnf','PNF (Anspannen–Entspannen)']].map(([k,n])=>`<option value="${k}" ${p.method===k?'selected':''}>${n}</option>`).join('')}</select><span></span></div>`;
+ if(t==='alt')return`<div class="norm"><span class="nl">Sportart<small>Belastungsform</small></span><select id="e-kind" data-esel="kind">${Object.entries(ALT).map(([k,v])=>`<option value="${k}" ${p.kind===k?'selected':''}>${v.n}</option>`).join('')}</select><span></span></div>`;
+ return'';
+}
+function updateEditor(){
+ const s=ED.s,p=s.p,t=s.type,A=S.A,D=derive(A);
+ if(t==='run'){const cont=p.reps*p.sets===1;
+  for(const[k,off]of[['pause',cont],['setPause',p.sets<=1],['hm',!cont],['grade',cont]]){const el=modalRoot.querySelector(`[data-norm="${k}"]`);if(el)el.classList.toggle('off',off);}}
+ const e=evalSession(s,A,1);
+ const top=CK.map(k=>[k,e.stim[k]/Math.max(1e-6,A.M[k])]).filter(x=>x[1]>0.02&&x[0]!=='tissue').sort((a,b)=>b[1]-a[1]).slice(0,5);
+ const mx=Math.max(1,...top.map(x=>x[1]));
+ let kpis='';
+ if(t==='run'){const vb=bestSpeed(D,p.dist);kpis=`<div class="pv"><div class="k">Tempo</div><div class="v">${fmtPace(e.info.pace)}</div></div><div class="pv"><div class="k">Zeit je Wdh.</div><div class="v">${fmtT(e.info.tRep,p.dist<=400?p.dist:undefined)}</div></div>
+  <div class="pv"><div class="k">Herzfrequenz</div><div class="v">~${e.info.hr} /min</div></div><div class="pv"><div class="k">Zone</div><div class="v" style="color:${ZCOL[e.info.zone]}">${ZONES[e.info.zone]}</div></div>
+  <div class="pv"><div class="k">Bestleistung Strecke</div><div class="v">${fmtT(p.dist/vb,p.dist)}</div></div><div class="pv"><div class="k">Gesamtumfang</div><div class="v">${fx(e.info.total/1000,2)} km</div></div>`;}
+ else if(t==='kraft')kpis=`<div class="pv"><div class="k">Max. Wdh. bei Last</div><div class="v">${Math.floor(e.info.repsMax)}</div></div><div class="pv"><div class="k">Reserve (RIR)</div><div class="v">${e.info.rir}</div></div><div class="pv"><div class="k">Last</div><div class="v">${Math.round((0.6+0.02*A.c.maxk)*D.mass*p.pct/100)} kg</div></div>`;
+ else if(t==='sprung')kpis=`<div class="pv"><div class="k">Kontakte gesamt</div><div class="v">${e.info.tot}</div></div><div class="pv"><div class="k">Empf. Obergrenze</div><div class="v">${e.info.lim}</div></div>`;
+ else if(t==='alt')kpis=`<div class="pv"><div class="k">Herzfrequenz</div><div class="v">~${e.info.hr} /min</div></div><div class="pv"><div class="k">Zone</div><div class="v" style="color:${ZCOL[e.info.zone]}">${ZONES[e.info.zone]}</div></div>`;
+ const pv=modalRoot.querySelector('#preview');
+ pv.innerHTML=`<div><div class="eyebrow">Methode</div><div class="method">${esc(e.method)}</div>${e.pauseKind?`<div class="muted" style="font-size:13px">${e.pauseKind}</div>`:''}</div>
+ <div class="pv-row">${kpis}<div class="pv"><div class="k">Dauer</div><div class="v">${fmtDur(e.min)}</div></div><div class="pv"><div class="k">Belastung</div><div class="v">${Math.round(e.load)} AU</div></div></div>
+ <div><div class="eyebrow" style="margin-bottom:5px">Energiebereitstellung</div><div class="ebar" style="height:12px"><i class="e-alac" style="width:${e.energy[0]*100}%"></i><i class="e-lac" style="width:${e.energy[1]*100}%"></i><i class="e-aer" style="width:${e.energy[2]*100}%"></i></div>
+ <div class="legend" style="margin-top:4px"><span><i class="e-alac"></i>alaktazid ${Math.round(e.energy[0]*100)} %</span><span><i class="e-lac"></i>laktazid ${Math.round(e.energy[1]*100)} %</span><span><i class="e-aer"></i>aerob ${Math.round(e.energy[2]*100)} %</span></div></div>
+ <div><div class="eyebrow" style="margin-bottom:5px">Hauptwirkung (im Verhältnis zum Tagesbedarf)</div>
+ <div class="effect">${top.length?top.map(([k,v])=>`<span>${CAPS[k].n}</span><span class="eb"><i style="width:${v/mx*100}%"></i></span>`).join(''):'<span class="muted">kaum Trainingswirkung</span>'}</div></div>
+ <div class="feas ${e.fail?'no':'ok'}">${e.fail?esc(e.fail):'Durchführbar'+(t==='run'&&e.n>1?` · Qualität ${Math.round(e.info.quality*100)} %`:'')}</div>
+ ${t==='run'&&e.info.quality<0.75&&e.n>1&&!e.fail?'<div class="muted" style="font-size:12.5px">Unvollständige Erholung: Die Wiederholungen werden zunehmend im ermüdeten Zustand gelaufen. Das verschiebt die Wirkung von der Schnelligkeit zur Schnelligkeitsausdauer.</div>':''}`;
+}
+
+/* ---------- Wochenbericht ---------- */
+function weekReportBody(w,rep){
+ const d=DIST[S.setup.distKey].d,dt=w.pred-w.predBefore;
+ const ch=CK.map(k=>[k,w.caps[k]-w.capsBefore[k]]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,6);
+ const t=w.zones.reduce((a,b)=>a+b,0)||1;
+ const evs=S.hist.log.filter(l=>Math.floor(l.day/7)===w.week&&l.day>0);
+ return`<div class="stats">
+  <div class="stat"><div class="k">Prognose</div><div class="v">${fmtT(w.pred,d)}</div><div class="s" style="color:${dt<0?'var(--good)':dt>0?'var(--bad)':'var(--muted)'}">${Math.abs(dt)<0.005?'unverändert':fmtDelta(dt,d)+' zur Vorwoche'}</div></div>
+  <div class="stat"><div class="k">Umfang</div><div class="v">${fx(w.km,1)} km</div><div class="s">${fmtDur(w.min)}</div></div>
+  <div class="stat"><div class="k">Belastung</div><div class="v">${Math.round(w.load)}</div><div class="s">AU · ACWR ${fx(w.acwr,2)}</div></div>
+  <div class="stat"><div class="k">Einheiten</div><div class="v">${w.sessions}</div><div class="s">${w.skipped?w.skipped+' ausgefallen · ':''}${w.fails?w.fails+' abgebrochen':'alle beendet'}</div></div>
+  <div class="stat"><div class="k">Form</div><div class="v">${w.tsb>0?'+':''}${Math.round(w.tsb)} %</div><div class="s">TSB relativ zur Fitness</div></div>
+ </div>
+ <div class="two" style="margin-top:14px">
+  <div><div class="eyebrow" style="margin-bottom:6px">Größte Veränderungen</div><table class="kv">${ch.map(([k,v])=>`<tr><td>${CAPS[k].n}</td><td><span class="delta ${v>0.05?'up':v<-0.05?'down':''}">${v>=0?'+':'−'}${fx(Math.abs(v),2)}</span> · ${CAPS[k].u(w.caps[k],S.A)}</td></tr>`).join('')}</table>
+   <div class="eyebrow" style="margin:12px 0 6px">Intensitätsverteilung</div><div class="zonebar">${w.zones.map((z,i)=>z>0?`<i style="width:${z/t*100}%;background:${ZCOL[i]}"></i>`:'').join('')}</div></div>
+  <div><div class="eyebrow" style="margin-bottom:6px">Ereignisse</div>${evs.length?`<ul class="hints">${evs.map(l=>`<li class="${l.k==='bad'?'bad':l.k==='warn'?'warn':l.k==='good'?'good':'info'}"><span class="tag">${DAYS[l.day%7]}</span><span>${esc(l.t)}</span></li>`).join('')}</ul>`:'<p class="muted" style="margin:0">Keine besonderen Vorkommnisse. Alle Einheiten wie geplant.</p>'}</div>
+ </div>`;
+}
+function showWeekReport(rep){
+ const w=rep.snap;
+ modalRoot.innerHTML=`<div class="modal-bg"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="wr-title">
+ <div class="modal-h"><div><div class="eyebrow">Wochenbericht</div><h2 id="wr-title">Woche ${w.week+1} abgeschlossen</h2></div></div>
+ <div class="modal-b"><div class="ticker">${rep.days.map((d,i)=>`<div class="tick ${d.inj?'inj':d.ill?'ill':''}" id="tk${i}"><b>${DAYS[d.dow]}</b>
+  ${d.items.length?d.items.map(it=>`<span style="color:${it.skip?'var(--muted)':'var(--ink)'};${it.skip?'text-decoration:line-through':''}">${esc(it.s.name)}</span>`).join(''):'<span class="muted">Ruhetag</span>'}
+  <span class="ld">${Math.round(d.load)} AU</span>${d.events.filter(e=>e.k==='bad').length?'<span style="color:var(--bad);font-weight:700">!</span>':''}</div>`).join('')}</div>
+ ${weekReportBody(w,rep)}</div>
+ <div class="modal-f"><span class="muted" style="font-size:13px">${S.phase==='race'?'Die Vorbereitung ist abgeschlossen. Morgen ist Wettkampf.':'Der Plan wird als Grundlage in die nächste Woche übernommen.'}</span><button class="btn btn-primary" data-act="closereport">${S.phase==='race'?'Zum Wettkampf':'Nächste Woche planen'}</button></div>
+ </div></div>`;
+ rep.days.forEach((_,i)=>setTimeout(()=>{const el=document.getElementById('tk'+i);if(el)el.classList.add('on');},120+i*170));
+}
+
+/* ---------- Wettkampf ---------- */
+let RACE={pacing:'even',kh:60,carbo:true};
+function openRacePrep(){
+ const dist=DIST[S.setup.distKey],long=dist.d>=21000,pred=predict(S.A),tsb=formRel();
+ modalRoot.innerHTML=`<div class="modal-bg"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="rp-title">
+ <div class="modal-h"><div><div class="eyebrow">Wettkampftag · ${esc(dist.label)}${dist.kind==='ultra'?' · '+S.setup.hm+' Hm':''}</div><h2 id="rp-title">Renntaktik festlegen</h2></div></div>
+ <div class="modal-b"><div class="two"><div style="display:flex;flex-direction:column;gap:14px">
+  ${dist.d>400?`<div class="field"><label>Pacing-Strategie</label><div class="opt-row">${[['even','Gleichmäßig','Konstantes Tempo – physiologisch am effizientesten.'],['neg','Negativ-Split','Zweite Hälfte schneller. Kontrollierter Beginn.'],['fast','Schneller Beginn','Früh Position sichern – riskant bei langen Strecken.']].map(([k,n,dd])=>`<button class="opt" data-act="rpace" data-v="${k}" aria-pressed="${RACE.pacing===k}"><b>${n}</b><small>${dd}</small></button>`).join('')}</div></div>`:`<p class="muted" style="margin:0">Im Sprint gibt es keine Tempoeinteilung: Reaktion, Beschleunigung und Geschwindigkeitserhalt entscheiden.</p>`}
+  ${long?`<div class="field"><label for="kh">Kohlenhydrate während des Rennens: <span class="num">${RACE.kh} g/h</span></label><input type="range" id="kh" min="0" max="120" step="5" value="${RACE.kh}" data-race="kh"><span class="muted" style="font-size:12.5px">Empfehlung 60–90 g/h. Mehr als 90 g/h kann den Magen überfordern.</span></div>
+  <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="carbo" data-race="carbo" ${RACE.carbo?'checked':''}> Kohlenhydratspeicher an den Vortagen aufgefüllt (Carboloading)</label>`:''}
+ </div><div><table class="kv"><tr class="hl"><td>Prognose (ausgeruht)</td><td>${fmtT(pred,dist.d)}</td></tr><tr><td>Startprognose zu Saisonbeginn</td><td>${fmtT(S.startPred,dist.d)}</td></tr><tr><td>Form am Wettkampfmorgen</td><td>${tsb>0?'+':''}${Math.round(tsb)} %</td></tr><tr><td>Formfaktor</td><td>${fx((formFactor(tsb)-1)*100,1)} %</td></tr></table>
+ <p class="muted" style="font-size:13px">Wetter und Tagesform werden erst beim Startschuss ausgewürfelt${S.setup.random?'':' (Zufall ist ausgeschaltet)'}.</p></div></div></div>
+ <div class="modal-f"><span></span><button class="btn btn-primary btn-big" data-act="gun">Startschuss</button></div></div></div>`;
+}
+function startRace(){
+ const res=runRace(RACE);S.race=res;S.phase='done';
+ const dist=DIST[S.setup.distKey];
+ S.hist.log.push({day:S.day,k:'info',t:`Wettkampf ${dist.label}: ${fmtT(res.time,dist.d)} (Startprognose ${fmtT(S.startPred,dist.d)}).`});
+ save();renderRaceScreen(true);
+}
+function grading(){
+ const st=S.setup,dist=DIST[st.distKey],imp=(S.startPred-S.race.time)/S.startPred;
+ const lf={ein:1,ver:0.55,lei:0.28}[st.level],df={sprint:0.55,mittel:0.9,lang:1,ultra:2}[dist.kind];
+ const bench=0.11*lf*df*Math.sqrt(st.weeks/12);
+ const ratio=imp/bench;
+ let pts=Math.round(clamp(3+ratio*9,0,15));
+ return{imp,bench,ratio,pts};
+}
+function trainerAnalysis(){
+ const H=S.hist,ws=H.weeks.filter(w=>w.week>=0),out=[],dist=DIST[S.setup.distKey];
+ const maxA=Math.max(...ws.map(w=>w.acwr||0));const spikes=ws.filter(w=>w.acwr>1.4).length;
+ out.push(spikes?['warn','Steuerung',`${spikes} Woche(n) mit ACWR über 1,4 (Spitze ${fx(maxA,2)}). Belastungssprünge kosten Gesundheit.`]:['good','Steuerung',`Belastung gleichmäßig gesteigert (ACWR max. ${fx(maxA,2)}).`]);
+ if(ws.length>=4){const lastL=ws[ws.length-1].load,prev=ws.slice(-4,-1).map(w=>w.load),avg=prev.reduce((a,b)=>a+b,0)/prev.length,tr=lastL/avg;
+  out.push(tr>=0.35&&tr<=0.75?['good','Tapering',`Wettkampfwoche mit ${Math.round(tr*100)} % der Vorwochen – Ermüdung rechtzeitig abgebaut.`]:tr>0.75?['warn','Tapering',`Wettkampfwoche mit ${Math.round(tr*100)} % der Vorwochen – zu wenig reduziert.`]:['info','Tapering',`Sehr starke Reduktion (${Math.round(tr*100)} %) – etwas Schärfe verschenkt.`]);}
+ const Z=[0,0,0,0,0,0];ws.forEach(w=>w.zones.forEach((z,i)=>Z[i]+=z));const zt=Z.reduce((a,b)=>a+b,0)||1;
+ if(dist.d>=1500){const low=(Z[0]+Z[1])/zt;out.push(low>=0.7&&low<=0.9?['good','Intensität',`${Math.round(low*100)} % locker – sinnvolle polarisierte Verteilung.`]:low<0.7?['warn','Intensität',`Nur ${Math.round(low*100)} % der Zeit locker – zu viel Intensität für eine Ausdauerdisziplin.`]:['info','Intensität',`${Math.round(low*100)} % locker – mehr intensive Reize hätten mehr gebracht.`]);}
+ else{const fast=(Z[4]+Z[5])/zt;out.push(fast>0.08?['good','Intensität',`${Math.round(fast*100)} % der Laufzeit anaerob – sprintspezifisch.`]:['warn','Intensität','Wenig anaerobe/alaktazide Reize für eine Sprintdisziplin.']);}
+ const req=REQ[S.setup.distKey];const tops=Object.entries(req).sort((a,b)=>b[1]-a[1]).slice(0,3);
+ const gains=tops.map(([k])=>[k,S.A.c[k]-S.startCaps[k]]);
+ out.push(['info','Spezifität',gains.map(([k,g])=>`${CAPS[k].n} ${g>=0?'+':'−'}${fx(Math.abs(g),1)}`).join(' · ')]);
+ const str=ws.reduce((a,w)=>a+(w.strength||0),0);out.push(str>=ws.length?['good','Kraft',`${str} Krafteinheiten in ${ws.length} Wochen.`]:['warn','Kraft',`Nur ${str} Krafteinheiten in ${ws.length} Wochen.`]);
+ if(S.injDays||S.illDays)out.push(['bad','Ausfälle',`${S.injDays} Verletzungstage, ${S.illDays} Krankheitstage.`]);else out.push(['good','Ausfälle','Die ganze Vorbereitung ohne Verletzung oder Infekt.']);
+ return out;
+}
+function renderRaceScreen(animate){
+ const res=S.race,dist=DIST[S.setup.distKey],d=dist.d,g=grading();
+ const splits=splitPoints(d).map(x=>[x,timeAt(res.pts,x)]);
+ modalRoot.innerHTML=`<div class="modal-bg"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="rr-title" style="width:min(1180px,100%)">
+ <div class="modal-h"><div><div class="eyebrow">Wettkampf · ${esc(dist.label)} · ${res.temp} °C</div><h2 id="rr-title">Das Rennen</h2></div><button class="btn btn-sm" data-act="skiprace">Überspringen</button></div>
+ <div class="modal-b" style="display:flex;flex-direction:column;gap:16px">
+  <div class="race-stage"><div class="race-hud"><div><div class="hud-k">Zeit</div><div class="led" id="hud-t">0,00</div></div><div><div class="hud-k">Strecke</div><div class="hud-v" id="hud-d">0 m</div></div><div><div class="hud-k">Tempo</div><div class="hud-v" id="hud-v">–</div></div><div><div class="hud-k">Abstand zur Startprognose</div><div class="hud-v" id="hud-g">–</div></div></div>
+  <canvas id="race-cv" height="300"></canvas></div>
+  <div id="race-result" ${animate?'hidden':''}>
+   <div class="two"><div style="display:flex;flex-direction:column;gap:12px">
+    <div class="grade"><div><div class="eyebrow">Endzeit</div><div class="result-time">${fmtT(res.time,d)}</div><div class="muted">Startprognose ${fmtT(S.startPred,d)} · <b style="color:${g.imp>0?'var(--good)':'var(--bad)'}">${g.imp>0?'−':'+'}${fx(Math.abs(g.imp*100),1)} %</b></div></div>
+     <div><div class="eyebrow">Bewertung</div><div class="np">${g.pts}</div><div class="muted" style="font-size:12.5px">Notenpunkte</div></div></div>
+    <p class="muted" style="font-size:13px;margin:0">Bewertungsmaßstab: Für ${LEVELS[S.setup.level].n} sind über ${dist.label} in ${S.setup.weeks} Wochen etwa ${fx(g.bench*100,1)} % Verbesserung ein gutes Ergebnis (12 Punkte).</p>
+    ${res.ev.length?`<ul class="hints">${res.ev.map(e=>`<li class="${e.k}"><span class="tag">Rennen</span><span>${esc(e.t)}</span></li>`).join('')}</ul>`:''}
+    <div class="eyebrow">Trainingsanalyse</div><ul class="hints">${trainerAnalysis().map(([k,t,x])=>`<li class="${k}"><span class="tag">${t}</span><span>${esc(x)}</span></li>`).join('')}</ul>
+   </div><div><div class="eyebrow" style="margin-bottom:6px">Zwischenzeiten</div><div class="splits-wrap"><table class="splits"><thead><tr><th>Marke</th><th>Zeit</th><th>Abschnitt</th><th>Tempo</th></tr></thead><tbody>
+    ${splits.map(([x,t],i)=>{const px=i?splits[i-1][0]:0,pt=i?splits[i-1][1]:0,seg=t-pt;return`<tr><td>${x>=1000?fx(x/1000,x%1000?1:0)+' km':Math.round(x)+' m'}</td><td>${fmtT(t,d<=400?d:undefined)}</td><td>${fmtT(seg,d<=400?d:(seg<60?1:undefined))}</td><td>${d<=1500?fx((x-px)/seg,2)+' m/s':fmtPace((x-px)/seg)}</td></tr>`;}).join('')}
+   </tbody></table></div></div></div></div></div>
+ <div class="modal-f"><button class="btn" data-act="toplan">Saisonverlauf ansehen</button><button class="btn btn-primary" data-act="restart">Neue Saison</button></div></div></div>`;
+ drawRace(animate);
+}
+function splitPoints(d){
+ let step=d<=100?20:d<=400?100:d<=1500?(d===1500?300:200):d<=10000?1000:d<=42195?5000:10000;
+ if(d===1500)return[300,700,1100,1500];
+ const out=[];for(let x=step;x<d-1;x+=step)out.push(x);out.push(d);return out;
+}
+let raceAnim=null;
+function drawRace(animate){
+ const cv=document.getElementById('race-cv');if(!cv)return;
+ const res=S.race,dist=DIST[S.setup.distKey],d=dist.d,ghost=S.startPred/res.base;
+ const css=getComputedStyle(document.documentElement),col=n=>css.getPropertyValue(n).trim();
+ const dpr=window.devicePixelRatio||1,Wc=cv.clientWidth||800,Hc=Math.round(Math.min(320,Math.max(200,Wc*0.42)));
+ cv.width=Wc*dpr;cv.height=Hc*dpr;cv.style.height=Hc+'px';const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);
+ const T=res.time,dur=d<=400?Math.min(T,12)*1000:15000;
+ const ghostT=t=>distAt(res.pts.map(([x,tt])=>[x,tt*S.startPred/res.time]),t);
+ let path;
+ if(d<=100){path=x=>({x:30+(Wc-60)*x/d,y:Hc/2})}
+ else if(dist.venue==='bahn'){
+  const R=Math.min(Hc*0.34,(Wc-60)*0.18),L=Math.min(Wc-80-2*R,R*2.3),cx=Wc/2,cy=Hc/2;
+  const per=400,st=(400-(d%400))%400;
+  path=x=>{let s=(st+x)%per;const C=115.6,Sx=84.4;
+   if(s<C){const a=Math.PI/2-s/C*Math.PI;return{x:cx+L/2+Math.cos(a)*R,y:cy+Math.sin(a)*R};}s-=C;
+   if(s<Sx)return{x:cx+L/2-s/Sx*L,y:cy-R};s-=Sx;
+   if(s<C){const a=-Math.PI/2-s/C*Math.PI;return{x:cx-L/2+Math.cos(a)*R,y:cy+Math.sin(a)*R};}s-=C;
+   return{x:cx-L/2+s/Sx*L,y:cy+R};};
+  path.track={R,L,cx,cy};
+ }else if(dist.venue==='strasse'){
+  const pts=[];for(let i=0;i<=200;i++){const u=i/200;pts.push({x:40+(Wc-80)*u,y:Hc*0.55+Math.sin(u*Math.PI*3.2)*Hc*0.18+Math.sin(u*Math.PI*9)*Hc*0.05});}
+  path=x=>{const u=x/d*200,i=Math.min(199,Math.floor(u)),f=u-i;return{x:lerp(pts[i].x,pts[i+1].x,f),y:lerp(pts[i].y,pts[i+1].y,f)};};path.road=pts;
+ }else{
+  const alt=res.alt,mn=Math.min(...alt),mx=Math.max(...alt),n=alt.length-1;
+  const ax=u=>40+(Wc-60)*u,ay=a=>Hc-30-(a-mn)/(mx-mn||1)*(Hc-70);
+  path=x=>{const u=x/d*n,i=Math.min(n-1,Math.floor(u)),f=u-i;return{x:ax(x/d),y:ay(lerp(alt[i],alt[i+1],f))-6};};path.trail={alt,ax,ay,mn,mx,n};
+ }
+ const drawBg=()=>{
+  ctx.clearRect(0,0,Wc,Hc);
+  if(d<=100){ctx.fillStyle='#8E3424';ctx.fillRect(20,Hc/2-40,Wc-40,80);ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=1.5;for(let i=0;i<=4;i++){ctx.beginPath();ctx.moveTo(20,Hc/2-40+i*20);ctx.lineTo(Wc-20,Hc/2-40+i*20);ctx.stroke();}
+   ctx.fillStyle='#fff';ctx.fillRect(Wc-32,Hc/2-40,3,80);ctx.fillRect(28,Hc/2-40,3,80);
+   ctx.fillStyle='rgba(255,255,255,.6)';ctx.font='11px IBM Plex Mono, monospace';for(let m=10;m<100;m+=10){const x=30+(Wc-60)*m/100;ctx.fillRect(x,Hc/2+38,1,6);ctx.fillText(m+'',x-6,Hc/2+56);}}
+  else if(path.track){const{R,L,cx,cy}=path.track;ctx.fillStyle='#24543D';rr(cx-L/2-R+20,cy-R+20,L+2*R-40,2*R-40,R-20);ctx.fill();
+   ctx.lineWidth=28;ctx.strokeStyle='#8E3424';ctx.beginPath();ovalPath(cx,cy,L,R);ctx.stroke();
+   ctx.lineWidth=1;ctx.strokeStyle='rgba(255,255,255,.55)';for(const off of[-14,-7,0,7,14]){ctx.beginPath();ovalPath(cx,cy,L,R+off);ctx.stroke();}
+   ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(cx+L/2,cy+R-14);ctx.lineTo(cx+L/2,cy+R+14);ctx.stroke();}
+  else if(path.road){ctx.lineWidth=10;ctx.strokeStyle='#3A464C';ctx.lineCap='round';ctx.beginPath();path.road.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
+   ctx.lineWidth=1;ctx.setLineDash([6,6]);ctx.strokeStyle='rgba(255,255,255,.5)';ctx.beginPath();path.road.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();ctx.setLineDash([]);
+   ctx.fillStyle='rgba(233,241,236,.7)';ctx.font='11px IBM Plex Mono, monospace';for(let k=5000;k<d;k+=5000){const p=path(k);ctx.fillText((k/1000)+'',p.x-6,p.y-12);}}
+  else{const{alt,ax,ay,n,mn,mx}=path.trail;ctx.beginPath();ctx.moveTo(ax(0),Hc-30);for(let i=0;i<=n;i++)ctx.lineTo(ax(i/n),ay(alt[i]));ctx.lineTo(ax(1),Hc-30);ctx.closePath();
+   const gr=ctx.createLinearGradient(0,30,0,Hc-30);gr.addColorStop(0,'#5B7F63');gr.addColorStop(1,'#1F3A2B');ctx.fillStyle=gr;ctx.fill();ctx.strokeStyle='#A9D3B5';ctx.lineWidth=1.5;ctx.beginPath();for(let i=0;i<=n;i++){const x=ax(i/n),y=ay(alt[i]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
+   ctx.fillStyle='rgba(233,241,236,.7)';ctx.font='11px IBM Plex Mono, monospace';for(let k=10000;k<d;k+=10000){ctx.fillText(k/1000+' km',ax(k/d)-14,Hc-12);}ctx.fillText(Math.round(mx)+' m',4,ay(mx)+4);ctx.fillText(Math.round(mn)+' m',4,ay(mn));}
+ };
+ function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+ function ovalPath(cx,cy,L,R){ctx.moveTo(cx-L/2,cy+R);ctx.lineTo(cx+L/2,cy+R);ctx.arc(cx+L/2,cy,R,Math.PI/2,-Math.PI/2,true);ctx.lineTo(cx-L/2,cy-R);ctx.arc(cx-L/2,cy,R,-Math.PI/2,Math.PI/2,true);}
+ const dot=(p,c,r,label)=>{ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=c;ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#0F1517';ctx.stroke();if(label){ctx.fillStyle=c;ctx.font='600 11px IBM Plex Mono, monospace';ctx.fillText(label,p.x+r+3,p.y-r-2);}};
+ const hud=(t,x)=>{const ht=document.getElementById('hud-t'),hd=document.getElementById('hud-d'),hv=document.getElementById('hud-v'),hg=document.getElementById('hud-g');if(!ht)return;
+  ht.textContent=d<=400?fx(t,2):fmtT(t);hd.textContent=x>=1000?fx(x/1000,2)+' km':Math.round(x)+' m';
+  const x2=distAt(res.pts,Math.max(0,t-Math.max(0.2,T/200)));const v=(x-x2)/Math.max(0.2,T/200);hv.textContent=d<=1500?fx(v,2)+' m/s':fmtPace(v);
+  const dt=t-timeAt(res.pts,x)*S.startPred/res.time;hg.textContent=Math.abs(dt)<0.005?'gleichauf':(dt<0?'−':'+')+(d<=400||Math.abs(dt)<60?fx(Math.abs(dt),d<=400?2:1)+' s':fmtT(Math.abs(dt)));};
+ const frame=t=>{drawBg();const x=Math.min(d,distAt(res.pts,t)),gx=Math.min(d,ghostT(t));dot(path(gx),'rgba(233,241,236,.55)',6,'Start');dot(path(x),'#FFB547',8,'');hud(t,x);};
+ if(raceAnim)cancelAnimationFrame(raceAnim);
+ if(!animate||matchMedia('(prefers-reduced-motion: reduce)').matches){frame(T);const rr_=document.getElementById('race-result');if(rr_)rr_.hidden=false;return;}
+ const t0=performance.now();
+ const step=now=>{const f=Math.min(1,(now-t0)/dur);frame(f*T);if(f<1)raceAnim=requestAnimationFrame(step);else{raceAnim=null;const r=document.getElementById('race-result');if(r)r.hidden=false;}};
+ raceAnim=requestAnimationFrame(step);
+ RACE.finish=()=>{if(raceAnim)cancelAnimationFrame(raceAnim);raceAnim=null;frame(T);const r=document.getElementById('race-result');if(r)r.hidden=false;};
+}
+
+/* ---------- Ereignisse ---------- */
+document.addEventListener('click',ev=>{
+ const el=ev.target.closest('[data-act]');if(!el)return;
+ const a=el.dataset.act;
+ if(a==='closebg'&&ev.target!==el)return;
+ switch(a){
+  case'dist':SETUP.distKey=el.dataset.k;if(DIST[SETUP.distKey].hm)SETUP.hm=DIST[SETUP.distKey].hm;renderSetup();break;
+  case'setopt':SETUP[el.dataset.f]=el.dataset.v;renderSetup();break;
+  case'start':newGame(Object.assign({},SETUP));UI.tab='last';save();render();window.scrollTo(0,0);break;
+  case'resume':{const s=load();if(s){S=s;render();}break;}
+  case'restart':if(raceAnim)cancelAnimationFrame(raceAnim);modalRoot.innerHTML='';S=null;try{localStorage.removeItem('formkurve-v1');}catch(e){}SETUP.seed=Math.floor(Math.random()*1e6);renderSetup();window.scrollTo(0,0);break;
+  case'tab':UI.tab=el.dataset.k;render();break;
+  case'tpl':{const ph=document.getElementById('tplsel').value;S.plan=buildTemplate(groupOf(S.setup.distKey),ph,S.setup.level,S.setup.distKey);if(S.week===S.setup.weeks-1)S.plan=S.plan.filter(s=>s.day!==6);save();render();break;}
+  case'clear':S.plan=[];save();render();break;
+  case'add':openEditor(mkSess('run','ga1',+el.dataset.day),true);break;
+  case'edit':{const s=S.plan.find(x=>x.id===el.dataset.id);if(s)openEditor(s,false);break;}
+  case'close':case'closebg':modalRoot.innerHTML='';ED=null;break;
+  case'etype':{const t=el.dataset.k;if(t!==ED.s.type){const ns=mkSess(t,PRESETS[t][0][0],ED.s.day);ns.id=ED.s.id;ED.s=ns;renderEditor();}break;}
+  case'epreset':{const ns=mkSess(ED.s.type,el.dataset.k,ED.s.day);ns.id=ED.s.id;ED.s=ns;renderEditor();break;}
+  case'eday':ED.s.day=+el.dataset.d;modalRoot.querySelectorAll('.daypick button').forEach(b=>b.setAttribute('aria-pressed',b===el));modalRoot.querySelector('.modal-h .eyebrow').textContent=(ED.isNew?'Neue Einheit':'Einheit bearbeiten')+' · '+DAYS_L[ED.s.day];break;
+  case'esave':{const i=S.plan.findIndex(x=>x.id===ED.s.id);if(i>=0)S.plan[i]=ED.s;else S.plan.push(ED.s);modalRoot.innerHTML='';ED=null;save();render();break;}
+  case'edel':S.plan=S.plan.filter(x=>x.id!==ED.s.id);modalRoot.innerHTML='';ED=null;save();render();break;
+  case'edup':{const c=JSON.parse(JSON.stringify(ED.s));c.id='s'+Date.now().toString(36)+(uid++);c.day=(c.day+1)%7;if(S.week===S.setup.weeks-1&&c.day===6)c.day=5;S.plan.push(c);modalRoot.innerHTML='';ED=null;save();render();break;}
+  case'sim':{const rep=simulateWeek();UI.tab='last';save();render();showWeekReport(rep);break;}
+  case'closereport':modalRoot.innerHTML='';if(S.phase==='race'){openRacePrep();}else{if(S.week===S.setup.weeks-1)S.plan=S.plan.filter(s=>s.day!==6);render();}break;
+  case'rpace':RACE.pacing=el.dataset.v;openRacePrep();break;
+  case'gun':startRace();break;
+  case'skiprace':if(RACE.finish)RACE.finish();break;
+  case'toplan':if(raceAnim)cancelAnimationFrame(raceAnim);modalRoot.innerHTML='';UI.tab='pred';render();showDoneBanner();break;
+ }
+});
+function showDoneBanner(){const m=document.querySelector('.grid-main .stack');if(!m||!S.race)return;const dist=DIST[S.setup.distKey];const b=document.createElement('section');b.className='card';b.innerHTML=`<div class="cta-row"><div><div class="eyebrow">Saison beendet</div><h2>Wettkampf: ${fmtT(S.race.time,dist.d)}</h2></div><div style="display:flex;gap:8px"><button class="btn" data-act="showrace">Ergebnis</button><button class="btn btn-primary" data-act="restart">Neue Saison</button></div></div>`;m.prepend(b);const p=m.querySelector('.card:nth-child(2)');if(p)p.hidden=true;}
+document.addEventListener('click',ev=>{const el=ev.target.closest('[data-act="showrace"]');if(el)renderRaceScreen(false);});
+document.addEventListener('input',ev=>{
+ const el=ev.target;
+ if(el.dataset.set){const k=el.dataset.set;SETUP[k]=el.type==='checkbox'?el.checked:+el.value;
+  if(k==='seed')return;
+  if(el.type==='range'){const lab=el.closest('.field').querySelector('label .num');if(lab)lab.textContent=k==='hm'?el.value+' Hm':k==='age'?el.value+' Jahre':el.value+' Wochen';clearTimeout(SETUP._t);SETUP._t=setTimeout(()=>{const id=el.id;renderSetup();const n=document.getElementById(id);if(n)n.focus();},250);}
+  else renderSetup();return;}
+ if(el.dataset.race){RACE[el.dataset.race]=el.type==='checkbox'?el.checked:+el.value;if(el.type==='range'){const lab=el.closest('.field').querySelector('label .num');if(lab)lab.textContent=el.value+' g/h';}return;}
+ if(!ED)return;
+ if(el.dataset.nr){const k=el.dataset.nr;let v=+el.value;if(ED.s.type==='run'&&k==='dist')v=slToDist(v);ED.s.p[k]=v;const n=document.getElementById('n-'+k);if(n)n.value=v;updateEditor();}
+ else if(el.dataset.nn){const k=el.dataset.nn;const v=+el.value;if(!isFinite(v)||el.value==='')return;ED.s.p[k]=v;const r=document.getElementById('r-'+k);if(r)r.value=ED.s.type==='run'&&k==='dist'?distToSl(v):v;updateEditor();}
+ else if(el.dataset.ename!==undefined){ED.s.name=el.value||TYPES[ED.s.type].n;}
+});
+document.addEventListener('change',ev=>{
+ const el=ev.target;
+ if(el.dataset.life){S.life[el.dataset.life]=+el.value;save();render();return;}
+ if(!ED)return;
+ if(el.dataset.esel){ED.s.p[el.dataset.esel]=el.value;updateEditor();}
+ else if(el.dataset.echk){ED.s.p[el.dataset.echk]=el.checked;updateEditor();}
+ else if(el.dataset.nn){const k=el.dataset.nn,n=NORMS[ED.s.type].find(x=>x[0]===k);let v=clamp(+el.value||n[3],n[3],n[4]);ED.s.p[k]=v;el.value=v;updateEditor();}
+});
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&ED){modalRoot.innerHTML='';ED=null;}});
+window.addEventListener('resize',()=>{if(S&&S.race&&document.getElementById('race-cv')&&!raceAnim)drawRace(false);});
+
+/* ---------- Start ---------- */
+(function boot(){
+ const s=load();
+ if(s&&s.phase!=='setup'){S=s;if(S.phase==='done'){render();showDoneBanner();}else render();}
+ else renderSetup();
+})();
+</script>
+
+</body>
+</html>
