@@ -280,6 +280,62 @@ table.kv tr.hl td{font-weight:700;color:var(--tartan)}
 .grade .np{font-family:var(--f-display);font-weight:700;font-size:64px;line-height:.9;color:var(--tartan)}
 .result-time{font-family:var(--f-mono);font-size:34px;font-weight:600}
 .scroll-x{overflow-x:auto}
+
+/* ---------- Konsequenzen-Vorschau ---------- */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{border:0;background:var(--surface-2);padding:6px 12px;cursor:pointer;font-weight:600;font-size:13.5px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.scen{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) auto;gap:10px 18px;align-items:center;padding:10px 16px;background:var(--surface-2);border-bottom:1px solid var(--line)}
+.scen-t{display:flex;flex-direction:column;font-size:13.5px;line-height:1.3}
+.scen-t .muted{font-size:12px}
+.scen-c{display:flex;flex-direction:column;gap:2px;font-size:13px;font-weight:600}
+.scen-c span{display:flex;justify-content:space-between}
+.scen-b{display:flex;gap:6px}
+@media (max-width:820px){.scen{grid-template-columns:1fr 1fr}.scen-t,.scen-b{grid-column:1/-1}}
+.ctiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px}
+.ctile{border:1px solid var(--line);border-top:3px solid var(--muted);border-radius:8px;padding:9px 11px;background:var(--surface)}
+.ctile.good{border-top-color:var(--good)}.ctile.warn{border-top-color:var(--warn)}.ctile.bad{border-top-color:var(--bad)}
+.ctile .k{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-family:var(--f-display);font-weight:600;line-height:1.2}
+.ctile .v{font-family:var(--f-mono);font-size:22px;font-weight:600;line-height:1.25}
+.ctile .s{font-size:12.5px;color:var(--muted)}
+.up{color:var(--good)}.down{color:var(--bad)}
+.meter{position:relative;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--good) 0 12%,var(--warn) 12% 32%,var(--bad) 32%);opacity:.3;margin-top:6px}
+.meter i{position:absolute;left:0;top:-2px;bottom:-2px;background:var(--ink);border-radius:4px;opacity:1}
+.meter b{display:none}
+.ctile .meter{opacity:1;background:var(--surface-2);border:1px solid var(--line)}
+.ctile .meter i{background:currentColor;top:0;bottom:0}
+.ctile.good .meter i{color:var(--good)}.ctile.warn .meter i{color:var(--warn)}.ctile.bad .meter i{color:var(--bad)}
+.cgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:900px){.cgrid{grid-template-columns:1fr}}
+.cfig{margin:0;min-width:0}
+.cfig figcaption{display:flex;flex-direction:column;margin-bottom:4px;font-size:14px}
+.cfig figcaption .muted{font-size:12.5px}
+.cchart{width:100%;height:auto;display:block;touch-action:pan-y}
+.cchart text{fill:var(--muted);font-family:var(--f-mono);font-size:10.5px}
+.cchart .hov{cursor:crosshair}
+.cchart .hov:hover{fill-opacity:.05}
+.rdot{width:9px!important;height:9px!important;border-radius:50%!important}
+.cbars{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:2px 22px}
+.cbar-row{display:grid;grid-template-columns:minmax(0,1fr) 110px 54px;gap:8px;align-items:center;font-size:13px;padding:3px 4px;border-radius:5px;cursor:default}
+.cbar-row:hover{background:var(--surface-2)}
+.cb-n{display:flex;gap:6px;align-items:center;min-width:0}
+.cb-t,.dbar{position:relative;height:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.cb-t i,.dbar i{position:absolute;top:0;bottom:0;background:var(--good)}
+.cb-t i.down,.dbar i.down{background:var(--bad)}
+.cb-t i:not(.up):not(.down){background:var(--muted)}
+.cb-t b{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--ink);opacity:.5}
+.cb-v{text-align:right}
+#tip{position:fixed;z-index:80;max-width:300px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:9px 11px;font-size:13px;pointer-events:none;line-height:1.35}
+#tip .tl{display:flex;gap:6px;align-items:center;margin-top:3px}
+#tip .tl i{width:8px;height:8px;border-radius:2px;flex:none}
+#tip .tl span{margin-left:auto;font-family:var(--f-mono);font-size:12px;color:var(--muted);padding-left:8px;white-space:nowrap}
+#tip .tg{display:grid;grid-template-columns:auto auto;gap:2px 14px;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+#tip .tg b{font-family:var(--f-mono);text-align:right}
+.sess[draggable="true"]{cursor:grab}
+.sess.dragging{opacity:.4}
+.day.drop-over{background:color-mix(in srgb,var(--infield) 12%,transparent);outline:2px dashed var(--infield);outline-offset:-3px}
+.impact{border-top:1px dashed var(--line);padding-top:10px}
 </style>
 
 </head>
@@ -411,7 +467,7 @@ function fmtT(sec,dist){
 }
 function fmtPace(v){if(!v||!isFinite(v))return'–';const s=1000/v;let m=Math.floor(s/60),r=Math.round(s%60);if(r===60){m++;r=0;}return m+':'+String(r).padStart(2,'0')+' /km';}
 function fmtDur(min){if(min<60)return Math.round(min)+' min';const h=Math.floor(min/60),m=Math.round(min%60);return h+' h '+String(m).padStart(2,'0');}
-function fmtDelta(sec,dist){const s=Math.abs(sec);const sign=sec<0?'−':'+';if(dist<=400||s<60)return sign+fx(s,2)+' s';return sign+fmtT(s,dist);}
+function fmtDelta(sec,dist){const s=Math.abs(sec);const sign=sec<0?'−':'+';if(dist<=400)return sign+fx(s,2)+' s';if(s<60)return sign+fx(s,1)+' s';return sign+fmtT(s,dist);}
 const DAYS=['Mo','Di','Mi','Do','Fr','Sa','So'];
 const DAYS_L=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
 const ZONES=['Regeneration','GA1','GA2 / Schwelle','VO₂max','Laktazid','Alaktazid'];
@@ -561,7 +617,7 @@ function evalRun(p,A,fat=1){
   if(sprint&&full)method='Wiederholungsmethode (Schnelligkeit)';
   else if(sprint)method='Intensive Intervallmethode (Schnelligkeitsausdauer)';
   else if(full&&pct>=0.88)method='Wiederholungsmethode';
-  else if(pct>=0.85||r>=1.0)method='Intensive Intervallmethode';
+  else if(pct>=0.83||r>=0.97)method='Intensive Intervallmethode';
   else method='Extensive Intervallmethode';
   if(g>0)method+=' am Berg';
  }
@@ -808,12 +864,14 @@ function simulateDay(){
  S.D=S.D*0.8+0.2*(mech/capM);
  const acwr=S.ATL/Math.max(1,S.CTL);
  S.loads.push(out.load);if(S.loads.length>28)S.loads.shift();
- if(S.setup.random&&!S.inj&&!S.ill&&!isRace){
+ if(!S.inj&&!S.ill&&!isRace){
+  const R=S.setup.random;
   let p=0.0009*Math.exp(2.8*Math.max(0,acwr-1.2))*(1+5*Math.pow(Math.max(0,S.D-1.1),1.5))*(1+Math.max(0,-fr-35)/40)*(life.sleep<7?1.2:1)*(1.15-0.3*A.c.mob/100);
   if(mech===0)p*=0.3;
   p+=0.004*sprintExp*(1.4-A.c.mob/100)*(1.3-A.c.maxk/100)*fat*fat;
-  if(p>0.006&&rand()<0.4&&S.day-(S.lastNiggle||-9)>4){S.lastNiggle=S.day;out.events.push({k:'warn',t:'Warnsignal: leichte Beschwerden nach dem Training. Belastung reduzieren!'});}
-  if(rand()<p){
+  out.pInj=p;
+  if(R&&p>0.006&&rand()<0.4&&S.day-(S.lastNiggle||-9)>4){S.lastNiggle=S.day;out.events.push({k:'warn',t:'Warnsignal: leichte Beschwerden nach dem Training. Belastung reduzieren!'});}
+  if(R&&rand()<p){
    const w=[['sprint',src.sprint+sprintExp*2],['plyo',src.plyo*1.5],['down',src.down*1.2],['vol',src.vol*0.3+0.2]];
    const tot=w.reduce((a,b)=>a+b[1],0);let x=rand()*tot,cat='vol';for(const[k,v]of w){if((x-=v)<=0){cat=k;break;}}
    let inj=INJ[cat][Math.floor(rand()*INJ[cat].length)];
@@ -825,7 +883,8 @@ function simulateDay(){
   const L=S.loads.slice(-7),mean=L.reduce((a,b)=>a+b,0)/L.length,sd=Math.sqrt(L.reduce((a,b)=>a+(b-mean)**2,0)/L.length)||1;
   const mono=mean/sd,strain=mean*7*mono,hStrain=A.hWeekLoad*1.6;
   let pi=0.0022*(1+Math.max(0,mono-1.8))*(1+Math.max(0,(strain-1.3*hStrain)/hStrain))*({5:2.5,6:1.7,7:1.2}[life.sleep]||1)*[1,1.3,1.7][life.stress-1]*(life.food<=2?1.3:1);
-  if(rand()<pi){const dd=3+Math.floor(rand()*5);S.ill={until:S.day+dd};out.events.push({k:'bad',t:`Infekt der oberen Atemwege – ${dd} Tage Trainingspause.`});S.illDays+=dd;}
+  out.pIll=pi;
+  if(R&&rand()<pi){const dd=3+Math.floor(rand()*5);S.ill={until:S.day+dd};out.events.push({k:'bad',t:`Infekt der oberen Atemwege – ${dd} Tage Trainingspause.`});S.illDays+=dd;}
  }
  out.ill=!!S.ill;out.inj=!!S.inj;
  S.hist.daily.push({day:S.day,load:Math.round(out.load),atl:S.ATL,ctl:S.CTL,tsb,km:out.km,ill:out.ill,inj:out.inj,acwr});
@@ -1016,7 +1075,7 @@ function load(){try{const t=localStorage.getItem('formkurve-v1');if(t){const s=J
 function boardHTML(){
  if(!S){return`<header class="board"><div class="wrap"><div class="brand">${markSVG()}<div><h1>FORMKURVE</h1><div class="sub">Trainingssimulation für den Sport-Leistungskurs</div></div></div><div class="led-block"><div class="led-label">Saisonplanung</div><div class="led">--:--</div></div><div class="board-right"></div></div></header>`;}
  const dist=DIST[S.setup.distKey],pred=predict(S.A),dlt=pred-S.startPred,tsb=formRel(),acwr=S.ATL/Math.max(1,S.CTL);
- const formT=tsb>10?['good','frisch']:tsb>-10?['good','ausgeglichen']:tsb>-30?['warn','ermüdet']:['bad','überlastet'];
+ const formT=tsb>10?['good','frisch']:tsb>-10?['good','ausgeglichen']:tsb>-30?['warn','ermüdet']:tsb>-50?['warn','stark ermüdet']:['bad','überlastet'];
  const riskT=acwr>1.5||S.D>1.5?['bad','hoch']:acwr>1.25||S.D>1.25?['warn','erhöht']:['good','niedrig'];
  const hT=S.inj?['bad','verletzt']:S.ill?['warn','krank']:['good','fit'];
  const wLeft=S.setup.weeks-S.week;
@@ -1102,7 +1161,7 @@ function render(){
  const an=analyzePlan();
  const scrollY=window.scrollY;
  app.innerHTML=boardHTML()+`<main class="wrap grid-main">
-  <div class="stack">${plannerHTML(an)}${analysisHTML(an)}${chartsHTML()}</div>
+  <div class="stack">${plannerHTML(an)}${conseqCardHTML()}${analysisHTML(an)}${chartsHTML()}</div>
   <aside class="stack">${athleteHTML()}${diagHTML()}</aside></main>`;
  window.scrollTo(0,scrollY);
  if(S.phase==='race'&&!S.race)openRacePrep();
@@ -1119,7 +1178,7 @@ function plannerHTML(an){
    <label for="l-food">Ernährung <select id="l-food" data-life="food">${['mangelhaft','einseitig','solide','sportgerecht','optimal'].map((n,i)=>`<option value="${i+1}" ${S.life.food===i+1?'selected':''}>${n}</option>`).join('')}</select></label>
    <label for="l-stress">Alltagsstress <select id="l-stress" data-life="stress">${['gering','Klausurenphase','sehr hoch'].map((n,i)=>`<option value="${i+1}" ${S.life.stress===i+1?'selected':''}>${n}</option>`).join('')}</select></label>
    <span class="muted">Erholungsfaktor <b class="num">${fx(recovery(S.life),2)}</b></span></div>
-  <div class="week">${byDay.map((list,d)=>{const race=last&&d===6;return`<div class="day ${race?'race':''}"><div class="day-h"><b>${DAYS[d]}</b><span>Tag ${S.week*7+d+1}</span></div><div class="day-b">
+  <div class="week">${byDay.map((list,d)=>{const race=last&&d===6;return`<div class="day ${race?'race':''}"${race?'':` data-drop="${d}"`}><div class="day-h"><b>${DAYS[d]}</b><span>Tag ${S.week*7+d+1}</span></div><div class="day-b">
    ${race?`<div class="sess" style="--c:var(--tartan);cursor:default"><span class="st">Wettkampf</span><span class="sl">${esc(DIST[S.setup.distKey].label)}</span></div>`:''}
    ${!race?list.map(([s,e])=>sessCard(s,e)).join(''):''}
    ${!race&&!list.length?'<div class="rest">Ruhetag</div>':''}
@@ -1131,7 +1190,7 @@ function plannerHTML(an){
 function sessCard(s,e){
  const zt=e.zones.reduce((a,b)=>a+b,0);
  const stat=s.type==='run'?`≈ ${fmtPace(e.info.pace)} · ${fmtDur(e.min)} · ${Math.round(e.load)} AU`:`${fmtDur(e.min)} · ${Math.round(e.load)} AU`;
- return`<button class="sess ${e.fail?'fail':''}" style="--c:${TYPES[s.type].c}" data-act="edit" data-id="${s.id}">
+ return`<button class="sess ${e.fail?'fail':''}" style="--c:${TYPES[s.type].c}" data-act="edit" data-id="${s.id}" draggable="true" data-drag="${s.id}" title="Klicken zum Bearbeiten, ziehen zum Verschieben">
   <span class="st">${esc(s.name)}</span><span class="sl">${esc(e.line)}</span><span class="sl">${stat}</span>
   ${zt>0?`<span class="zb">${e.zones.map((z,i)=>z>0?`<i style="width:${z/zt*100}%;background:${ZCOL[i]}"></i>`:'').join('')}</span>`:''}
   ${e.fail?`<span class="warnline">nicht vollständig machbar</span>`:''}</button>`;
@@ -1356,7 +1415,9 @@ function updateEditor(){
  <div><div class="eyebrow" style="margin-bottom:5px">Hauptwirkung (im Verhältnis zum Tagesbedarf)</div>
  <div class="effect">${top.length?top.map(([k,v])=>`<span>${CAPS[k].n}</span><span class="eb"><i style="width:${v/mx*100}%"></i></span>`).join(''):'<span class="muted">kaum Trainingswirkung</span>'}</div></div>
  <div class="feas ${e.fail?'no':'ok'}">${e.fail?esc(e.fail):'Durchführbar'+(t==='run'&&e.n>1?` · Qualität ${Math.round(e.info.quality*100)} %`:'')}</div>
- ${t==='run'&&e.info.quality<0.75&&e.n>1&&!e.fail?'<div class="muted" style="font-size:12.5px">Unvollständige Erholung: Die Wiederholungen werden zunehmend im ermüdeten Zustand gelaufen. Das verschiebt die Wirkung von der Schnelligkeit zur Schnelligkeitsausdauer.</div>':''}`;
+ ${t==='run'&&e.info.quality<0.75&&e.n>1&&!e.fail?'<div class="muted" style="font-size:12.5px">Unvollständige Erholung: Die Wiederholungen werden zunehmend im ermüdeten Zustand gelaufen. Das verschiebt die Wirkung von der Schnelligkeit zur Schnelligkeitsausdauer.</div>':''}
+ <div class="impact" id="impact"><div class="muted" style="font-size:13px">Wirkung auf die Woche wird berechnet …</div></div>`;
+ scheduleImpact();
 }
 
 /* ---------- Wochenbericht ---------- */
@@ -1521,6 +1582,200 @@ function drawRace(animate){
  RACE.finish=()=>{if(raceAnim)cancelAnimationFrame(raceAnim);raceAnim=null;frame(T);const r=document.getElementById('race-result');if(r)r.hidden=false;};
 }
 
+/* =====================================================================
+   VORSCHAU: Konsequenzen des Plans (deterministische Projektion)
+   ===================================================================== */
+let CQ={vol:1,dI:0,hz:'week',rest:null,t:null};
+function scalePlan(plan,vol,dI){
+ if(vol===1&&dI===0)return plan;
+ return plan.map(s0=>{const s=JSON.parse(JSON.stringify(s0)),p=s.p;
+  if(s.type==='run'){if(p.reps*p.sets===1)p.dist=Math.max(1000,Math.round(p.dist*vol/100)*100);else p.reps=Math.max(1,Math.round(p.reps*vol));p.pct=clamp(p.pct+dI,50,100);}
+  else if(s.type==='kraft'){p.sets=Math.max(1,Math.round(p.sets*vol));p.pct=clamp(p.pct+dI,20,100);}
+  else if(s.type==='sprung')p.contacts=Math.max(2,Math.round(p.contacts*vol));
+  else if(s.type==='alt'){p.dur=Math.max(10,Math.round(p.dur*vol/5)*5);p.hf=clamp(p.hf+dI,55,95);}
+  else p.dur=Math.max(5,Math.round(p.dur*vol/5)*5);
+  return s;});
+}
+// Rechnet den Plan auf einer Kopie des Spielstands ohne Zufall durch (Wiederholung bis maxWeeks bzw. Wettkampf)
+function project(plan,maxWeeks){
+ const saved=S,{hist,...rest}=S;
+ const C=JSON.parse(JSON.stringify(rest));
+ C.hist={daily:[],weeks:[],log:[],plans:[]};C.setup=Object.assign({},C.setup,{random:false});C.plan=plan;
+ const r={days:[],weeks:[]};
+ S=C;
+ try{
+  const W=S.setup.weeks;
+  for(let w=0;w<maxWeeks&&S.week<W;w++){
+   const last=S.week===W-1;let pI=1,pS=1;
+   for(let i=0;i<(last?6:7);i++){
+    const o=simulateDay();
+    if(w===0)r.days.push({dow:o.dow,load:o.load,items:o.items.map(it=>({n:it.s.name,t:it.s.type,skip:it.skip,load:it.e?it.e.load:0,fail:!!(it.e&&it.e.fail)})),
+     form:formRel(),acwr:S.ATL/Math.max(1,S.CTL),D:S.D,pInj:o.pInj||0,pIll:o.pIll||0,inj:o.inj,ill:o.ill});
+    pI*=1-(o.pInj||0);pS*=1-(o.pIll||0);
+   }
+   r.weeks.push({week:S.week,pred:predict(S.A),form:formRel(),pInj:1-pI,pIll:1-pS,caps:Object.assign({},S.A.c),load:0});
+   if(last){r.raceForm=formRel();r.race=predict(S.A)/formFactor(r.raceForm);break;}
+   S.week++;
+  }
+ }finally{S=saved;}
+ return r;
+}
+const pct1=x=>fx(x*100,x<0.1?1:0)+' %';
+const riskCls=p=>p<0.03?'good':p<0.08?'warn':'bad';
+function tipAttr(html){return` data-tip="${esc(html)}"`;}
+
+function conseqCardHTML(){
+ if(S.phase!=='plan')return'';
+ const scen=CQ.vol!==1||CQ.dI!==0;
+ return`<section class="card" id="conseq-card"><div class="card-h"><div><div class="eyebrow">Vorschau · noch nichts simuliert</div><h2>Konsequenzen deines Plans</h2></div>
+  <div class="seg" role="group" aria-label="Zeitraum">${[['week','Diese Woche'],['race','Bis zum Wettkampf']].map(([k,n])=>`<button data-act="hz" data-k="${k}" aria-pressed="${CQ.hz===k}">${n}</button>`).join('')}</div></div>
+  <div class="scen"><div class="scen-t"><b>Was wäre, wenn …</b><span class="muted">Regler verändern nur die Vorschau. Mit „Übernehmen“ wird der Plan angepasst.</span></div>
+   <label class="scen-c" for="cq-vol"><span>Umfang <output id="o-vol" class="num">${Math.round(CQ.vol*100)} %</output></span><input type="range" id="cq-vol" min="50" max="160" step="5" value="${Math.round(CQ.vol*100)}" data-cq="vol"></label>
+   <label class="scen-c" for="cq-int"><span>Intensität <output id="o-int" class="num">${CQ.dI>0?'+':''}${CQ.dI} %-Pkt.</output></span><input type="range" id="cq-int" min="-12" max="8" step="1" value="${CQ.dI}" data-cq="dI"></label>
+   <div class="scen-b"><button class="btn btn-sm" data-act="cqreset" ${scen?'':'disabled'}>Zurücksetzen</button><button class="btn btn-sm btn-primary" data-act="cqapply" ${scen?'':'disabled'}>Übernehmen</button></div></div>
+  <div class="card-b" id="conseq-body">${conseqBody()}</div></section>`;
+}
+function scheduleConseq(){clearTimeout(CQ.t);CQ.t=setTimeout(()=>{const b=document.getElementById('conseq-body');if(b)b.innerHTML=conseqBody();},90);}
+function conseqBody(){
+ const plan=scalePlan(S.plan,CQ.vol,CQ.dI);
+ const P=project(plan,99);
+ if(!CQ.rest||CQ.rest.day!==S.day)CQ.rest={day:S.day,r:project([],99)};
+ const R=CQ.rest.r,dist=DIST[S.setup.distKey],d=dist.d,now=predict(S.A);
+ const w0=P.weeks[0],hz=CQ.hz==='race';
+ const wEnd=hz?P.weeks[P.weeks.length-1]:w0;
+ const pInj=hz?1-P.weeks.reduce((a,w)=>a*(1-w.pInj),1):w0.pInj,pIll=hz?1-P.weeks.reduce((a,w)=>a*(1-w.pIll),1):w0.pIll;
+ const dW=w0.pred-now,dR=P.race-S.startPred;
+ const fl=w0.form>10?'frisch':w0.form>-10?'ausgeglichen':w0.form>-30?'ermüdet – normal im Aufbau':w0.form>-50?'stark ermüdet':'überlastet – Anpassung gebremst';
+ const tile=(k,v,sub,cls,extra)=>`<div class="ctile ${cls||''}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div>${extra||''}</div>`;
+ const meter=p=>`<div class="meter"><i style="width:${Math.min(100,p/0.25*100)}%"></i><b style="left:${0.03/0.25*100}%"></b><b style="left:${0.08/0.25*100}%"></b></div>`;
+ return`<div class="ctiles">
+  ${tile('Prognose nach dieser Woche',fmtT(w0.pred,d),Math.abs(dW)<0.005?'unverändert':`<span class="${dW<0?'up':'down'}">${fmtDelta(dW,d)}</span> gegenüber heute`,dW<-0.005?'good':dW>0.005?'bad':'')}
+  ${tile('Wettkampf, wenn du so weiter trainierst',fmtT(P.race,d),`<span class="${dR<0?'up':'down'}">${fmtDelta(dR,d)}</span> zur Startprognose · Form ${P.raceForm>0?'+':''}${Math.round(P.raceForm)} %`,dR<0?'good':'bad')}
+  ${tile('Form am Sonntag',`${w0.form>0?'+':''}${Math.round(w0.form)} %`,fl,w0.form<-50?'bad':w0.form<-30?'warn':'good')}
+  ${tile(hz?'Verletzungsrisiko bis zum Wettkampf':'Verletzungsrisiko diese Woche',pct1(pInj),`Infektrisiko ${pct1(pIll)}`,riskCls(hz?pInj/Math.max(1,P.weeks.length)*1.5:pInj),meter(hz?Math.min(0.25,pInj):pInj))}
+ </div>
+ <div class="cgrid">
+  <figure class="cfig"><figcaption><b>Woche Tag für Tag</b><span class="muted">Belastung je Einheit, Form und Verletzungsrisiko · Tag antippen für Details</span></figcaption>${weekChartSVG(P.days)}
+   <div class="chart-legend">${Object.entries(TYPES).map(([k,t])=>`<span><i style="background:${t.c};height:8px"></i>${t.n}</span>`).join('')}<span><i style="background:var(--ink)"></i>Form %</span><span><i class="rdot" style="background:var(--bad)"></i>Risiko</span></div></figure>
+  <figure class="cfig"><figcaption><b>Weg zum Wettkampf</b><span class="muted">bisher · mit diesem Plan · ohne Training</span></figcaption>${timelineSVG(P,R)}
+   <div class="chart-legend"><span><i style="background:var(--infield)"></i>bisher</span><span><i style="background:var(--tartan)"></i>Plan wiederholt</span><span><i style="background:var(--muted)"></i>ohne Training</span><span><i style="background:var(--led)"></i>Wettkampftag inkl. Form</span></div></figure>
+ </div>
+ <figure class="cfig" style="margin-top:16px"><figcaption><b>Veränderung der Fähigkeiten ${hz?'bis zum Wettkampf':'nach dieser Woche'}</b><span class="muted">sortiert nach Bedeutung für ${esc(dist.label)} · Indexpunkte</span></figcaption>${capBarsHTML(wEnd.caps)}</figure>`;
+}
+function weekChartSVG(days){
+ const W=720,H=250,l=46,r=46,t=26,b=30,cw=(W-l-r)/7;
+ const maxL=Math.max(300,...days.map(d=>d.load))*1.1;
+ const fMin=Math.min(-50,...days.map(d=>d.form))-5,fMax=Math.max(30,...days.map(d=>d.form))+5;
+ const yL=v=>H-b-v/maxL*(H-t-b),yF=v=>H-b-(v-fMin)/(fMax-fMin)*(H-t-b);
+ let s=`<svg viewBox="0 0 ${W} ${H}" class="cchart" role="img" aria-label="Belastung, Form und Risiko der geplanten Woche">`;
+ for(const v of niceTicks(0,maxL,4))s+=`<line x1="${l}" x2="${W-r}" y1="${yL(v)}" y2="${yL(v)}" stroke="var(--line)"/><text x="${l-6}" y="${yL(v)+3.5}" text-anchor="end">${Math.round(v)}</text>`;
+ s+=`<text x="${l-6}" y="12" text-anchor="end">AU</text><text x="${W-r+6}" y="12">Form</text>`;
+ for(const v of niceTicks(fMin,fMax,4))s+=`<text x="${W-r+6}" y="${yF(v)+3.5}">${v>0?'+':''}${Math.round(v)}</text>`;
+ days.forEach((d,i)=>{
+  const x=l+i*cw;
+  if(d.acwr>1.5||d.D>1.5)s+=`<rect x="${x}" y="${t}" width="${cw}" height="${H-t-b}" fill="var(--bad)" fill-opacity=".09"/>`;
+  else if(d.acwr>1.3||d.D>1.3)s+=`<rect x="${x}" y="${t}" width="${cw}" height="${H-t-b}" fill="var(--warn)" fill-opacity=".09"/>`;
+  let y0=H-b;const bw=cw*0.52;
+  for(const it of d.items){if(it.skip||!it.load)continue;const h=it.load/maxL*(H-t-b);y0-=h;s+=`<rect x="${x+(cw-bw)/2}" y="${y0}" width="${bw}" height="${Math.max(0,h-1)}" fill="${TYPES[it.t].c}" rx="2"${it.fail?' stroke="var(--bad)" stroke-dasharray="3 2" stroke-width="1.5"':''}/>`;}
+  if(!d.items.some(it=>!it.skip))s+=`<text x="${x+cw/2}" y="${H-b-6}" text-anchor="middle" style="font-style:italic">Ruhe</text>`;
+  const rr=3+Math.min(9,Math.sqrt(d.pInj*1000)*1.6);
+  s+=`<circle cx="${x+cw/2}" cy="${t-12}" r="${rr}" fill="${d.pInj>0.01?'var(--bad)':d.pInj>0.004?'var(--warn)':'var(--good)'}" fill-opacity=".85"/>`;
+  s+=`<text x="${x+cw/2}" y="${H-10}" text-anchor="middle" style="fill:var(--ink);font-family:var(--f-display);font-size:13px;font-weight:600">${DAYS[d.dow]}</text>`;
+ });
+ s+=`<line x1="${l}" x2="${W-r}" y1="${yF(0)}" y2="${yF(0)}" stroke="var(--muted)" stroke-dasharray="2 3"/>`;
+ s+=`<path d="${days.map((d,i)=>(i?'L':'M')+(l+i*cw+cw/2).toFixed(1)+' '+yF(d.form).toFixed(1)).join(' ')}" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>`;
+ days.forEach((d,i)=>{s+=`<circle cx="${l+i*cw+cw/2}" cy="${yF(d.form)}" r="3.5" fill="var(--surface)" stroke="var(--ink)" stroke-width="2"/>`;});
+ days.forEach((d,i)=>{
+  const its=d.items.length?d.items.map(it=>`<div class="tl"><i style="background:${TYPES[it.t].c}"></i>${esc(it.n)}<span>${it.skip?'fällt aus ('+it.skip+')':Math.round(it.load)+' AU'+(it.fail?' · Abbruch':'')}</span></div>`).join(''):'<div class="tl muted">Ruhetag</div>';
+  const tip=`<b>${DAYS_L[d.dow]}</b>${its}<div class="tg"><span>Belastung</span><b>${Math.round(d.load)} AU</b><span>Form danach</span><b>${d.form>0?'+':''}${Math.round(d.form)} %</b><span>ACWR</span><b>${fx(d.acwr,2)}</b><span>Gewebebelastung</span><b>${Math.round(d.D*100)} %</b><span>Verletzungsrisiko</span><b>${fx(d.pInj*100,2)} %</b></div>`;
+  s+=`<rect class="hov" x="${l+i*cw}" y="0" width="${cw}" height="${H}" fill="var(--ink)" fill-opacity="0"${tipAttr(tip)}/>`;
+ });
+ return s+'</svg>';
+}
+function timelineSVG(P,R){
+ const W=720,H=250,l=58,r=16,t=16,b=30,Wk=S.setup.weeks,d=DIST[S.setup.distKey].d;
+ const hist=S.hist.weeks.map((w,i)=>[i,w.pred]);
+ const cur=[S.week,predict(S.A)];
+ const proj=[cur].concat(P.weeks.map(w=>[w.week+1,w.pred]));
+ const rest=[cur].concat(R.weeks.map(w=>[w.week+1,w.pred]));
+ const all=hist.concat(proj,rest).map(p=>p[1]).concat([P.race,S.startPred]);
+ let yMin=Math.min(...all),yMax=Math.max(...all);const pad=(yMax-yMin)*0.08||1;yMin-=pad;yMax+=pad;
+ const X=x=>l+x/Wk*(W-l-r),Y=v=>t+(v-yMin)/(yMax-yMin)*(H-t-b);
+ const path=pts=>pts.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join(' ');
+ let s=`<svg viewBox="0 0 ${W} ${H}" class="cchart" role="img" aria-label="Prognose bis zum Wettkampf">`;
+ for(const v of niceTicks(yMin,yMax,6))s+=`<line x1="${l}" x2="${W-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${l-6}" y="${Y(v)+3.5}" text-anchor="end">${fmtT(v,d)}</text>`;
+ const step=Wk>12?2:1;for(let x=0;x<=Wk;x+=step)s+=`<text x="${X(x)}" y="${H-10}" text-anchor="middle">${x===0?'Start':x===Wk?'WK':'W'+x}</text>`;
+ s+=`<rect x="${X(S.week)}" y="${t}" width="${X(Wk)-X(S.week)}" height="${H-t-b}" fill="var(--surface-2)"/>`;
+ s+=`<line x1="${l}" x2="${W-r}" y1="${Y(S.startPred)}" y2="${Y(S.startPred)}" stroke="var(--muted)" stroke-dasharray="5 4"/><text x="${W-r-4}" y="${Y(S.startPred)-5}" text-anchor="end">Startprognose</text>`;
+ s+=`<path d="${path(rest)}" fill="none" stroke="var(--muted)" stroke-width="1.8" stroke-dasharray="2 4" stroke-linecap="round"/>`;
+ s+=`<path d="${path(proj)}" fill="none" stroke="var(--tartan)" stroke-width="2.4" stroke-dasharray="7 4"/>`;
+ s+=`<path d="${path(hist)}" fill="none" stroke="var(--infield)" stroke-width="2.6"/>`;
+ hist.forEach(p=>{s+=`<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="3" fill="var(--infield)"/>`;});
+ s+=`<circle cx="${X(proj[1]?proj[1][0]:S.week)}" cy="${Y(proj[1]?proj[1][1]:cur[1])}" r="4.5" fill="var(--tartan)"/>`;
+ s+=`<path d="M${X(Wk)} ${Y(P.race)-8} l2.4 5.6 6 .5 -4.6 3.9 1.4 5.9 -5.2 -3.1 -5.2 3.1 1.4 -5.9 -4.6 -3.9 6 -.5z" fill="var(--led)" stroke="var(--ink)" stroke-width=".8"/>`;
+ for(let x=0;x<=Wk;x++){
+  const h=hist.find(p=>p[0]===x),pr=proj.find(p=>p[0]===x),re=rest.find(p=>p[0]===x);
+  let tip=`<b>${x===0?'Saisonstart':x===Wk?'Wettkampftag':'nach Woche '+x}</b><div class="tg">`;
+  if(h)tip+=`<span>tatsächlich</span><b>${fmtT(h[1],d)}</b>`;
+  if(pr&&x>S.week)tip+=`<span>mit diesem Plan</span><b>${fmtT(pr[1],d)}</b>`;
+  if(re&&x>S.week)tip+=`<span>ohne Training</span><b>${fmtT(re[1],d)}</b>`;
+  if(x===Wk)tip+=`<span>Wettkampf inkl. Form</span><b>${fmtT(P.race,d)}</b>`;
+  tip+='</div>';
+  const x0=X(Math.max(0,x-0.5)),x1=X(Math.min(Wk,x+0.5));
+  s+=`<rect class="hov" x="${x0}" y="0" width="${x1-x0}" height="${H}" fill="var(--ink)" fill-opacity="0"${tipAttr(tip)}/>`;
+ }
+ return s+'</svg>';
+}
+function capBarsHTML(caps){
+ const req=REQ[S.setup.distKey],A=S.A;
+ const ks=CK.slice().sort((a,b)=>(req[b]||0)-(req[a]||0));
+ const ds=ks.map(k=>caps[k]-A.c[k]);const mx=Math.max(1,...ds.map(Math.abs));
+ return`<div class="cbars">${ks.map((k,i)=>{const dv=ds[i],w=Math.abs(dv)/mx*50,cls=dv>0.05?'up':dv<-0.05?'down':'';
+  const tip=`<b>${CAPS[k].n}</b><div>${esc(CAPS[k].d)}</div><div class="tg"><span>heute</span><b>${CAPS[k].u(A.c[k],A)}</b><span>danach</span><b>${CAPS[k].u(caps[k],A)}</b><span>Talentgrenze</span><b>${CAPS[k].u(A.ceil[k],A)}</b></div>`;
+  return`<div class="cbar-row"${tipAttr(tip)}><span class="cb-n">${CAPS[k].n}${req[k]?relDots(req[k]):''}</span><span class="cb-t"><i class="${cls}" style="${dv>=0?'left:50%':'right:50%'};width:${w}%"></i><b></b></span><span class="cb-v delta ${cls}">${dv>=0.005?'+':dv<=-0.005?'−':'±'}${fx(Math.abs(dv),2)}</span></div>`;}).join('')}</div>`;
+}
+
+/* ---------- Wirkung einer einzelnen Einheit (Editor) ---------- */
+let IMP={t:null};
+function scheduleImpact(){clearTimeout(IMP.t);IMP.t=setTimeout(renderImpact,120);}
+function renderImpact(){
+ const box=document.getElementById('impact');if(!box||!ED||S.phase!=='plan')return;
+ const others=S.plan.filter(x=>x.id!==ED.s.id);
+ if(!ED.base)ED.base=project(others,1);
+ const B=ED.base,P=project(others.concat([ED.s]),1),b=B.weeks[0],w=P.weeks[0],d=DIST[S.setup.distKey].d;
+ const dLoad=P.days.reduce((a,x)=>a+x.load,0)-B.days.reduce((a,x)=>a+x.load,0);
+ const dPred=w.pred-b.pred;
+ const top=CK.map(k=>[k,w.caps[k]-b.caps[k]]).filter(x=>Math.abs(x[1])>0.004).sort((a,c)=>Math.abs(c[1])-Math.abs(a[1])).slice(0,4);
+ const mx=Math.max(0.05,...top.map(x=>Math.abs(x[1])));
+ box.innerHTML=`<div class="eyebrow" style="margin-bottom:6px">Wirkung dieser Einheit auf die Woche</div>
+ <div class="pv-row">
+  <div class="pv"><div class="k">Prognose</div><div class="v ${dPred<-0.005?'up':dPred>0.005?'down':''}">${Math.abs(dPred)<0.005?'±0':fmtDelta(dPred,d)}</div></div>
+  <div class="pv"><div class="k">Form Sonntag</div><div class="v">${Math.round(b.form)} → ${Math.round(w.form)} %</div></div>
+  <div class="pv"><div class="k">Wochenbelastung</div><div class="v">+${Math.round(dLoad)} AU</div></div>
+  <div class="pv"><div class="k">Verletzungsrisiko</div><div class="v ${w.pInj-b.pInj>0.01?'down':''}">${fx(b.pInj*100,1)} → ${fx(w.pInj*100,1)} %</div></div>
+ </div>
+ <div class="effect" style="margin-top:8px">${top.length?top.map(([k,v])=>`<span>${CAPS[k].n}</span><span class="dbar"><i class="${v>0?'up':'down'}" style="${v>0?'left:50%':'right:50%'};width:${Math.abs(v)/mx*50}%"></i></span>`).join(''):'<span class="muted">Kaum messbare Wirkung in einer Woche.</span>'}</div>${top.some(x=>x[1]<0)?'<div class="muted" style="font-size:12px;margin-top:6px">Rote Balken: Die zusätzliche Ermüdung bremst die Anpassung anderer Fähigkeiten.</div>':''}`;
+}
+
+/* ---------- Tooltip ---------- */
+const tipEl=document.createElement('div');tipEl.id='tip';tipEl.hidden=true;document.body.appendChild(tipEl);
+let tipFor=null;
+function showTip(el,x,y){if(tipFor!==el){tipFor=el;tipEl.innerHTML=el.getAttribute('data-tip');}tipEl.hidden=false;
+ const r=tipEl.getBoundingClientRect(),vw=document.documentElement.clientWidth,vh=window.innerHeight;
+ let L=x+14,T=y+14;if(L+r.width>vw-8)L=Math.max(8,x-r.width-14);if(T+r.height>vh-8)T=Math.max(8,y-r.height-14);
+ tipEl.style.left=L+'px';tipEl.style.top=T+'px';}
+function hideTip(){tipEl.hidden=true;tipFor=null;}
+document.addEventListener('pointermove',ev=>{const el=ev.target.closest&&ev.target.closest('[data-tip]');if(el)showTip(el,ev.clientX,ev.clientY);else if(tipFor)hideTip();});
+document.addEventListener('pointerdown',ev=>{const el=ev.target.closest&&ev.target.closest('[data-tip]');if(el&&ev.pointerType!=='mouse')showTip(el,ev.clientX,ev.clientY);else if(!el)hideTip();});
+window.addEventListener('scroll',hideTip,{passive:true});
+
+/* ---------- Drag & Drop im Wochenplan ---------- */
+document.addEventListener('dragstart',ev=>{const el=ev.target.closest&&ev.target.closest('[data-drag]');if(!el)return;ev.dataTransfer.setData('text/plain',el.dataset.drag);ev.dataTransfer.effectAllowed='move';el.classList.add('dragging');hideTip();});
+document.addEventListener('dragend',ev=>{document.querySelectorAll('.dragging,.drop-over').forEach(e=>e.classList.remove('dragging','drop-over'));});
+document.addEventListener('dragover',ev=>{const d=ev.target.closest&&ev.target.closest('[data-drop]');if(!d)return;ev.preventDefault();ev.dataTransfer.dropEffect='move';document.querySelectorAll('.drop-over').forEach(e=>e!==d&&e.classList.remove('drop-over'));d.classList.add('drop-over');});
+document.addEventListener('drop',ev=>{const d=ev.target.closest&&ev.target.closest('[data-drop]');if(!d)return;ev.preventDefault();const id=ev.dataTransfer.getData('text/plain'),s=S&&S.plan.find(x=>x.id===id);if(!s)return;
+ const nd=+d.dataset.drop;if(s.day!==nd){s.day=nd;save();render();}});
+
 /* ---------- Ereignisse ---------- */
 document.addEventListener('click',ev=>{
  const el=ev.target.closest('[data-act]');if(!el)return;
@@ -1544,7 +1799,10 @@ document.addEventListener('click',ev=>{
   case'esave':{const i=S.plan.findIndex(x=>x.id===ED.s.id);if(i>=0)S.plan[i]=ED.s;else S.plan.push(ED.s);modalRoot.innerHTML='';ED=null;save();render();break;}
   case'edel':S.plan=S.plan.filter(x=>x.id!==ED.s.id);modalRoot.innerHTML='';ED=null;save();render();break;
   case'edup':{const c=JSON.parse(JSON.stringify(ED.s));c.id='s'+Date.now().toString(36)+(uid++);c.day=(c.day+1)%7;if(S.week===S.setup.weeks-1&&c.day===6)c.day=5;S.plan.push(c);modalRoot.innerHTML='';ED=null;save();render();break;}
-  case'sim':{const rep=simulateWeek();UI.tab='last';save();render();showWeekReport(rep);break;}
+  case'hz':CQ.hz=el.dataset.k;document.querySelectorAll('[data-act="hz"]').forEach(b=>b.setAttribute('aria-pressed',b===el));scheduleConseq();break;
+  case'cqreset':CQ.vol=1;CQ.dI=0;render();break;
+  case'cqapply':S.plan=scalePlan(S.plan,CQ.vol,CQ.dI);CQ.vol=1;CQ.dI=0;save();render();break;
+  case'sim':{CQ.vol=1;CQ.dI=0;const rep=simulateWeek();UI.tab='last';save();render();showWeekReport(rep);break;}
   case'closereport':modalRoot.innerHTML='';if(S.phase==='race'){openRacePrep();}else{if(S.week===S.setup.weeks-1)S.plan=S.plan.filter(s=>s.day!==6);render();}break;
   case'rpace':RACE.pacing=el.dataset.v;openRacePrep();break;
   case'gun':startRace();break;
@@ -1560,6 +1818,8 @@ document.addEventListener('input',ev=>{
   if(k==='seed')return;
   if(el.type==='range'){const lab=el.closest('.field').querySelector('label .num');if(lab)lab.textContent=k==='hm'?el.value+' Hm':k==='age'?el.value+' Jahre':el.value+' Wochen';clearTimeout(SETUP._t);SETUP._t=setTimeout(()=>{const id=el.id;renderSetup();const n=document.getElementById(id);if(n)n.focus();},250);}
   else renderSetup();return;}
+ if(el.dataset.cq){const k=el.dataset.cq;if(k==='vol'){CQ.vol=+el.value/100;document.getElementById('o-vol').textContent=el.value+' %';}else{CQ.dI=+el.value;document.getElementById('o-int').textContent=(CQ.dI>0?'+':'')+CQ.dI+' %-Pkt.';}
+  const sc=CQ.vol!==1||CQ.dI!==0;document.querySelectorAll('[data-act="cqreset"],[data-act="cqapply"]').forEach(b=>b.disabled=!sc);scheduleConseq();return;}
  if(el.dataset.race){RACE[el.dataset.race]=el.type==='checkbox'?el.checked:+el.value;if(el.type==='range'){const lab=el.closest('.field').querySelector('label .num');if(lab)lab.textContent=el.value+' g/h';}return;}
  if(!ED)return;
  if(el.dataset.nr){const k=el.dataset.nr;let v=+el.value;if(ED.s.type==='run'&&k==='dist')v=slToDist(v);ED.s.p[k]=v;const n=document.getElementById('n-'+k);if(n)n.value=v;updateEditor();}
