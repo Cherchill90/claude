@@ -1,13 +1,14 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
 async function request(path, { method = 'GET', body, token } = {}) {
-  const headers = { 'Content-Type': 'application/json' };
+  const isFormData = body instanceof FormData;
+  const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
   });
 
   const isJson = res.headers.get('content-type')?.includes('application/json');
@@ -38,5 +39,10 @@ export const api = {
 
   getEmployees: (token) => request('/admin/employees', { token }),
   createEmployee: (token, employee) => request('/admin/employees', { method: 'POST', body: employee, token }),
+  importEmployees: (token, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request('/admin/employees/import', { method: 'POST', body: formData, token });
+  },
   deleteEmployee: (token, id) => request(`/admin/employees/${id}`, { method: 'DELETE', token }),
 };

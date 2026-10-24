@@ -501,6 +501,19 @@ select:focus {
   vertical-align: middle;
 }
 
+.import-upload {
+  display: inline-block;
+  margin: 4px 0 16px;
+}
+
+.import-upload input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
 .delete-btn {
   border: none;
   background: none;

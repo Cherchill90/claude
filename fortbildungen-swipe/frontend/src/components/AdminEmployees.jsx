@@ -11,6 +11,9 @@ export default function AdminEmployees() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [lastCreated, setLastCreated] = useState(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [importError, setImportError] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -42,6 +45,25 @@ export default function AdminEmployees() {
       setError(err.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleImport(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setImportError('');
+    setImportResult(null);
+    setImportBusy(true);
+    try {
+      const result = await api.importEmployees(token, file);
+      setImportResult(result);
+      await load();
+    } catch (err) {
+      setImportError(err.message);
+    } finally {
+      setImportBusy(false);
     }
   }
 
@@ -92,6 +114,52 @@ export default function AdminEmployees() {
           {busy ? 'Wird angelegt…' : 'Konto anlegen'}
         </button>
       </form>
+
+      <h2 className="admin-list-title">Mehrere Konten per Excel-Datei importieren</h2>
+      <p className="screen-subtitle">
+        Datei mit den Spalten <strong>Name</strong> und <strong>E-Mail</strong> hochladen (optional
+        eine Spalte <strong>Rolle</strong> mit „admin“ für Verwaltungszugänge). Unterstützt werden
+        .xlsx und .csv.
+      </p>
+      <label className="import-upload">
+        <input
+          type="file"
+          accept=".xlsx,.csv"
+          onChange={handleImport}
+          disabled={importBusy}
+        />
+        <span className="primary-btn">{importBusy ? 'Wird importiert…' : 'Excel-Datei auswählen'}</span>
+      </label>
+
+      {importError && <p className="auth-error">{importError}</p>}
+
+      {importResult && (
+        <div className="initial-password-box">
+          <p>
+            {importResult.created} von {importResult.total} Konten wurden angelegt.
+          </p>
+          <div className="list-column">
+            {importResult.results.map((r) => (
+              <div className="list-card" key={`${r.row}-${r.email}`}>
+                <p>
+                  Zeile {r.row}: <strong>{r.name || '(ohne Namen)'}</strong> ({r.email || '(ohne E-Mail)'})
+                </p>
+                {r.status === 'created' ? (
+                  <p className="form-success">
+                    Angelegt. Initialpasswort: <code>{r.initialPassword}</code>
+                  </p>
+                ) : (
+                  <p className="inline-error">{r.error}</p>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="deck-empty-hint">
+            Initialpasswörter bitte sicher weitergeben. Sie werden beim ersten Login geändert werden
+            müssen und sind danach hier nicht mehr abrufbar.
+          </p>
+        </div>
+      )}
 
       {lastCreated && (
         <div className="initial-password-box">
