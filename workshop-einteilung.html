@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workshop-Einteilung Familienseminar</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#fff; --ink:#1d2330; --muted:#667085; --line:#dfe3ea;
+  --accent:#2f6fed; --accent-ink:#fff; --danger:#c0392b;
+  --ok:#1e8e4e; --ok-bg:#e1f5e9; --mid:#8a6d00; --mid-bg:#fff3c4; --warn:#b4540a; --warn-bg:#ffe5cf; --bad:#b42318; --bad-bg:#fde2df; --none-bg:#e8ebf0;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#12151c; --card:#1a1f2a; --ink:#e6e9f0; --muted:#98a2b3; --line:#2c3342;
+    --accent:#5b8cff; --accent-ink:#0b1020; --danger:#ff7b6b;
+    --ok:#5fd596; --ok-bg:#16382a; --mid:#f2d36b; --mid-bg:#40370f; --warn:#ffac6b; --warn-bg:#46280f; --bad:#ff8f84; --bad-bg:#4a1d19; --none-bg:#2a303d;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header.top{background:var(--card);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+header.top h1{font-size:18px;margin:0}
+header.top .sub{color:var(--muted);font-size:13px}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+nav button{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:8px;cursor:pointer;font:inherit}
+nav button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+main{max-width:1150px;margin:0 auto;padding:18px 16px 60px}
+h2{font-size:17px;margin:0 0 6px}
+p.hint{color:var(--muted);margin:0 0 14px;font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.toolbar .grow{flex:1}
+button,select,input,textarea{font:inherit;color:var(--ink)}
+button{border:1px solid var(--line);background:var(--card);padding:7px 12px;border-radius:8px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.ghost{background:transparent}
+button.danger{color:var(--danger)}
+button:disabled{opacity:.5;cursor:default}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:6px 8px;min-width:0}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+input[type=number]{width:84px}
+input[type=range]{padding:0;width:200px}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.ws-name{width:100%}
+.fam header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.fam .fname{font-weight:600;flex:1;min-width:160px}
+.fam label{font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.mrow{display:grid;grid-template-columns:minmax(120px,1.3fr) 130px repeat(3,minmax(110px,1fr)) 34px;gap:6px;margin-bottom:6px}
+.mrow.kind .mname{border-color:var(--accent)}
+.fam footer{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.fam footer button{font-size:13px;padding:4px 10px}
+@media(max-width:760px){.mrow{grid-template-columns:1fr 1fr}.mrow .mname{grid-column:1/-1}}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
+.ws-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;break-inside:avoid}
+.ws-card h3{margin:0 0 4px;font-size:15px;display:flex;justify-content:space-between;gap:8px}
+.bar{height:6px;background:var(--none-bg);border-radius:4px;overflow:hidden;margin-bottom:8px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.bar i.full{background:var(--warn)}
+ul.people{list-style:none;margin:0;padding:0}
+ul.people li{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dashed var(--line);font-size:14px}
+ul.people li small{color:var(--muted)}
+.badge{display:inline-block;border-radius:999px;padding:0 8px;font-size:12px;font-weight:600;white-space:nowrap}
+.b1{background:var(--ok-bg);color:var(--ok)}.b2{background:var(--mid-bg);color:var(--mid)}.b3{background:var(--warn-bg);color:var(--warn)}
+.b0,.bu{background:var(--bad-bg);color:var(--bad)}.bn{background:var(--none-bg);color:var(--muted)}
+.role{font-size:11px;color:var(--muted)}
+.role.k{color:var(--accent);font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.stat b{display:block;font-size:22px}
+.stat span{color:var(--muted);font-size:13px}
+.banner{border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:14px}
+.banner.warn{background:var(--warn-bg);color:var(--warn)}
+.banner.bad{background:var(--bad-bg);color:var(--bad)}
+.banner.ok{background:var(--ok-bg);color:var(--ok)}
+.rules td:last-child{width:240px}
+.row{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:10px}
+.row>label{display:flex;gap:8px;align-items:center}
+details summary{cursor:pointer;color:var(--muted)}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);max-width:640px;width:92%}
+dialog textarea{width:100%;min-height:200px;font-family:ui-monospace,monospace;font-size:13px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.pin{color:var(--accent)}
+@media print{
+  body{background:#fff;color:#000}
+  header.top,.noprint{display:none!important}
+  .ws-card,.card{border-color:#999}
+  .grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Workshop-Einteilung Familienseminar</h1>
+    <div class="sub">Läuft komplett im Browser. Daten werden lokal gespeichert, nichts wird hochgeladen.</div>
+  </div>
+  <nav id="nav"></nav>
+</header>
+<main id="app"></main>
+
+<dialog id="dlgImport">
+  <h2>Familien importieren (CSV / aus Excel kopiert)</h2>
+  <p class="hint">Eine Person pro Zeile, Spalten: <code>Familie; Name; Rolle; Wunsch 1; Wunsch 2; Wunsch 3</code>.
+    Rolle: <code>Kind</code> (Klassenkind), <code>Eltern</code> oder <code>Geschwister</code>.
+    Trenner Semikolon, Komma oder Tabulator. Unbekannte Workshops werden automatisch angelegt.</p>
+  <textarea id="impText" placeholder="Familie 1;Kind 1;Kind;Kochen;Sport;Musik&#10;Familie 1;Elternteil 1;Eltern;Basteln;Kochen;"></textarea>
+  <div class="toolbar" style="margin:10px 0 0">
+    <span class="grow"></span>
+    <button id="impCancel">Abbrechen</button>
+    <button id="impGo" class="primary">Importieren</button>
+  </div>
+</dialog>
+
+<script>
+'use strict';
+/* ====================== Konstanten & Zustand ====================== */
+const ROLES = { kind:'Klassenkind', eltern:'Elternteil', geschwister:'Geschwister' };
+const ROLE_ORDER = { kind:0, eltern:1, geschwister:2 };
+const PAIRS = [
+  ['kind-kind','Klassenkind ↔ Klassenkind (z. B. Zwillinge)'],
+  ['kind-eltern','Klassenkind ↔ Elternteil'],
+  ['kind-geschwister','Klassenkind ↔ Geschwister'],
+  ['eltern-eltern','Elternteil ↔ Elternteil'],
+  ['eltern-geschwister','Elternteil ↔ Geschwister'],
+  ['geschwister-geschwister','Geschwister ↔ Geschwister']
+];
+const RULES = { separate:'getrennt zuteilen', any:'egal', together:'gemeinsam zuteilen' };
+const KEY = 'workshopEinteilung.v1';
+const uid = () => Math.random().toString(36).slice(2, 10);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function defaults(){
+  const rules = {}; PAIRS.forEach(([k]) => rules[k] = 'separate');
+  return { workshops:[], families:[], result:null, stale:false,
+    settings:{ prio:5, c2:3, c3:8, cNone:30, pairW:6, minPen:4, rules } };
+}
+let S = load();
+let tab = 'workshops';
+let famFilter = '';
+let busy = false;
+
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){ const d = JSON.parse(raw); return Object.assign(defaults(), d, { settings:Object.assign(defaults().settings, d.settings||{}) }); }
+  }catch(e){}
+  return defaults();
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+function touch(){ if(S.result) S.stale = true; save(); }
+
+/* ====================== Optimierer ====================== */
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function pairKey(r1, r2){ const [a,b] = [r1,r2].sort((x,y) => ROLE_ORDER[x]-ROLE_ORDER[y]); return a+'-'+b; }
+
+/* Baut das Modell: Personen, Familienregeln (Paare) */
+function buildModel(S){
+  const st = S.settings;
+  const wIdx = new Map(S.workshops.map((w,i) => [w.id,i]));
+  const M = [], famM = [], famPairs = [];
+  S.families.forEach((f, fi) => {
+    const idxs = [];
+    f.members.forEach(m => {
+      const wishes = [];
+      (m.wishes||[]).forEach(x => { if(wIdx.has(x) && !wishes.includes(wIdx.get(x))) wishes.push(wIdx.get(x)); });
+      M.push({ id:m.id, fam:fi, role:m.role, wishes, hasW:wishes.length>0, wt:m.role==='kind' ? st.prio : 1,
+               pin: m.pin && wIdx.has(m.pin) ? wIdx.get(m.pin) : -1 });
+      idxs.push(M.length-1);
+    });
+    famM.push(idxs);
+    const pairs = [];
+    for(let i=0;i<idxs.length;i++) for(let j=i+1;j<idxs.length;j++){
+      const a = M[idxs[i]], b = M[idxs[j]];
+      const mode = f.mode || 'global';
+      const rule = mode === 'global' ? (st.rules[pairKey(a.role,b.role)] || 'separate') : mode;
+      if(rule !== 'any') pairs.push({ a:idxs[i], b:idxs[j], tog: rule === 'together' });
+    }
+    famPairs.push(pairs);
+  });
+  return { M, famM, famPairs, wIdx };
+}
+
+function solve(S, seed){
+  const { M, famM, famPairs } = buildModel(S);
+  const st = S.settings, n = S.workshops.length;
+  const cap = S.workshops.map(w => Math.max(0, +w.cap || 0));
+  const min = S.workshops.map(w => Math.max(0, +w.min || 0));
+  const UN = 1000;
+  const asg = new Int16Array(M.length).fill(-1);
+  const load = new Array(n).fill(0);
+
+  function memCost(mi){
+    const m = M[mi], w = asg[mi];
+    if(w < 0) return UN;
+    if(!m.hasW) return 0;
+    const r = m.wishes.indexOf(w);
+    return (r < 0 ? st.cNone : r === 0 ? 0 : r === 1 ? st.c2 : st.c3) * m.wt;
+  }
+  function famCost(fi){
+    let c = 0;
+    for(const mi of famM[fi]) c += memCost(mi);
+    for(const p of famPairs[fi]){
+      const a = asg[p.a], b = asg[p.b];
+      if(p.tog){ if(a !== b || a < 0) c += st.pairW; }
+      else if(a >= 0 && a === b) c += st.pairW;
+    }
+    return c;
+  }
+  const wsPen = w => (min[w] > 0 && load[w] > 0 && load[w] < min[w]) ? (min[w]-load[w]) * st.minPen : 0;
+
+  /* Einheiten: Personen, die „gemeinsam“ zugeteilt werden sollen, bilden einen Cluster */
+  const units = [];
+  famM.forEach((idxs, fi) => {
+    const parent = new Map(idxs.map(i => [i,i]));
+    const find = x => { while(parent.get(x) !== x){ parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+    famPairs[fi].forEach(p => { if(p.tog && M[p.a].pin < 0 && M[p.b].pin < 0) parent.set(find(p.a), find(p.b)); });
+    const groups = new Map();
+    idxs.forEach(i => { const k = M[i].pin >= 0 ? 'p'+i : find(i); if(!groups.has(k)) groups.set(k, []); groups.get(k).push(i); });
+    groups.forEach(mem => {
+      const pinned = mem.length === 1 && M[mem[0]].pin >= 0;
+      units.push({ fam:fi, mem, size:mem.length, w:-1, fixed:pinned, hasKind: mem.some(i => M[i].role === 'kind') });
+    });
+  });
+
+  let rnd = mulberry32(seed), cur = 0;
+  function apply(u, w){
+    for(const mi of u.mem) asg[mi] = w;
+    if(u.w >= 0) load[u.w] -= u.size;
+    if(w >= 0) load[w] += u.size;
+    u.w = w;
+  }
+  function attempt(changes, T){
+    const dl = new Map();
+    for(const [u,w] of changes){
+      if(u.w >= 0) dl.set(u.w, (dl.get(u.w)||0) - u.size);
+      if(w >= 0) dl.set(w, (dl.get(w)||0) + u.size);
+    }
+    for(const [w,d] of dl) if(d > 0 && load[w] + d > cap[w]) return false;
+    const fams = new Set(changes.map(([u]) => u.fam)), wss = [...dl.keys()];
+    const local = () => { let c = 0; fams.forEach(f => c += famCost(f)); wss.forEach(w => c += wsPen(w)); return c; };
+    const before = local(), olds = changes.map(([u]) => u.w);
+    changes.forEach(([u,w]) => apply(u,w));
+    const d = local() - before;
+    if(d <= 0 || rnd() < Math.exp(-d / T)){ cur += d; return true; }
+    changes.forEach(([u],i) => apply(u, olds[i]));
+    return false;
+  }
+  function total(){ let c = 0; for(let f=0; f<famM.length; f++) c += famCost(f); for(let w=0; w<n; w++) c += wsPen(w); return c; }
+
+  const movable = units.filter(u => !u.fixed);
+  const fixed = units.filter(u => u.fixed);
+  let best = null, bestCost = Infinity;
+  const restarts = 4;
+  const iters = 60000 + 1500 * movable.length;
+  const T0 = Math.max(3, st.c3 * st.prio / 4), T1 = 0.05;
+
+  for(let r=0; r<restarts; r++){
+    rnd = mulberry32(seed + r*7919);
+    asg.fill(-1); load.fill(0); units.forEach(u => u.w = -1);
+    fixed.forEach(u => apply(u, M[u.mem[0]].pin));
+    cur = total();
+    /* Greedy: Klassenkinder zuerst, größere Gruppen zuerst */
+    const order = movable.slice().sort((a,b) => (b.hasKind - a.hasKind) || (b.size - a.size) || (rnd() - .5));
+    for(const u of order){
+      const ws = [...Array(n).keys()].sort(() => rnd() - .5);
+      for(const w of ws) attempt([[u,w]], 1e-9);
+    }
+    if(movable.length && n){
+      for(let i=0; i<iters; i++){
+        const T = T0 * Math.pow(T1/T0, i/iters);
+        const a = movable[(rnd()*movable.length)|0];
+        if(rnd() < .5){
+          let w = (rnd()*(n+1))|0 - 0; w = w >= n ? -1 : w;
+          if(w !== a.w) attempt([[a,w]], T);
+        }else{
+          const b = movable[(rnd()*movable.length)|0];
+          if(a !== b && a.w !== b.w) attempt([[a,b.w],[b,a.w]], T);
+        }
+      }
+      /* Nachbesserung ohne Zufall */
+      for(let i=0; i<iters/4; i++){
+        const a = movable[(rnd()*movable.length)|0];
+        if(rnd() < .5){ const w = (rnd()*n)|0; if(w !== a.w) attempt([[a,w]], 1e-9); }
+        else { const b = movable[(rnd()*movable.length)|0]; if(a !== b && a.w !== b.w) attempt([[a,b.w],[b,a.w]], 1e-9); }
+      }
+    }
+    const c = total();
+    if(c < bestCost){ bestCost = c; best = Int16Array.from(asg); }
+  }
+  const out = {};
+  M.forEach((m,i) => { out[m.id] = best && best[i] >= 0 ? S.workshops[best[i]].id : null; });
+  return { asg:out, cost:bestCost, seed };
+}
+
+/* ====================== Auswertung ====================== */
+function analyze(S){
+  const R = S.result; if(!R) return null;
+  const { M, famPairs, wIdx } = buildModel(S);
+  const per = {}; const groups = { kind:mk(), eltern:mk(), geschwister:mk(), all:mk() };
+  function mk(){ return { n:0, r1:0, r2:0, r3:0, other:0, nowish:0, un:0 }; }
+  const byWs = new Map(S.workshops.map(w => [w.id, []]));
+  const unassigned = [];
+  const fam = (mi) => S.families[M[mi].fam];
+  M.forEach((m, mi) => {
+    const f = S.families[m.fam], mem = f.members.find(x => x.id === m.id);
+    const wid = R.asg[m.id] ?? null;
+    let rank;
+    if(!wid) rank = -1;
+    else if(!m.hasW) rank = null;
+    else { const r = m.wishes.indexOf(wIdx.get(wid)); rank = r < 0 ? 0 : r+1; }
+    const rec = { id:m.id, fam:f, mem, wid, rank, role:m.role };
+    per[m.id] = rec;
+    (wid ? byWs.get(wid) : unassigned).push(rec);
+    for(const g of [groups[m.role], groups.all]){
+      g.n++;
+      if(rank === -1) g.un++; else if(rank === null) g.nowish++; else if(rank === 0) g.other++; else g['r'+rank]++;
+    }
+  });
+  const viol = [];
+  famPairs.forEach((pairs, fi) => pairs.forEach(p => {
+    const a = per[M[p.a].id], b = per[M[p.b].id];
+    const same = a.wid && a.wid === b.wid;
+    if(p.tog && !same) viol.push({ fam:S.families[fi], a, b, tog:true });
+    if(!p.tog && same) viol.push({ fam:S.families[fi], a, b, tog:false });
+  }));
+  return { per, groups, byWs, unassigned, viol };
+}
+
+/* ====================== Rendering ====================== */
+const app = document.getElementById('app');
+const TABS = [['workshops','1 · Workshops'],['families','2 · Familien'],['rules','3 · Regeln'],['result','4 · Ergebnis']];
+function renderNav(){
+  document.getElementById('nav').innerHTML = TABS.map(([k,l]) => `<button data-tab="${k}" class="${tab===k?'on':''}">${l}</button>`).join('');
+}
+function render(){ renderNav(); ({ workshops:renderWorkshops, families:renderFamilies, rules:renderRules, result:renderResult }[tab])(); }
+
+function personCount(){ return S.families.reduce((s,f) => s + f.members.length, 0); }
+function totalCap(){ return S.workshops.reduce((s,w) => s + (+w.cap||0), 0); }
+const wsName = id => (S.workshops.find(w => w.id === id) || {}).name || '–';
+
+/* ---- Workshops ---- */
+function renderWorkshops(){
+  const pc = personCount(), tc = totalCap();
+  app.innerHTML = `
+  <h2>Workshops</h2>
+  <p class="hint">Lege die Workshops fest, aus denen die Teilnehmenden wählen. „Max.“ ist die Teilnehmerobergrenze (harte Grenze), „Min.“ ist optional und wird nur als Wunsch behandelt.</p>
+  <div class="card">
+    <table>
+      <thead><tr><th>Name</th><th>Max.</th><th>Min.</th><th></th></tr></thead>
+      <tbody>${S.workshops.map(w => `
+        <tr data-wid="${w.id}">
+          <td><input class="ws-name" data-k="wname" value="${esc(w.name)}" placeholder="Workshop-Name"></td>
+          <td><input type="number" min="0" data-k="wcap" value="${esc(w.cap)}"></td>
+          <td><input type="number" min="0" data-k="wmin" value="${esc(w.min)}"></td>
+          <td><button class="ghost danger" data-act="delws" title="Löschen">✕</button></td>
+        </tr>`).join('') || '<tr><td colspan="4" style="color:var(--muted)">Noch keine Workshops angelegt.</td></tr>'}
+      </tbody>
+    </table>
+    <div class="toolbar" style="margin:12px 0 0">
+      <button data-act="addws" class="primary">+ Workshop</button>
+      <span class="grow"></span>
+      <span id="capInfo"></span>
+    </div>
+  </div>`;
+  updateCapInfo();
+}
+function updateCapInfo(){
+  const el = document.getElementById('capInfo'); if(!el) return;
+  const pc = personCount(), tc = totalCap();
+  el.innerHTML = `Gesamtkapazität <b>${tc}</b> · Personen <b>${pc}</b> ` + (tc < pc ? `<span class="badge bu">${pc-tc} Plätze fehlen</span>` : `<span class="badge b1">reicht</span>`);
+}
+
+/* ---- Familien ---- */
+const wsOpts = sel => S.workshops.map(w => `<option value="${w.id}" ${w.id===sel?'selected':''}>${esc(w.name||'(ohne Namen)')}</option>`).join('');
+function memHtml(m){
+  return `<div class="mrow ${m.role==='kind'?'kind':''}" data-mid="${m.id}">
+    <input class="mname" data-k="mname" value="${esc(m.name)}" placeholder="Name">
+    <select data-k="mrole">${Object.entries(ROLES).map(([k,l]) => `<option value="${k}" ${m.role===k?'selected':''}>${l}</option>`).join('')}</select>
+    ${[0,1,2].map(i => `<select data-k="mw${i}"><option value="">Wunsch ${i+1}</option>${wsOpts((m.wishes||[])[i])}</select>`).join('')}
+    <button class="ghost danger" data-act="delm" title="Person entfernen">✕</button>
+  </div>`;
+}
+function famHtml(f){
+  return `<section class="card fam" data-fid="${f.id}">
+    <header>
+      <input class="fname" data-k="fname" value="${esc(f.name)}" placeholder="Familienname / Bezeichnung">
+      <label>Regel für diese Familie
+        <select data-k="fmode">
+          <option value="global" ${f.mode==='global'||!f.mode?'selected':''}>wie in „Regeln“</option>
+          <option value="separate" ${f.mode==='separate'?'selected':''}>alle getrennt</option>
+          <option value="any" ${f.mode==='any'?'selected':''}>egal</option>
+          <option value="together" ${f.mode==='together'?'selected':''}>alle gemeinsam</option>
+        </select>
+      </label>
+      <button class="ghost danger" data-act="delfam">Familie löschen</button>
+    </header>
+    ${f.members.map(memHtml).join('')}
+    <footer>
+      <button data-act="addm" data-role="kind">+ Klassenkind</button>
+      <button data-act="addm" data-role="eltern">+ Elternteil</button>
+      <button data-act="addm" data-role="geschwister">+ Geschwister</button>
+    </footer>
+  </section>`;
+}
+function renderFamilies(){
+  const q = famFilter.toLowerCase();
+  const list = S.families.filter(f => !q || f.name.toLowerCase().includes(q) || f.members.some(m => m.name.toLowerCase().includes(q)));
+  app.innerHTML = `
+  <h2>Familien</h2>
+  <p class="hint">Pro Familie ein Klassenkind (dessen Wünsche werden bevorzugt) sowie Eltern und ggf. Geschwister, jeweils mit bis zu drei Wünschen. Leere Wünsche bedeuten „egal“.</p>
+  ${S.workshops.length ? '' : '<div class="banner warn">Bitte zuerst im Reiter „Workshops“ Workshops anlegen, sonst sind keine Wünsche wählbar.</div>'}
+  <div class="toolbar">
+    <button class="primary" data-act="addfam">+ Familie</button>
+    <button data-act="import">CSV-Import</button>
+    <button data-act="demo">Beispieldaten</button>
+    <button data-act="template">CSV-Vorlage</button>
+    <input type="search" id="famFilter" placeholder="Suchen …" value="${esc(famFilter)}">
+    <span class="grow"></span>
+    <span>${S.families.length} Familien · ${personCount()} Personen</span>
+    <button class="ghost danger" data-act="clearfam">Alle löschen</button>
+  </div>
+  <div id="famList">${list.map(famHtml).join('') || '<div class="card" style="color:var(--muted)">Keine Familien.</div>'}</div>`;
+}
+
+/* ---- Regeln ---- */
+function renderRules(){
+  const st = S.settings;
+  app.innerHTML = `
+  <h2>Regeln & Gewichtung</h2>
+  <p class="hint">Hier steuerst du, wie stark Wünsche und Familienregeln in die Einteilung eingehen. Abweichungen pro Familie stellst du im Reiter „Familien“ ein.</p>
+
+  <div class="card">
+    <h2>Wie Familienmitglieder verteilt werden</h2>
+    <p class="hint">Standardmäßig werden Familienmitglieder möglichst auf verschiedene Workshops verteilt. Je Beziehung kannst du das ändern.</p>
+    <table class="rules"><tbody>
+      ${PAIRS.map(([k,l]) => `<tr><td>${l}</td><td><select data-rule="${k}">
+        ${Object.entries(RULES).map(([v,t]) => `<option value="${v}" ${st.rules[k]===v?'selected':''}>${t}</option>`).join('')}
+      </select></td></tr>`).join('')}
+    </tbody></table>
+    <div class="row" style="margin-top:12px">
+      <button data-act="allrules" data-v="separate">Alle: getrennt</button>
+      <button data-act="allrules" data-v="together">Alle: gemeinsam</button>
+      <button data-act="allrules" data-v="any">Alle: egal</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Gewichtung</h2>
+    <div class="row"><label>Vorrang der Klassenkinder
+      <input type="range" min="1" max="20" step="1" data-set="prio" value="${st.prio}"> <b id="v_prio">${st.prio}×</b></label></div>
+    <p class="hint">Wünsche von Klassenkindern zählen so viel mal stärker wie die von Eltern/Geschwistern. Bei 1× sind alle gleich, ab ca. 5× bekommen Klassenkinder praktisch immer ihre Wünsche, wenn es die Kapazität zulässt.</p>
+    <div class="row"><label>Wichtigkeit der Familienregeln
+      <input type="range" min="0" max="30" step="1" data-set="pairW" value="${st.pairW}"> <b id="v_pairW">${st.pairW}</b></label></div>
+    <p class="hint">Je höher, desto eher wird ein Erwachsenen-/Geschwister-Wunsch geopfert, um die Regel („getrennt“ / „gemeinsam“) einzuhalten. Regeln wiegen nie schwerer als Klassenkind-Wünsche, solange dieser Wert unter dem Strafwert für deren 2. Wunsch (Strafwert × Vorrang) bleibt.</p>
+    <details><summary>Erweitert: Strafpunkte</summary>
+      <div class="row" style="margin-top:10px">
+        <label>2. Wunsch <input type="number" min="0" data-set="c2" value="${st.c2}"></label>
+        <label>3. Wunsch <input type="number" min="0" data-set="c3" value="${st.c3}"></label>
+        <label>Kein Wunsch erfüllt <input type="number" min="0" data-set="cNone" value="${st.cNone}"></label>
+        <label>Unterschreitung Min. je fehlende Person <input type="number" min="0" data-set="minPen" value="${st.minPen}"></label>
+      </div>
+      <p class="hint">Der 1. Wunsch kostet 0 Punkte. Der Algorithmus minimiert die Summe aller Strafpunkte.</p>
+    </details>
+  </div>`;
+}
+
+/* ---- Ergebnis ---- */
+function pill(rank){
+  if(rank === -1) return '<span class="badge bu">ohne Platz</span>';
+  if(rank === null) return '<span class="badge bn">kein Wunsch</span>';
+  if(rank === 0) return '<span class="badge b0">kein Wunsch erfüllt</span>';
+  return `<span class="badge b${rank}">${rank}. Wunsch</span>`;
+}
+function renderResult(){
+  const pc = personCount(), tc = totalCap();
+  let h = `<h2>Ergebnis</h2>
+  <div class="toolbar noprint">
+    <button class="primary" data-act="solve" ${busy?'disabled':''}>${busy?'<span class="spin"></span> berechne …':(S.result?'Neu berechnen':'Einteilung berechnen')}</button>
+    ${S.result ? `<button data-act="csv">CSV exportieren</button><button data-act="print">Drucken / PDF</button>` : ''}
+    <button data-act="unpin">Fixierungen lösen</button>
+    <span class="grow"></span>
+    <button data-act="save">Daten sichern (JSON)</button>
+    <button data-act="restore">Laden</button>
+    <input type="file" id="fileIn" accept=".json" hidden>
+  </div>`;
+  if(!S.workshops.length) h += '<div class="banner bad">Keine Workshops angelegt.</div>';
+  if(!pc) h += '<div class="banner bad">Keine Personen angelegt.</div>';
+  if(tc < pc && S.workshops.length) h += `<div class="banner warn">Die Gesamtkapazität (${tc}) ist kleiner als die Personenzahl (${pc}): ${pc-tc} Personen bleiben ohne Platz. Erhöhe die Max-Werte.</div>`;
+  const bad = [];
+  S.families.forEach(f => { if(!f.members.some(m => m.role === 'kind')) bad.push(f.name || '(ohne Namen)'); });
+  if(bad.length) h += `<div class="banner warn noprint">Ohne Klassenkind (kein Vorrang): ${bad.map(esc).join(', ')}</div>`;
+
+  if(!S.result){ app.innerHTML = h + '<p class="hint">Noch nicht berechnet.</p>'; return; }
+  const A = analyze(S);
+  if(S.stale) h += '<div class="banner warn noprint">Die Daten wurden seit der letzten Berechnung geändert. Bitte neu berechnen.</div>';
+
+  const g = A.groups, pct = (a,b) => b ? Math.round(100*a/b)+' %' : '–';
+  const top = x => x.r1 + x.r2 + x.r3;
+  h += `<div class="stats">
+    <div class="stat"><b>${pct(g.kind.r1, g.kind.n - g.kind.nowish)}</b><span>Klassenkinder: 1. Wunsch</span></div>
+    <div class="stat"><b>${pct(top(g.kind), g.kind.n - g.kind.nowish)}</b><span>Klassenkinder: einer der 3 Wünsche</span></div>
+    <div class="stat"><b>${pct(g.eltern.r1 + g.geschwister.r1, g.eltern.n + g.geschwister.n - g.eltern.nowish - g.geschwister.nowish)}</b><span>Eltern/Geschw.: 1. Wunsch</span></div>
+    <div class="stat"><b>${pct(top(g.eltern)+top(g.geschwister), g.eltern.n + g.geschwister.n - g.eltern.nowish - g.geschwister.nowish)}</b><span>Eltern/Geschw.: einer der 3 Wünsche</span></div>
+    <div class="stat"><b>${A.viol.length}</b><span>Verstöße gegen Familienregeln</span></div>
+    <div class="stat"><b>${A.unassigned.length}</b><span>Personen ohne Platz</span></div>
+  </div>`;
+
+  h += `<div class="card"><table><thead><tr><th>Gruppe</th><th>Anzahl</th><th>1. Wunsch</th><th>2. Wunsch</th><th>3. Wunsch</th><th>Kein Wunsch</th><th>Ohne Platz</th></tr></thead><tbody>
+    ${[['kind','Klassenkinder'],['eltern','Eltern'],['geschwister','Geschwister'],['all','Alle']].map(([k,l]) => {
+      const x = g[k]; return `<tr><td><b>${l}</b></td><td>${x.n}</td><td>${x.r1}</td><td>${x.r2}</td><td>${x.r3}</td><td>${x.other}</td><td>${x.un}</td></tr>`; }).join('')}
+  </tbody></table></div>`;
+
+  if(A.viol.length){
+    h += `<div class="banner warn noprint"><b>Regelverstöße</b><ul style="margin:6px 0 0;padding-left:18px">${A.viol.map(v =>
+      `<li>${esc(v.fam.name)}: ${esc(v.a.mem.name||ROLES[v.a.role])} &amp; ${esc(v.b.mem.name||ROLES[v.b.role])} – ${v.tog?'sollten zusammen sein, sind aber getrennt':'sollten getrennt sein, sind aber im selben Workshop'}</li>`).join('')}</ul></div>`;
+  }
+
+  h += '<h2>Teilnehmerlisten</h2><div class="grid">';
+  S.workshops.forEach(w => {
+    const list = (A.byWs.get(w.id) || []).slice().sort((a,b) => ROLE_ORDER[a.role]-ROLE_ORDER[b.role] || a.fam.name.localeCompare(b.fam.name));
+    const cap = +w.cap || 0, pctFill = cap ? Math.min(100, 100*list.length/cap) : 0;
+    h += `<div class="ws-card"><h3><span>${esc(w.name||'(ohne Namen)')}</span><span>${list.length}/${cap}</span></h3>
+      <div class="bar"><i class="${list.length>=cap?'full':''}" style="width:${pctFill}%"></i></div>
+      <ul class="people">${list.map(r => `<li><span>${esc(r.mem.name||ROLES[r.role])} <small>· ${esc(r.fam.name)}</small><br><span class="role ${r.role==='kind'?'k':''}">${ROLES[r.role]}</span>${r.mem.pin?' <span class="pin">📌</span>':''}</span>${pill(r.rank)}</li>`).join('') || '<li><small>leer</small></li>'}</ul>
+      ${(+w.min > 0 && list.length > 0 && list.length < +w.min) ? `<div class="badge b3" style="margin-top:6px">unter Mindestzahl (${w.min})</div>` : ''}
+    </div>`;
+  });
+  if(A.unassigned.length){
+    h += `<div class="ws-card"><h3><span>Ohne Platz</span><span>${A.unassigned.length}</span></h3><ul class="people">${A.unassigned.map(r =>
+      `<li><span>${esc(r.mem.name||ROLES[r.role])} <small>· ${esc(r.fam.name)}</small></span>${pill(-1)}</li>`).join('')}</ul></div>`;
+  }
+  h += '</div>';
+
+  h += `<div class="noprint"><h2 style="margin-top:20px">Nach Familien · manuell anpassen</h2>
+  <p class="hint">Wählst du bei einer Person einen Workshop, wird sie fixiert (📌) und die übrigen Personen werden automatisch um diese Festlegung herum neu eingeteilt.</p>
+  <div class="card"><table><thead><tr><th>Familie</th><th>Person</th><th>Rolle</th><th>Wünsche</th><th>Zuteilung</th><th></th></tr></thead><tbody>
+  ${S.families.map(f => f.members.map((m,i) => {
+    const r = A.per[m.id];
+    return `<tr data-mid="${m.id}" data-fid="${f.id}">
+      ${i===0 ? `<td rowspan="${f.members.length}"><b>${esc(f.name)}</b></td>` : ''}
+      <td>${esc(m.name||'')}</td><td><span class="role ${m.role==='kind'?'k':''}">${ROLES[m.role]}</span></td>
+      <td><small>${(m.wishes||[]).filter(Boolean).map((x,j) => `${j+1}. ${esc(wsName(x))}`).join(' · ') || '–'}</small></td>
+      <td><select data-k="pin"><option value="">automatisch${r.wid?': '+esc(wsName(r.wid)):''}</option>${wsOpts(m.pin)}</select></td>
+      <td>${pill(r.rank)}</td></tr>`; }).join('')).join('')}
+  </tbody></table></div></div>`;
+  app.innerHTML = h;
+}
+
+/* ====================== Aktionen ====================== */
+const findFam = id => S.families.find(f => f.id === id);
+const findMem = (f, id) => f.members.find(m => m.id === id);
+function newMember(role, n){ return { id:uid(), name:'', role, wishes:['','',''], pin:'' }; }
+function newFamily(){ return { id:uid(), name:'Familie ' + (S.families.length+1), mode:'global', members:[newMember('kind'), newMember('eltern')] }; }
+
+function runSolve(){
+  if(busy) return;
+  if(!S.workshops.length || !personCount()) return;
+  busy = true; renderResult();
+  setTimeout(() => {
+    try{
+      S.result = solve(S, (Date.now() & 0xffffff));
+      S.stale = false; save();
+    }catch(e){ console.error(e); alert('Fehler bei der Berechnung: ' + e.message); }
+    busy = false; render();
+  }, 30);
+}
+
+function download(name, text, type){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type:type||'text/plain' }));
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+const csvCell = v => { v = String(v ?? ''); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; };
+
+function exportCSV(){
+  const A = analyze(S); const rows = [['Workshop','Familie','Name','Rolle','Wunsch-Rang']];
+  S.workshops.forEach(w => (A.byWs.get(w.id)||[]).forEach(r => rows.push([w.name, r.fam.name, r.mem.name, ROLES[r.role], r.rank===null?'kein Wunsch':r.rank===0?'-':r.rank])));
+  A.unassigned.forEach(r => rows.push(['(ohne Platz)', r.fam.name, r.mem.name, ROLES[r.role], '']));
+  download('workshop-einteilung.csv', '﻿' + rows.map(r => r.map(csvCell).join(';')).join('\r\n'), 'text/csv;charset=utf-8');
+}
+
+function parseCSV(text){
+  const lines = text.replace(/\r/g,'').split('\n').filter(l => l.trim());
+  if(!lines.length) return 0;
+  const d = [';','\t',','].map(c => [c, (lines[0].split(c).length)]).sort((a,b) => b[1]-a[1])[0][0];
+  const split = line => { const out=[]; let cur='', q=false;
+    for(let i=0;i<line.length;i++){ const ch=line[i];
+      if(q){ if(ch==='"'){ if(line[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+      else if(ch==='"') q=true; else if(ch===d){ out.push(cur); cur=''; } else cur+=ch; }
+    out.push(cur); return out.map(s => s.trim()); };
+  let rows = lines.map(split);
+  if(/^fam/i.test(rows[0][0]) && /name/i.test(rows[0][1]||'')) rows.shift();
+  let created = 0, added = 0;
+  const wid = name => {
+    if(!name) return '';
+    let w = S.workshops.find(x => x.name.toLowerCase() === name.toLowerCase());
+    if(!w){ w = { id:uid(), name, cap:20, min:0 }; S.workshops.push(w); created++; }
+    return w.id;
+  };
+  rows.forEach(r => {
+    if(!r[0] && !r[1]) return;
+    let f = S.families.find(x => x.name.toLowerCase() === (r[0]||'').toLowerCase() && x.__imp);
+    if(!f){ f = { id:uid(), name:r[0]||'Familie', mode:'global', members:[], __imp:true }; S.families.push(f); }
+    const rl = (r[2]||'').toLowerCase();
+    const role = rl.startsWith('k') ? 'kind' : rl.startsWith('g') || rl.startsWith('s') ? 'geschwister' : 'eltern';
+    f.members.push({ id:uid(), name:r[1]||'', role, wishes:[wid(r[3]),wid(r[4]),wid(r[5])], pin:'' });
+    added++;
+  });
+  S.families.forEach(f => delete f.__imp);
+  return { added, created };
+}
+
+function demo(){
+  if((S.families.length || S.workshops.length) && !confirm('Vorhandene Daten durch Beispieldaten ersetzen?')) return;
+  const rnd = mulberry32(42);
+  const names = ['Kochen','Basteln','Musik','Sport & Spiel','Theater','Natur-Rallye','Experimente','Fotografie'];
+  const caps = [14,12,10,16,10,14,12,10];
+  S = defaults();
+  S.workshops = names.map((n,i) => ({ id:uid(), name:n, cap:caps[i], min:4 }));
+  const pick = (skew) => { const ws = S.workshops.map(w => w.id); const out = [];
+    while(out.length < 3){ const i = Math.floor(Math.pow(rnd(), skew) * ws.length); if(!out.includes(ws[i])) out.push(ws[i]); } return out; };
+  for(let i=1;i<=16;i++){
+    const f = { id:uid(), name:'Familie '+i, mode:'global', members:[] };
+    f.members.push({ id:uid(), name:'Kind '+i, role:'kind', wishes:pick(1.6), pin:'' });
+    const np = rnd() < .7 ? 2 : 1;
+    for(let p=0;p<np;p++) f.members.push({ id:uid(), name:'Elternteil '+i+String.fromCharCode(97+p), role:'eltern', wishes:pick(1.3), pin:'' });
+    const ns = rnd() < .5 ? (rnd() < .3 ? 2 : 1) : 0;
+    for(let s=0;s<ns;s++) f.members.push({ id:uid(), name:'Geschwister '+i+String.fromCharCode(97+s), role:'geschwister', wishes:pick(1.3), pin:'' });
+    S.families.push(f);
+  }
+  S.families[1].mode = 'together'; S.families[1].name += ' (gemeinsam)';
+  save(); render();
+}
+
+/* ====================== Ereignisse ====================== */
+document.getElementById('nav').addEventListener('click', e => {
+  const b = e.target.closest('[data-tab]'); if(b){ tab = b.dataset.tab; render(); window.scrollTo(0,0); }
+});
+
+app.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if(!b) return;
+  const act = b.dataset.act;
+  const wrow = b.closest('[data-wid]'), fcard = b.closest('[data-fid]'), mrow = b.closest('[data-mid]');
+  switch(act){
+    case 'addws': S.workshops.push({ id:uid(), name:'', cap:15, min:0 }); touch(); renderWorkshops(); break;
+    case 'delws': {
+      const id = wrow.dataset.wid;
+      if(!confirm('Workshop löschen? Wünsche dafür werden entfernt.')) return;
+      S.workshops = S.workshops.filter(w => w.id !== id);
+      S.families.forEach(f => f.members.forEach(m => { m.wishes = (m.wishes||[]).map(x => x===id?'':x); if(m.pin===id) m.pin=''; }));
+      touch(); renderWorkshops(); break; }
+    case 'addfam': S.families.push(newFamily()); touch(); renderFamilies(); break;
+    case 'delfam': if(confirm('Familie löschen?')){ S.families = S.families.filter(f => f.id !== fcard.dataset.fid); touch(); renderFamilies(); } break;
+    case 'clearfam': if(confirm('Wirklich alle Familien löschen?')){ S.families = []; S.result = null; save(); renderFamilies(); } break;
+    case 'addm': { const f = findFam(fcard.dataset.fid); f.members.push(newMember(b.dataset.role)); touch(); renderFamilies(); break; }
+    case 'delm': { const f = findFam(fcard.dataset.fid); f.members = f.members.filter(m => m.id !== mrow.dataset.mid); touch(); renderFamilies(); break; }
+    case 'demo': demo(); break;
+    case 'import': document.getElementById('impText').value=''; document.getElementById('dlgImport').showModal(); break;
+    case 'template': download('familien-vorlage.csv', '﻿Familie;Name;Rolle;Wunsch 1;Wunsch 2;Wunsch 3\r\nFamilie 1;Kind 1;Kind;Kochen;Musik;Sport\r\nFamilie 1;Elternteil 1;Eltern;Basteln;Kochen;\r\nFamilie 1;Geschwister 1;Geschwister;Sport;;\r\n', 'text/csv;charset=utf-8'); break;
+    case 'allrules': PAIRS.forEach(([k]) => S.settings.rules[k] = b.dataset.v); touch(); renderRules(); break;
+    case 'solve': runSolve(); break;
+    case 'csv': exportCSV(); break;
+    case 'print': window.print(); break;
+    case 'unpin': S.families.forEach(f => f.members.forEach(m => m.pin='')); touch(); if(S.result) runSolve(); else render(); break;
+    case 'save': download('workshop-einteilung.json', JSON.stringify(S, null, 1), 'application/json'); break;
+    case 'restore': document.getElementById('fileIn').click(); break;
+  }
+});
+
+function onField(e){
+  const t = e.target, k = t.dataset.k;
+  if(t.dataset.rule){ S.settings.rules[t.dataset.rule] = t.value; touch(); return; }
+  if(t.dataset.set){
+    S.settings[t.dataset.set] = Math.max(0, +t.value || 0);
+    const v = document.getElementById('v_'+t.dataset.set);
+    if(v) v.textContent = S.settings[t.dataset.set] + (t.dataset.set==='prio'?'×':'');
+    touch(); return;
+  }
+  if(t.id === 'famFilter'){ famFilter = t.value; const pos = t.selectionStart; renderFamilies(); const el = document.getElementById('famFilter'); el.focus(); el.setSelectionRange(pos,pos); return; }
+  if(!k) return;
+  const wrow = t.closest('[data-wid]'), fcard = t.closest('[data-fid]'), mrow = t.closest('[data-mid]');
+  if(wrow){
+    const w = S.workshops.find(x => x.id === wrow.dataset.wid);
+    if(k==='wname') w.name = t.value; if(k==='wcap') w.cap = Math.max(0,+t.value||0); if(k==='wmin') w.min = Math.max(0,+t.value||0);
+    touch(); updateCapInfo(); return;
+  }
+  if(!fcard) return;
+  const f = findFam(fcard.dataset.fid);
+  if(k==='fname'){ f.name = t.value; touch(); return; }
+  if(k==='fmode'){ f.mode = t.value; touch(); return; }
+  if(!mrow) return;
+  const m = findMem(f, mrow.dataset.mid);
+  if(k==='mname') m.name = t.value;
+  else if(k==='mrole'){ m.role = t.value; touch(); if(tab==='families') renderFamilies(); return; }
+  else if(/^mw\d$/.test(k)){ m.wishes = m.wishes || ['','','']; m.wishes[+k[2]] = t.value; }
+  else if(k==='pin'){ m.pin = t.value; touch(); runSolve(); return; }
+  touch();
+}
+app.addEventListener('input', onField);
+app.addEventListener('change', e => { if(e.target.matches('select,input[type=number],input[type=range]')) onField(e); });
+app.addEventListener('change', e => {
+  if(e.target.id !== 'fileIn' || !e.target.files[0]) return;
+  const rd = new FileReader();
+  rd.onload = () => { try{ const d = JSON.parse(rd.result); S = Object.assign(defaults(), d, { settings:Object.assign(defaults().settings, d.settings||{}) }); save(); render(); }catch(err){ alert('Datei konnte nicht gelesen werden.'); } };
+  rd.readAsText(e.target.files[0]);
+});
+
+document.getElementById('impCancel').onclick = () => document.getElementById('dlgImport').close();
+document.getElementById('impGo').onclick = () => {
+  const r = parseCSV(document.getElementById('impText').value);
+  document.getElementById('dlgImport').close();
+  if(r){ touch(); renderFamilies(); alert(`${r.added} Personen importiert` + (r.created ? `, ${r.created} neue Workshops angelegt (Kapazität 20, bitte prüfen)` : '') + '.'); }
+};
+
+render();
+</script>
+</body>
+</html>
