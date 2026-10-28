@@ -9,11 +9,15 @@ from . import db, metrics
 from .parsers import parse_file
 
 
-def _thr(day: str):
+def _thr(day: str, sport: str = "Cycling"):
     s = db.get_settings()
     ftp = db.threshold_on(day, "ftp", 200.0)
     lthr = db.threshold_on(day, "lthr", None)
-    return ftp, lthr, float(s["rest_hr"])
+    run_pace = None
+    if sport == "Running":
+        lthr = db.threshold_on(day, "lthr_run", lthr)
+        run_pace = db.threshold_on(day, "run_pace", None)
+    return ftp, lthr, float(s["rest_hr"]), run_pace
 
 
 def add_activity(act: dict, source: str, overwrite=False) -> str | None:
@@ -26,8 +30,8 @@ def add_activity(act: dict, source: str, overwrite=False) -> str | None:
     if db.has_workout(uid) and not overwrite:
         return None
     day = f"{start:%Y-%m-%d}"
-    ftp, lthr, rest = _thr(day)
-    m = metrics.summarize(df, ftp, lthr, rest)
+    ftp, lthr, rest, rp = _thr(day, act["sport"])
+    m = metrics.summarize(df, ftp, lthr, rest, act["sport"], rp)
     dist = float(df["distance"].dropna().iloc[-1]) if df["distance"].notna().any() else None
     alt = df["altitude"].dropna()
     ascent = float(alt.rolling(5, min_periods=1).mean().diff().clip(lower=0).sum()) if len(alt) > 5 else None
@@ -59,8 +63,8 @@ def recompute_all() -> int:
     wk = db.workouts_df()
     for _, w in wk.iterrows():
         df = db.load_stream(w["uid"])
-        ftp, lthr, rest = _thr(w["date"])
-        m = metrics.summarize(df, ftp, lthr, rest)
-        db.update_workout(w["uid"], **{k: (__import__("json").dumps(v) if k in ("mmp", "fatigue") else v)
+        ftp, lthr, rest, rp = _thr(w["date"], w["sport"])
+        m = metrics.summarize(df, ftp, lthr, rest, w["sport"], rp)
+        db.update_workout(w["uid"], **{k: (__import__("json").dumps(v) if k in ("mmp", "fatigue", "smm") else v)
                                        for k, v in m.items()})
     return len(wk)

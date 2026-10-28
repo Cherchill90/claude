@@ -17,6 +17,9 @@ FATIGUE_DUR = (5, 60, 300, 1200)             # getestete Dauern
 POWER_ZONES = [("Z1 Active Recovery", 0, .55), ("Z2 Endurance", .55, .75), ("Z3 Tempo", .75, .90),
                ("Z4 Threshold", .90, 1.05), ("Z5 VO2max", 1.05, 1.20),
                ("Z6 Anaerobic", 1.20, 1.50), ("Z7 Neuromuscular", 1.50, 99)]
+# Pace-Zonen in % der Schwellengeschwindigkeit (Näherung nach gängigen Laufzonen-Modellen)
+PACE_ZONES = [("Z1 Locker", 0, .78), ("Z2 Grundlage", .78, .88), ("Z3 Tempo", .88, .95),
+              ("Z4 Schwelle", .95, 1.02), ("Z5 VO2max", 1.02, 1.10), ("Z6 Anaerob", 1.10, 99)]
 HR_ZONES = [("Z1", 0, .68), ("Z2", .68, .83), ("Z3", .83, .94), ("Z4", .94, 1.05), ("Z5", 1.05, 99)]
 
 
@@ -145,19 +148,92 @@ def wbal(p, cp: float, w_prime: float) -> np.ndarray:
     return w_prime - used
 
 
-def summarize(df: pd.DataFrame, ftp: float, lthr: float | None, rest_hr: float) -> dict:
-    """Alle Workout-Kennzahlen aus einem 1-Hz-Stream (Spalten: power, hr, cadence, speed, altitude)."""
+def get_speed(df: pd.DataFrame) -> np.ndarray:
+    """Geschwindigkeit in m/s; fehlt sie, wird sie aus der Distanz abgeleitet."""
+    sp = df["speed"].to_numpy(float) if "speed" in df else np.full(len(df), np.nan)
+    if np.isnan(sp).mean() > .5 and "distance" in df and df["distance"].notna().mean() > .5:
+        d = pd.Series(df["distance"].to_numpy(float)).interpolate(limit_direction="both")
+        sp = d.diff().rolling(5, min_periods=1, center=True).mean().to_numpy()
+    return np.clip(np.nan_to_num(sp, nan=0.0), 0, 12)
+
+
+def _minetti(i: np.ndarray) -> np.ndarray:
+    """Energiekosten des Laufens (J/kg/m) bei Steigung i (Minetti 2002)."""
+    return 155.4 * i**5 - 30.4 * i**4 - 43.3 * i**3 + 46.3 * i**2 + 19.5 * i + 3.6
+
+
+def grade_adjusted_speed(speed: np.ndarray, altitude: np.ndarray | None) -> np.ndarray:
+    """Steigungskorrigierte Geschwindigkeit (GAP) per Minetti-Faktor; ohne Höhe = unverändert."""
+    if altitude is None or np.isnan(altitude).mean() > .5:
+        return speed
+    alt = pd.Series(altitude).interpolate(limit_direction="both").rolling(15, min_periods=1, center=True).mean().to_numpy()
+    dist_step = np.maximum(speed, 0.5)                         # m pro Sekunde
+    grade = pd.Series(np.gradient(alt) / dist_step).rolling(10, min_periods=1, center=True).mean().to_numpy()
+    grade = np.clip(grade, -0.30, 0.30)
+    return speed * _minetti(grade) / 3.6
+
+
+def normalized_graded_pace(speed: np.ndarray, altitude=None) -> float:
+    """NGP als Geschwindigkeit (m/s): 4.-Potenz-Mittel der 30-s-gleitenden GAP."""
+    return normalized_power(grade_adjusted_speed(speed, altitude))   # gleiche Mathematik wie NP
+
+
+def tss_pace(ngp: float, dur_s: float, thr_speed: float) -> tuple[float, float]:
+    """rTSS: IF = NGP / Schwellengeschwindigkeit, TSS = h * IF² * 100."""
+    if not ngp or not thr_speed:
+        return 0.0, 0.0
+    if_ = ngp / thr_speed
+    return if_, dur_s / 3600 * if_ ** 2 * 100
+
+
+def km_splits(speed: np.ndarray, hr=None, altitude=None) -> pd.DataFrame:
+    """Kilometer-Splits aus der Geschwindigkeitsreihe."""
+    dist = np.cumsum(speed)
+    rows = []
+    for k in range(1, int(dist[-1] // 1000) + 1):
+        a = 0 if k == 1 else int(np.searchsorted(dist, (k - 1) * 1000))
+        b = int(np.searchsorted(dist, k * 1000))
+        sec = b - a
+        row = {"km": k, "Zeit_s": sec, "Pace_s_km": float(sec)}
+        if hr is not None and np.nan_to_num(hr[a:b]).any():
+            row["HR"] = float(np.nanmean(hr[a:b]))
+        if altitude is not None and not np.isnan(altitude[a:b]).all():
+            row["Hm_auf"] = float(np.clip(np.diff(altitude[a:b + 1][~np.isnan(altitude[a:b + 1])]), 0, None).sum()) if b > a else 0.0
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def summarize(df: pd.DataFrame, ftp: float, lthr: float | None, rest_hr: float,
+              sport: str = "Cycling", run_pace: float | None = None) -> dict:
+    """Alle Workout-Kennzahlen aus einem 1-Hz-Stream.
+    Rad: Leistung (NP/TSS). Lauf: Pace (NGP/rTSS, braucht run_pace in s/km), sonst hrTSS."""
     n = len(df)
-    p = clean_power(df["power"]) if "power" in df else np.zeros(n)
+    is_run = sport == "Running"
+    p = clean_power(df["power"]) if ("power" in df and sport == "Cycling") else np.zeros(n)
     hr = np.nan_to_num(df["hr"].to_numpy(float)) if "hr" in df else np.zeros(n)
     cad = np.nan_to_num(df["cadence"].to_numpy(float)) if "cadence" in df else np.zeros(n)
+    sp = get_speed(df)
     has_p = (p > 0).mean() > .2
     has_hr = (hr > 0).mean() > .5
     out = dict(duration_s=n, avg_hr=float(hr[hr > 0].mean()) if has_hr else None,
                max_hr=float(hr.max()) if has_hr else None,
                avg_cad=float(cad[cad > 0].mean()) if (cad > 0).any() else None,
                avg_power=None, np=None, if_=None, vi=None, work_kj=None, ef=None,
-               decoupling=None, mmp={}, fatigue={}, tss=0.0, tss_method="none", ftp_used=ftp)
+               decoupling=None, mmp={}, fatigue={}, smm={}, ngp=None, avg_speed=None,
+               tss=0.0, tss_method="none", ftp_used=ftp)
+    if (sp > 0).mean() > .3 and not (sport == "Cycling" and has_p):
+        out["avg_speed"] = float(sp.mean())
+    if is_run and (sp > 0).mean() > .3:
+        alt = df["altitude"].to_numpy(float) if "altitude" in df else None
+        ngp = normalized_graded_pace(sp, alt)
+        out.update(ngp=ngp, smm=mean_max(sp))
+        if has_hr:
+            out["ef"] = ngp * 60 / out["avg_hr"]              # (m/min)/bpm
+            out["decoupling"] = decoupling(sp * 100, hr)       # Pace:HR-Entkopplung (Skalierung irrelevant)
+        if run_pace:
+            if_, tss = tss_pace(ngp, n, 1000 / run_pace)
+            out.update(if_=if_, tss=tss, tss_method="pace")
+            return out
     if has_p:
         npw = normalized_power(p)
         if_, tss = tss_power(npw, n, ftp)

@@ -30,12 +30,25 @@ DEFAULT_SETTINGS = {"sex": "m", "max_hr": "190", "rest_hr": "50", "crank_mm": "1
                     "ctl_tau": "42", "atl_tau": "7"}
 
 
+MIGRATIONS = {"workouts": [("ngp", "REAL"), ("avg_speed", "REAL"), ("smm", "TEXT")],
+              "thresholds": [("run_pace", "REAL"), ("lthr_run", "REAL")]}
+
+
+def _migrate(con) -> None:
+    for table, cols in MIGRATIONS.items():
+        have = {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
+        for name, typ in cols:
+            if name not in have:
+                con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {typ}")
+
+
 @contextmanager
 def connect():
     config.ensure_dirs()
     con = sqlite3.connect(config.DB_PATH)
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
+    _migrate(con)
     try:
         yield con
         con.commit()
@@ -56,14 +69,15 @@ def set_setting(key: str, value) -> None:
         c.execute("INSERT OR REPLACE INTO settings VALUES(?,?)", (key, str(value)))
 
 
-def add_threshold(day: str, ftp=None, lthr=None, weight=None) -> None:
+def add_threshold(day: str, ftp=None, lthr=None, weight=None, run_pace=None, lthr_run=None) -> None:
+    """Schwellenwerte ab Datum. run_pace in s/km. None = bestehenden Wert des Tages behalten."""
+    new = dict(ftp=ftp, lthr=lthr, weight=weight, run_pace=run_pace, lthr_run=lthr_run)
     with connect() as c:
         old = c.execute("SELECT * FROM thresholds WHERE date=?", (day,)).fetchone()
         o = dict(old) if old else {}
-        c.execute("INSERT OR REPLACE INTO thresholds VALUES(?,?,?,?)",
-                  (day, ftp if ftp is not None else o.get("ftp"),
-                   lthr if lthr is not None else o.get("lthr"),
-                   weight if weight is not None else o.get("weight")))
+        vals = {k: (v if v is not None else o.get(k)) for k, v in new.items()}
+        c.execute("INSERT OR REPLACE INTO thresholds(date,ftp,lthr,weight,run_pace,lthr_run) VALUES(?,?,?,?,?,?)",
+                  (day, *vals.values()))
 
 
 def thresholds_df() -> pd.DataFrame:
@@ -85,7 +99,7 @@ def threshold_on(day: str, field: str, default=None):
 # ---- Workouts --------------------------------------------------------------
 def upsert_workout(w: dict) -> None:
     w = dict(w)
-    for k in ("mmp", "fatigue"):
+    for k in ("mmp", "fatigue", "smm"):
         w[k] = json.dumps(w.get(k) or {})
     cols = ",".join(w)
     with connect() as c:
@@ -100,7 +114,7 @@ def workouts_df(start: str | None = None, end: str | None = None, sport: str | N
     if sport and sport != "Alle": q += " AND sport=?"; p.append(sport)
     with connect() as c:
         df = pd.read_sql(q + " ORDER BY start_time", c, params=p)
-    for k in ("mmp", "fatigue"):
+    for k in ("mmp", "fatigue", "smm"):
         df[k] = df[k].map(lambda s: json.loads(s) if s else {})
     return df
 

@@ -16,7 +16,7 @@ from wkolocal import config, db, ingest, metrics, model, pmc, profile
 
 st.set_page_config(page_title="WKO Lokal", layout="wide")
 ROOT = Path(__file__).parent
-PAGES = ["Dashboard", "Workout-Analyse", "Power-Duration-Kurve", "Performance Management (PMC)",
+PAGES = ["Dashboard", "Workout-Analyse", "Power-Duration-Kurve", "Lauf: Pace & Critical Speed", "Performance Management (PMC)",
          "Zeit in Zonen", "Profil & Phänotyp", "Fatigue Resistance", "Fortschritt", "Planung", "Athlet & Daten"]
 
 
@@ -45,6 +45,30 @@ def mmp_fig(curves: dict[str, dict], mdl: model.PDModel | None = None, weight=No
     return fig
 
 
+def fmt_pace(sec_per_km: float) -> str:
+    if not sec_per_km or not np.isfinite(sec_per_km):
+        return "–"
+    m, sec = divmod(int(round(sec_per_km)), 60)
+    return f"{m}:{sec:02d}"
+
+
+def pace_of(speed_ms: float) -> float:
+    return 1000 / speed_ms if speed_ms and speed_ms > 0 else float("nan")
+
+
+def parse_pace(txt: str) -> float | None:
+    """'4:45' -> 285 s/km"""
+    try:
+        m, sec = txt.strip().split(":")
+        return int(m) * 60 + int(sec)
+    except ValueError:
+        return None
+
+
+def run_threshold_pace() -> float | None:
+    return db.threshold_on(str(date.today()), "run_pace", None)
+
+
 def sidebar_filters():
     st.sidebar.title("WKO Lokal")
     page = st.sidebar.radio("Ansicht", PAGES)
@@ -52,7 +76,7 @@ def sidebar_filters():
     if wk_all.empty:
         return page, wk_all, None
     sports = ["Alle"] + sorted(wk_all["sport"].unique())
-    sport = st.sidebar.selectbox("Sportart", sports, index=sports.index("Cycling") if "Cycling" in sports else 0)
+    sport = st.sidebar.selectbox("Sportart", sports, index=0)
     presets = {"Letzte 28 Tage": 28, "Letzte 90 Tage": 90, "Letzte 180 Tage": 180, "Letzte 365 Tage": 365, "Alles": 99999}
     p = st.sidebar.selectbox("Zeitraum", list(presets) + ["Benutzerdefiniert"], index=1)
     if p == "Benutzerdefiniert":
@@ -98,9 +122,9 @@ def page_dashboard(wk, rng):
         c[3].metric("Stamina-Abfall", f"{m.stamina * 100:.1f} %")
         c[4].metric("FTP (hinterlegt)", f"{cur_ftp():.0f} W")
     left, right = st.columns(2)
-    wkly = wk.assign(Woche=pd.to_datetime(wk.date).dt.to_period("W").dt.start_time).groupby("Woche").agg(
-        TSS=("tss", "sum"), Stunden=("duration_s", lambda x: x.sum() / 3600)).reset_index()
-    left.plotly_chart(px.bar(wkly, x="Woche", y="TSS", title="Wochen-TSS"), width="stretch")
+    wkly = wk.assign(Woche=pd.to_datetime(wk.date).dt.to_period("W").dt.start_time).groupby(["Woche", "sport"]).agg(
+        TSS=("tss", "sum")).reset_index()
+    left.plotly_chart(px.bar(wkly, x="Woche", y="TSS", color="sport", title="Wochen-TSS nach Sportart"), width="stretch")
     dd = d.loc[str(rng[0]):]
     f = go.Figure([go.Scatter(x=dd.index, y=dd[k], name=n) for k, n in (("ctl", "CTL"), ("atl", "ATL"), ("tsb", "TSB"))])
     f.update_layout(title="PMC", margin=dict(t=40))
@@ -115,6 +139,9 @@ def page_workout(wk, rng):
     uid = st.selectbox("Workout", list(labels), format_func=labels.get)
     w = wk[wk.uid == uid].iloc[0]
     df = db.load_stream(uid)
+    if w.sport == "Running":
+        run_view(w, df)
+        return
     ftp = w.ftp_used or cur_ftp()
     c = st.columns(8)
     for col, (lbl, v) in zip(c, [("Dauer", f"{w.duration_s // 3600}:{w.duration_s % 3600 // 60:02d}h"),
@@ -181,6 +208,114 @@ def page_workout(wk, rng):
         st.plotly_chart(mmp_fig({"Workout": w.mmp}), width="stretch")
 
 
+def run_view(w, df):
+    sp = metrics.get_speed(df)
+    rp = db.threshold_on(w.date, "run_pace", None)
+    c = st.columns(8)
+    avg_pace = pace_of(w.avg_speed) if w.avg_speed else None
+    for col, (lbl, v) in zip(c, [("Dauer", f"{w.duration_s // 3600}:{w.duration_s % 3600 // 60:02d}h"),
+                                  ("Distanz", f"{sp.sum() / 1000:.2f} km"), ("Ø Pace", f"{fmt_pace(avg_pace)} /km"),
+                                  ("NGP", f"{fmt_pace(pace_of(w.ngp))} /km" if w.ngp else "–"),
+                                  ("rIF", f"{w.if_:.2f}" if pd.notna(w.if_) else "–"),
+                                  (f"TSS ({w.tss_method})", f"{w.tss:.0f}"), ("Ø HR", f"{w.avg_hr:.0f}" if pd.notna(w.avg_hr) else "–"),
+                                  ("Pace:HR-Entk.", f"{w.decoupling:.1f} %" if pd.notna(w.decoupling) else "–")]):
+        col.metric(lbl, v)
+    if w.tss_method == "hr":
+        st.warning("Keine Schwellenpace hinterlegt – TSS ist nur eine grobe HR-Näherung. Pace unter 'Athlet & Daten' eintragen und neu berechnen.")
+    smooth = st.slider("Glättung (s)", 1, 60, 15)
+    t = df.index / 60
+    sm = pd.Series(sp).rolling(smooth, min_periods=1).mean().to_numpy()
+    pace = np.where(sm > 0.5, 1000 / np.maximum(sm, 0.5) / 60, np.nan)       # min/km
+    fig = go.Figure()
+    fig.add_scatter(x=t, y=np.clip(pace, 2.5, 10), name="Pace", line=dict(color="#2ca02c", width=1),
+                    text=[fmt_pace(x * 60) if np.isfinite(x) else "" for x in pace], hovertemplate="%{text} /km")
+    if rp: fig.add_hline(y=rp / 60, line_dash="dot", annotation_text=f"Schwelle {fmt_pace(rp)}")
+    if df.hr.notna().any():
+        fig.add_scatter(x=t, y=df.hr.rolling(smooth, min_periods=1).mean(), name="HR", yaxis="y2", line=dict(color="#1f77b4", width=1))
+    if df.altitude.notna().any():
+        fig.add_scatter(x=t, y=df.altitude, name="Höhe", yaxis="y3", fill="tozeroy", opacity=.15, line=dict(color="gray"))
+    fig.update_layout(height=420, xaxis_title="min", yaxis=dict(title="min/km", autorange="reversed"),
+                      yaxis2=dict(overlaying="y", side="right", title="HR"), yaxis3=dict(overlaying="y", visible=False),
+                      hovermode="x unified", margin=dict(t=20))
+    st.plotly_chart(fig, width="stretch")
+    tabs = st.tabs(["Splits", "Pace-Zonen", "HR-Zonen", "Bestzeiten"])
+    with tabs[0]:
+        spl = metrics.km_splits(sp, df.hr.to_numpy(float), df.altitude.to_numpy(float))
+        if spl.empty:
+            st.info("Weniger als 1 km.")
+        else:
+            spl["Pace"] = spl["Pace_s_km"].map(fmt_pace)
+            st.plotly_chart(px.bar(spl, x="km", y="Pace_s_km", hover_data=["Pace"], title="Pace je km (s/km, niedriger = schneller)"), width="stretch")
+            st.dataframe(spl.drop(columns=["Pace_s_km"]).round(0), hide_index=True)
+    with tabs[1]:
+        if rp:
+            z = metrics.time_in_zones(sp, 1000 / rp, metrics.PACE_ZONES)
+            z["von"] = z["von"].map(lambda v: f"{fmt_pace(1000 / v)}" if v else "–")
+            z["bis"] = z["bis"].map(lambda v: f"{fmt_pace(1000 / v)}" if v else "schneller")
+            z = z.rename(columns={"von": "langsamer als", "bis": "schneller als"})
+            st.plotly_chart(px.bar(z, x="Zone", y="Sekunden"), width="stretch"); st.dataframe(z, hide_index=True)
+            st.caption("Zonengrenzen als % der Schwellengeschwindigkeit (Näherung). Pausen (v≈0) zählen in Z1.")
+        else:
+            st.info("Schwellenpace fehlt.")
+    with tabs[2]:
+        lthr = db.threshold_on(w.date, "lthr_run", db.threshold_on(w.date, "lthr", None))
+        if lthr and df.hr.notna().any():
+            zh = metrics.time_in_zones(df.hr.to_numpy(), lthr, metrics.HR_ZONES)
+            st.plotly_chart(px.bar(zh, x="Zone", y="Sekunden", title=f"LTHR {lthr:.0f}"), width="stretch")
+        else:
+            st.info("Lauf-LTHR oder HR-Daten fehlen.")
+    with tabs[3]:
+        rows = [(f"{d // 60} min" if d >= 60 else f"{d} s", fmt_pace(pace_of(w.smm.get(str(d)))), round(w.smm[str(d)] * d))
+                for d in (60, 300, 600, 1200, 1800, 3600) if str(d) in w.smm]
+        st.dataframe(pd.DataFrame(rows, columns=["Dauer", "Pace /km", "Distanz m"]), hide_index=True)
+
+
+def page_run(wk, rng):
+    st.header("Lauf: Pace-Duration & Critical Speed")
+    rw = db.workouts_df(str(rng[0]), str(rng[1]), "Running")
+    if rw.empty:
+        st.info("Keine Läufe im gewählten Zeitraum."); return
+    best = {}
+    for m in rw.smm:
+        for k, v in m.items():
+            best[int(k)] = max(best.get(int(k), 0), v)
+    cs = model.fit_cs(best)
+    fig = go.Figure()
+    t = sorted(best)
+    fig.add_scatter(x=t, y=[pace_of(best[x]) / 60 for x in t], name="Bestwerte")
+    if cs:
+        tt = np.logspace(np.log10(60), np.log10(7200), 100)
+        fig.add_scatter(x=tt, y=1000 / cs.speed(tt) / 60, name="CS-Modell", line=dict(dash="dash", color="black"))
+    fig.update_xaxes(type="log", tickvals=[60, 300, 600, 1200, 1800, 3600, 7200], ticktext=["1m", "5m", "10m", "20m", "30m", "1h", "2h"])
+    fig.update_yaxes(title="min/km", autorange="reversed")
+    fig.update_layout(height=430, hovermode="x unified", margin=dict(t=20))
+    st.plotly_chart(fig, width="stretch")
+    if cs:
+        c = st.columns(4)
+        c[0].metric("Critical Speed", f"{fmt_pace(cs.cs_pace_s_km)} /km"); c[1].metric("D'", f"{cs.dprime:.0f} m")
+        c[2].metric("R² des Fits", f"{cs.r2:.3f}")
+        rp = run_threshold_pace()
+        c[3].metric("Schwellenpace (hinterlegt)", f"{fmt_pace(rp)} /km" if rp else "–")
+        st.caption("2-Parameter-Modell aus Bestwerten 3–30 min. Ohne maximale Efforts in diesem Bereich wird CS unterschätzt. "
+                   "Als Schwellenpace taugt meist ein Wert nahe CS (leicht langsamer).")
+        rows = [(lbl, fmt_pace(1000 / float(cs.speed(sec))), fmt_pace(pace_of(best[sec])) if sec in best else "–")
+                for lbl, sec in (("3 min", 180), ("5 min", 300), ("10 min", 600), ("20 min", 1200), ("30 min", 1800), ("60 min", 3600))]
+        st.dataframe(pd.DataFrame(rows, columns=["Dauer", "Modell /km", "Bestwert /km"]), hide_index=True)
+        if st.button(f"CS-Pace {fmt_pace(cs.cs_pace_s_km)} als Schwellenpace ab heute übernehmen"):
+            db.add_threshold(str(date.today()), run_pace=round(cs.cs_pace_s_km)); st.success("Gespeichert – unter 'Athlet & Daten' neu berechnen.")
+    else:
+        st.warning("Zu wenige Bestwerte zwischen 3 und 30 min für das CS-Modell.")
+    st.subheader("Umfang & Entwicklung")
+    wkly = rw.assign(Woche=pd.to_datetime(rw.date).dt.to_period("W").dt.start_time)
+    wkly["km"] = wkly.avg_speed.fillna(0) * wkly.duration_s / 1000
+    g = wkly.groupby("Woche").agg(km=("km", "sum"), TSS=("tss", "sum")).reset_index()
+    st.plotly_chart(px.bar(g, x="Woche", y="km", title="Wochenkilometer (Näherung aus Ø-Tempo)"), width="stretch")
+    ef = rw.dropna(subset=["ef"])
+    if len(ef):
+        st.plotly_chart(px.scatter(ef, x="date", y="ef", trendline="lowess" if False else None,
+                                   title="Efficiency Factor (m/min je Herzschlag) – steigend = aerobe Verbesserung"), width="stretch")
+
+
 def page_pd(wk, rng):
     st.header("Power-Duration-Kurve & Modell")
     per_kg = st.toggle("W/kg", False)
@@ -225,9 +360,9 @@ def page_pd(wk, rng):
 
 def page_pmc(wk, rng):
     st.header("Performance Management Chart")
+    st.caption("Alle Sportarten kombiniert (Rad-TSS aus Leistung, Lauf-rTSS aus Pace, sonst HR-Näherung).")
     s = db.get_settings()
-    sport = rng[2] if rng else "Alle"
-    d = pmc.pmc(daily_tss(sport), float(s["ctl_tau"]), float(s["atl_tau"]))
+    d = pmc.pmc(daily_tss(), float(s["ctl_tau"]), float(s["atl_tau"]))
     d = d.loc[str(rng[0]):str(rng[1])]
     f = go.Figure()
     f.add_bar(x=d.index, y=d.tss, name="TSS", marker_color="rgba(150,150,150,.4)")
@@ -245,7 +380,7 @@ def page_zones(wk, rng):
     ftp = cur_ftp()
     tot = np.zeros(7); rows = []
     for _, w in wk.iterrows():
-        if w.tss_method != "power": continue
+        if w.tss_method != "power": continue  # nur Rad
         z = metrics.time_in_zones(db.load_stream(w.uid).power.to_numpy(), w.ftp_used or ftp)["Sekunden"].to_numpy()
         tot += z
         rows.append(dict(Woche=pd.Timestamp(w.date).to_period("W").start_time, **{metrics.POWER_ZONES[i][0][:2]: z[i] / 3600 for i in range(7)}))
@@ -361,15 +496,23 @@ def page_athlete(wk, rng):
     with a:
         st.subheader("Schwellenwerte (mit Datum)")
         with st.form("thr"):
-            c = st.columns(4)
+            c = st.columns(3)
             d = c[0].date_input("Gültig ab", date.today())
-            ftp = c[1].number_input("FTP (W)", 0, 600, int(cur_ftp()))
-            lthr = c[2].number_input("LTHR", 0, 230, int(db.threshold_on(str(date.today()), "lthr", 0) or 0))
-            kg = c[3].number_input("Gewicht (kg)", 30.0, 150.0, float(cur_weight()))
+            ftp = c[1].number_input("Rad-FTP (W)", 0, 600, int(cur_ftp()))
+            kg = c[2].number_input("Gewicht (kg)", 30.0, 150.0, float(cur_weight()))
+            c = st.columns(3)
+            lthr = c[0].number_input("Rad-LTHR (bpm)", 0, 230, int(db.threshold_on(str(date.today()), "lthr", 0) or 0))
+            lthr_run = c[1].number_input("Lauf-LTHR (bpm)", 0, 230, int(db.threshold_on(str(date.today()), "lthr_run", 0) or 0))
+            rp0 = run_threshold_pace()
+            rp_txt = c[2].text_input("Lauf-Schwellenpace (min:sek /km)", fmt_pace(rp0) if rp0 else "")
             if st.form_submit_button("Speichern"):
-                db.add_threshold(str(d), ftp or None, lthr or None, kg); st.rerun()
+                rp = parse_pace(rp_txt) if rp_txt else None
+                if rp_txt and rp is None:
+                    st.error("Pace-Format: 4:45")
+                else:
+                    db.add_threshold(str(d), ftp or None, lthr or None, kg, rp, lthr_run or None); st.rerun()
         st.dataframe(db.thresholds_df(), hide_index=True)
-        if st.button("Alle Workouts mit Schwellenwert-Verlauf neu berechnen"):
+        if st.button("Alle Workouts (Rad + Lauf) mit Schwellenwert-Verlauf neu berechnen"):
             st.success(f"{ingest.recompute_all()} Workouts neu berechnet.")
     with b:
         st.subheader("Einstellungen")
@@ -403,6 +546,9 @@ def page_athlete(wk, rng):
         if d and st.button("Löschen"): db.delete_workout(d); st.rerun()
 
 
+POWER_PAGES = {"Power-Duration-Kurve", "Zeit in Zonen", "Profil & Phänotyp", "Fatigue Resistance"}
+
+
 def main():
     page, wk, rng = sidebar_filters()
     if rng is None:
@@ -412,7 +558,10 @@ def main():
         page_athlete(wk, rng); return
     if wk.empty and page != "Athlet & Daten":
         st.warning("Keine Workouts im gewählten Zeitraum/Sport."); return
-    dict(zip(PAGES, [page_dashboard, page_workout, page_pd, page_pmc, page_zones, page_profile, page_fatigue,
+    if page in POWER_PAGES and not wk.empty and not (wk.tss_method == "power").any():
+        st.info("Im gewählten Zeitraum/Sport gibt es keine Rad-Workouts mit Leistungsdaten. Für Läufe siehe 'Lauf: Pace & Critical Speed'.")
+        return
+    dict(zip(PAGES, [page_dashboard, page_workout, page_pd, page_run, page_pmc, page_zones, page_profile, page_fatigue,
                      page_progress, page_plan, page_athlete]))[page](wk, rng)
 
 

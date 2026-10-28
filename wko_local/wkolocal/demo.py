@@ -32,16 +32,36 @@ def _ride(rng, ftp, kind, secs):
                              distance=np.cumsum(p / 25))).astype("float32")
 
 
+def _run(rng, kind, secs):
+    t = np.arange(secs)
+    v = rng.normal(3.1, 0.12, secs)
+    if kind == "tempo":
+        v[600:secs - 600] = rng.normal(3.75, 0.1, secs - 1200)
+    elif kind == "intervals":
+        for s in range(600, secs - 400, 420):
+            v[s:s + 180] = rng.normal(4.3, 0.12, 180)
+    v = pd.Series(v).rolling(5, min_periods=1).mean().to_numpy()
+    alt = 100 + 15 * np.sin(t / 400)
+    hr = 95 + 22 * np.clip(pd.Series(v).rolling(45, min_periods=1).mean(), 0, 5) + rng.normal(0, 1.5, secs) + t / secs * 5
+    return pd.DataFrame(dict(power=np.zeros(secs), hr=hr, cadence=rng.normal(168, 4, secs), speed=v, altitude=alt,
+                             distance=np.cumsum(v))).astype("float32")
+
+
 def generate(days=240, seed=1) -> int:
     rng = np.random.default_rng(seed)
     today = datetime.now(timezone.utc).replace(hour=7, minute=0, second=0, microsecond=0)
     db.add_threshold((today - timedelta(days=days)).strftime("%Y-%m-%d"), ftp=235, lthr=165, weight=72)
     db.add_threshold((today - timedelta(days=days // 2)).strftime("%Y-%m-%d"), ftp=255)
+    db.add_threshold((today - timedelta(days=days)).strftime("%Y-%m-%d"), run_pace=285, lthr_run=170)
     n = 0
     for i in range(days, 0, -1):
         day = today - timedelta(days=i)
         dow = day.weekday()
         ftp = 235 + 30 * (days - i) / days
+        if dow in (0, 4) and rng.random() < 0.8:
+            rk = "tempo" if dow == 4 else ("intervals" if i % 14 < 7 else "easy")
+            secs = {"easy": 2700, "tempo": 3300, "intervals": 3300}[rk] + int(rng.integers(-300, 300))
+            n += bool(ingest.add_activity(dict(df=_run(rng, rk, secs), start=day, sport="Running", name=f"Demo Lauf {rk}"), "demo"))
         kind = {0: None, 1: "intervals", 2: "easy", 3: "vo2", 4: None, 5: "race" if i % 21 < 7 else "easy", 6: "easy"}[dow]
         if not kind or rng.random() < 0.08:
             continue

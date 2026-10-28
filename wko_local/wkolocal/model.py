@@ -73,3 +73,31 @@ def fit_pd(mmp: dict[int, float], tmin=3, tmax=3600 * 3) -> PDModel | None:
     pred = pd_model(t, m, frc, pmax, stam if use_stam else 0.0)
     return PDModel(float(m), float(frc), float(max(pmax, m + 1)), float(stam if use_stam else 0.0),
                    float(np.sqrt(np.mean((pred - y) ** 2))))
+
+
+@dataclass
+class CSModel:
+    cs: float        # Critical Speed (m/s)
+    dprime: float    # D' (m)
+    r2: float
+
+    def speed(self, t):
+        return self.cs + self.dprime / np.asarray(t, float)
+
+    @property
+    def cs_pace_s_km(self) -> float:
+        return 1000 / self.cs
+
+
+def fit_cs(smm: dict, tmin=180, tmax=1800) -> CSModel | None:
+    """Critical-Speed-Modell (2 Parameter): Distanz = CS * t + D'. Lineare Regression an den Bestwerten
+    zwischen 3 und 30 min. Läufer ohne maximale Efforts in diesem Bereich liefern unterschätzte Werte."""
+    pts = [(t, v * t) for t, v in sorted(smm.items()) if tmin <= t <= tmax and v > 0]
+    if len(pts) < 5:
+        return None
+    t = np.array([p[0] for p in pts], float); d = np.array([p[1] for p in pts], float)
+    cs, dp = np.polyfit(t, d, 1)
+    ss = ((d - (cs * t + dp)) ** 2).sum(); tot = ((d - d.mean()) ** 2).sum()
+    if cs <= 0 or dp < 0:
+        return None
+    return CSModel(float(cs), float(dp), float(1 - ss / tot) if tot else 0.0)
