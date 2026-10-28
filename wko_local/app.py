@@ -1,0 +1,419 @@
+"""WKO-ähnliche Analyse-Oberfläche. Start: streamlit run app.py"""
+from __future__ import annotations
+
+import subprocess
+import sys
+from datetime import date, timedelta
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+
+from wkolocal import config, db, ingest, metrics, model, pmc, profile
+
+st.set_page_config(page_title="WKO Lokal", layout="wide")
+ROOT = Path(__file__).parent
+PAGES = ["Dashboard", "Workout-Analyse", "Power-Duration-Kurve", "Performance Management (PMC)",
+         "Zeit in Zonen", "Profil & Phänotyp", "Fatigue Resistance", "Fortschritt", "Planung", "Athlet & Daten"]
+
+
+# ---------------------------------------------------------------- Helfer
+def agg_mmp(df: pd.DataFrame, key="mmp") -> dict[int, float]:
+    out: dict[int, float] = {}
+    for m in df[key]:
+        for k, v in m.items():
+            out[int(k)] = max(out.get(int(k), 0), v)
+    return out
+
+
+def mmp_fig(curves: dict[str, dict], mdl: model.PDModel | None = None, weight=None):
+    fig = go.Figure()
+    for name, c in curves.items():
+        t = sorted(c)
+        y = [c[x] / (weight or 1) for x in t]
+        fig.add_scatter(x=t, y=y, name=name, mode="lines")
+    if mdl:
+        t = np.logspace(0.5, np.log10(7200), 200)
+        fig.add_scatter(x=t, y=mdl.power(t) / (weight or 1), name="Modell", line=dict(dash="dash", color="black"))
+    ticks = [1, 5, 15, 60, 300, 1200, 3600, 7200]
+    fig.update_xaxes(type="log", tickvals=ticks, ticktext=["1s", "5s", "15s", "1m", "5m", "20m", "1h", "2h"], title="Dauer")
+    fig.update_yaxes(title="W/kg" if weight else "Watt")
+    fig.update_layout(height=450, hovermode="x unified", margin=dict(t=20))
+    return fig
+
+
+def sidebar_filters():
+    st.sidebar.title("WKO Lokal")
+    page = st.sidebar.radio("Ansicht", PAGES)
+    wk_all = db.workouts_df()
+    if wk_all.empty:
+        return page, wk_all, None
+    sports = ["Alle"] + sorted(wk_all["sport"].unique())
+    sport = st.sidebar.selectbox("Sportart", sports, index=sports.index("Cycling") if "Cycling" in sports else 0)
+    presets = {"Letzte 28 Tage": 28, "Letzte 90 Tage": 90, "Letzte 180 Tage": 180, "Letzte 365 Tage": 365, "Alles": 99999}
+    p = st.sidebar.selectbox("Zeitraum", list(presets) + ["Benutzerdefiniert"], index=1)
+    if p == "Benutzerdefiniert":
+        a, b = st.sidebar.date_input("Von – Bis", (date.today() - timedelta(days=90), date.today()))
+    else:
+        b, a = date.today(), date.today() - timedelta(days=presets[p])
+    return page, db.workouts_df(str(a), str(b), sport), (a, b, sport)
+
+
+def cur_ftp() -> float:
+    return db.threshold_on(str(date.today()), "ftp", 200.0)
+
+
+def cur_weight() -> float:
+    return db.threshold_on(str(date.today()), "weight", 70.0)
+
+
+def daily_tss(sport="Alle") -> pd.Series:
+    w = db.workouts_df(sport=sport)
+    return w.groupby("date")["tss"].sum() if len(w) else pd.Series(dtype=float)
+
+
+# ---------------------------------------------------------------- Seiten
+def page_dashboard(wk, rng):
+    st.header("Dashboard")
+    s = db.get_settings()
+    d = pmc.pmc(daily_tss(), float(s["ctl_tau"]), float(s["atl_tau"]))
+    last = d.iloc[-1]
+    c = st.columns(6)
+    c[0].metric("CTL (Fitness)", f"{last.ctl:.0f}", f"{last.ramp:+.1f}/Woche")
+    c[1].metric("ATL (Ermüdung)", f"{last.atl:.0f}")
+    c[2].metric("TSB (Form)", f"{last.tsb:+.0f}")
+    c[3].metric("Workouts", len(wk))
+    c[4].metric("Stunden", f"{wk.duration_s.sum() / 3600:.1f}")
+    c[5].metric("TSS", f"{wk.tss.sum():.0f}")
+    mm = agg_mmp(wk)
+    m = model.fit_pd(mm)
+    if m:
+        c = st.columns(5)
+        c[0].metric("mFTP", f"{m.mftp:.0f} W", f"{m.mftp / cur_weight():.2f} W/kg")
+        c[1].metric("FRC", f"{m.frc / 1000:.1f} kJ")
+        c[2].metric("Pmax", f"{m.pmax:.0f} W")
+        c[3].metric("Stamina-Abfall", f"{m.stamina * 100:.1f} %")
+        c[4].metric("FTP (hinterlegt)", f"{cur_ftp():.0f} W")
+    left, right = st.columns(2)
+    wkly = wk.assign(Woche=pd.to_datetime(wk.date).dt.to_period("W").dt.start_time).groupby("Woche").agg(
+        TSS=("tss", "sum"), Stunden=("duration_s", lambda x: x.sum() / 3600)).reset_index()
+    left.plotly_chart(px.bar(wkly, x="Woche", y="TSS", title="Wochen-TSS"), width="stretch")
+    dd = d.loc[str(rng[0]):]
+    f = go.Figure([go.Scatter(x=dd.index, y=dd[k], name=n) for k, n in (("ctl", "CTL"), ("atl", "ATL"), ("tsb", "TSB"))])
+    f.update_layout(title="PMC", margin=dict(t=40))
+    right.plotly_chart(f, width="stretch")
+    st.plotly_chart(mmp_fig({"Zeitraum": mm}, m, None), width="stretch")
+
+
+def page_workout(wk, rng):
+    st.header("Workout-Analyse")
+    wk = wk.sort_values("start_time", ascending=False)
+    labels = {r.uid: f"{r.start_time[:16]}  {r['name']}  ({r.duration_s / 60:.0f} min, {r.tss:.0f} TSS)" for _, r in wk.iterrows()}
+    uid = st.selectbox("Workout", list(labels), format_func=labels.get)
+    w = wk[wk.uid == uid].iloc[0]
+    df = db.load_stream(uid)
+    ftp = w.ftp_used or cur_ftp()
+    c = st.columns(8)
+    for col, (lbl, v) in zip(c, [("Dauer", f"{w.duration_s // 3600}:{w.duration_s % 3600 // 60:02d}h"),
+                                  ("Ø Watt", f"{w.avg_power:.0f}" if w.avg_power else "–"),
+                                  ("NP", f"{w.np:.0f}" if w.np else "–"), ("IF", f"{w.if_:.2f}" if w.if_ else "–"),
+                                  ("TSS", f"{w.tss:.0f}"), ("VI", f"{w.vi:.2f}" if w.vi else "–"),
+                                  ("kJ", f"{w.work_kj:.0f}" if w.work_kj else "–"),
+                                  ("Pw:HR", f"{w.decoupling:.1f} %" if pd.notna(w.decoupling) else "–")]):
+        col.metric(lbl, v)
+    smooth = st.slider("Glättung (s)", 1, 60, 10)
+    t = df.index / 60
+    fig = go.Figure()
+    if (df.power > 0).any():
+        fig.add_scatter(x=t, y=df.power.rolling(smooth, min_periods=1).mean(), name="Watt", line=dict(color="#d62728", width=1))
+        fig.add_hline(y=ftp, line_dash="dot", annotation_text=f"FTP {ftp:.0f}")
+    if df.hr.notna().any():
+        fig.add_scatter(x=t, y=df.hr.rolling(smooth, min_periods=1).mean(), name="HR", yaxis="y2", line=dict(color="#1f77b4", width=1))
+    if df.altitude.notna().any():
+        fig.add_scatter(x=t, y=df.altitude, name="Höhe", yaxis="y3", fill="tozeroy", opacity=.15, line=dict(color="gray"))
+    fig.update_layout(height=420, xaxis_title="min", yaxis=dict(title="Watt"),
+                      yaxis2=dict(overlaying="y", side="right", title="HR"),
+                      yaxis3=dict(overlaying="y", visible=False), hovermode="x unified", margin=dict(t=20))
+    st.plotly_chart(fig, width="stretch")
+    if not (df.power > 0).any():
+        st.info("Keine Leistungsdaten – es sind nur HR-basierte Werte verfügbar.")
+        return
+    tabs = st.tabs(["Intervalle", "Zonen", "Quadranten", "W'-Bilanz (FRC)", "Mean-Max"])
+    with tabs[0]:
+        thr = st.slider("Schwelle (% FTP)", 60, 150, 90) / 100 * ftp
+        iv = metrics.detect_intervals(df.power.to_numpy(), thr, min_s=st.slider("Mindestdauer (s)", 15, 600, 60))
+        iv["Ø % FTP"] = (iv["Ø_W"] / ftp * 100).round() if len(iv) else []
+        st.dataframe(iv.round(0), width="stretch", hide_index=True)
+    with tabs[1]:
+        a, b = st.columns(2)
+        z = metrics.time_in_zones(df.power.to_numpy(), ftp)
+        a.plotly_chart(px.bar(z, x="Zone", y="Sekunden", title=f"Leistungszonen (FTP {ftp:.0f} W)"), width="stretch")
+        a.dataframe(z, hide_index=True)
+        lthr = db.threshold_on(w.date, "lthr", None)
+        if lthr and df.hr.notna().any():
+            zh = metrics.time_in_zones(df.hr.to_numpy(), lthr, metrics.HR_ZONES)
+            b.plotly_chart(px.bar(zh, x="Zone", y="Sekunden", title=f"HR-Zonen (LTHR {lthr:.0f})"), width="stretch")
+    with tabs[2]:
+        q = metrics.quadrant_analysis(df.power.to_numpy(), df.cadence.to_numpy(), ftp, float(db.get_settings()["crank_mm"]))
+        if len(q["aepf"]):
+            idx = np.random.default_rng(0).choice(len(q["aepf"]), min(4000, len(q["aepf"])), replace=False)
+            f = px.scatter(x=q["cpv"][idx], y=q["aepf"][idx], opacity=.3, labels=dict(x="CPV (m/s)", y="AEPF (N)"))
+            f.add_vline(x=q["cpv_ref"]); f.add_hline(y=q["aepf_ref"])
+            a, b = st.columns([2, 1])
+            a.plotly_chart(f, width="stretch")
+            b.dataframe(pd.DataFrame(q["share"], index=["% Zeit"]).T.round(1))
+            b.caption("QI: hohe Kraft/hohe Geschw. · QII: hohe Kraft/niedrige Geschw. · QIII: Erholung · QIV: niedrige Kraft/hohe Geschw. Referenz: FTP bei 90 U/min.")
+        else:
+            st.info("Keine Kadenzdaten.")
+    with tabs[3]:
+        mdl = model.fit_pd(agg_mmp(db.workouts_df(str(date.fromisoformat(w.date) - timedelta(days=90)), w.date)))
+        cp = st.number_input("CP / mFTP (W)", 50.0, 600.0, float(mdl.mftp if mdl else ftp))
+        wp = st.number_input("W' / FRC (J)", 2000.0, 60000.0, float(mdl.frc if mdl else 20000))
+        wb = metrics.wbal(df.power.to_numpy(), cp, wp)
+        f = go.Figure(go.Scatter(x=t, y=wb / 1000, fill="tozeroy"))
+        f.update_layout(yaxis_title="kJ verbleibend", xaxis_title="min", height=300)
+        st.plotly_chart(f, width="stretch")
+        st.caption(f"Minimum: {wb.min() / 1000:.1f} kJ ({(1 - wb.min() / wp) * 100:.0f} % von W' verbraucht). Skiba-Integralmodell.")
+    with tabs[4]:
+        st.plotly_chart(mmp_fig({"Workout": w.mmp}), width="stretch")
+
+
+def page_pd(wk, rng):
+    st.header("Power-Duration-Kurve & Modell")
+    per_kg = st.toggle("W/kg", False)
+    wt = cur_weight() if per_kg else None
+    a, b = st.columns(2)
+    comp = a.selectbox("Vergleichszeitraum", ["Keiner", "Vorherige gleiche Länge", "Letzte 365 Tage (Bestwerte)"])
+    mm = agg_mmp(wk)
+    curves = {"Auswahl": mm}
+    if comp != "Keiner" and rng:
+        s0, e0 = rng[0], rng[1]
+        if comp.startswith("Vorherige"):
+            span = (e0 - s0).days or 1
+            o = db.workouts_df(str(s0 - timedelta(days=span)), str(s0 - timedelta(days=1)), rng[2])
+        else:
+            o = db.workouts_df(str(date.today() - timedelta(days=365)), str(date.today()), rng[2])
+        curves[comp] = agg_mmp(o)
+    mdl = model.fit_pd(mm)
+    st.plotly_chart(mmp_fig(curves, mdl, wt), width="stretch")
+    if not mdl:
+        st.warning("Zu wenige Daten für das Modell (benötigt Efforts > 10 min).")
+        return
+    c = st.columns(5)
+    c[0].metric("mFTP", f"{mdl.mftp:.0f} W"); c[1].metric("FRC", f"{mdl.frc / 1000:.1f} kJ")
+    c[2].metric("Pmax", f"{mdl.pmax:.0f} W"); c[3].metric("P(60 min)", f"{mdl.ftp_60:.0f} W")
+    c[4].metric("Modellfehler (RMSE)", f"{mdl.rmse:.0f} W")
+    st.caption("Eigenes WKO-ähnliches Modell, nicht identisch mit WKO. Je weniger Maximalbelastungen im Zeitraum, desto unsicherer die Parameter.")
+    l, r = st.columns(2)
+    durs = [1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600, 5400]
+    tbl = pd.DataFrame([dict(Dauer=f"{d // 60}:{d % 60:02d}" if d >= 60 else f"{d}s", Bestwert=round(mm[d]) if d in mm else None,
+                             Modell=round(float(mdl.power(d)))) for d in durs])
+    tbl["W/kg"] = (tbl["Bestwert"] / cur_weight()).round(2)
+    l.subheader("Bestwerte vs. Modell"); l.dataframe(tbl, hide_index=True)
+    z = pd.DataFrame([(n, round(lo), round(hi) if hi else None) for n, lo, hi in mdl.zones()], columns=["Zone", "von W", "bis W"])
+    r.subheader("Zonen (aus mFTP)"); r.dataframe(z, hide_index=True)
+    if mdl.mftp != cur_ftp() and st.button(f"mFTP {mdl.mftp:.0f} W als FTP ab heute übernehmen"):
+        db.add_threshold(str(date.today()), ftp=round(mdl.mftp)); st.success("Gespeichert. Unter 'Athlet & Daten' neu berechnen.")
+    st.subheader("Intervall-Planer")
+    dmin = st.slider("Intervalldauer (min)", 1, 60, 5)
+    st.write(f"Modell-Maximalleistung für {dmin} min: **{float(mdl.power(dmin * 60)):.0f} W** "
+             f"({float(mdl.power(dmin * 60)) / mdl.mftp * 100:.0f} % mFTP). Typisch trainierbar: 90–100 % davon bei Wiederholungen.")
+
+
+def page_pmc(wk, rng):
+    st.header("Performance Management Chart")
+    s = db.get_settings()
+    sport = rng[2] if rng else "Alle"
+    d = pmc.pmc(daily_tss(sport), float(s["ctl_tau"]), float(s["atl_tau"]))
+    d = d.loc[str(rng[0]):str(rng[1])]
+    f = go.Figure()
+    f.add_bar(x=d.index, y=d.tss, name="TSS", marker_color="rgba(150,150,150,.4)")
+    f.add_scatter(x=d.index, y=d.ctl, name="CTL (Fitness)", line=dict(color="#1f77b4"))
+    f.add_scatter(x=d.index, y=d.atl, name="ATL (Ermüdung)", line=dict(color="#d62728"))
+    f.add_scatter(x=d.index, y=d.tsb, name="TSB (Form)", line=dict(color="#e6b800"), fill="tozeroy", opacity=.5)
+    f.update_layout(height=520, hovermode="x unified")
+    st.plotly_chart(f, width="stretch")
+    st.caption("TSB-Richtwerte: > +25 Detraining, +5…+25 Frische/Peaking, −10…+5 neutral, −30…−10 produktives Training, < −30 Überlastungsrisiko. Rampe: > 7 CTL/Woche gilt als aggressiv.")
+    st.dataframe(d.tail(14).round(1)[::-1])
+
+
+def page_zones(wk, rng):
+    st.header("Zeit in Zonen")
+    ftp = cur_ftp()
+    tot = np.zeros(7); rows = []
+    for _, w in wk.iterrows():
+        if w.tss_method != "power": continue
+        z = metrics.time_in_zones(db.load_stream(w.uid).power.to_numpy(), w.ftp_used or ftp)["Sekunden"].to_numpy()
+        tot += z
+        rows.append(dict(Woche=pd.Timestamp(w.date).to_period("W").start_time, **{metrics.POWER_ZONES[i][0][:2]: z[i] / 3600 for i in range(7)}))
+    if not rows: st.info("Keine Leistungsdaten."); return
+    zn = [z[0] for z in metrics.POWER_ZONES]
+    st.plotly_chart(px.bar(x=zn, y=tot / 3600, labels=dict(x="Zone", y="Stunden"), title="Gesamt"), width="stretch")
+    wk_df = pd.DataFrame(rows).groupby("Woche").sum().reset_index().melt("Woche", var_name="Zone", value_name="Stunden")
+    st.plotly_chart(px.bar(wk_df, x="Woche", y="Stunden", color="Zone", title="Pro Woche"), width="stretch")
+    pol = tot / max(tot.sum(), 1) * 100
+    st.write(f"Polarisierung: Z1–2 **{pol[:2].sum():.0f} %**, Z3–4 **{pol[2:4].sum():.0f} %**, Z5–7 **{pol[4:].sum():.0f} %**")
+
+
+def page_profile(wk, rng):
+    st.header("Profil & Phänotyp")
+    sex = db.get_settings()["sex"]; wt = cur_weight()
+    mm = agg_mmp(wk)
+    rows = profile.profile(mm, wt, sex)
+    if not rows: st.info("Zu wenige Daten."); return
+    df = pd.DataFrame(rows)
+    st.plotly_chart(px.bar_polar(df, r="Score", theta="Dauer", range_r=[0, 100], color="Score", height=420)
+                    if False else px.bar(df, x="Dauer", y="Score", text="Level", range_y=[0, 100]), width="stretch")
+    st.dataframe(df[["Dauer", "Watt", "WperKg", "Score", "Level"]], hide_index=True)
+    ph, desc = profile.phenotype(rows)
+    st.subheader(f"Phänotyp: {ph}"); st.write(desc)
+    st.caption("Referenzwerte: Näherung an Coggans Power-Profile-Tabelle (siehe profile.py), Phänotyp-Regeln heuristisch – nicht WKOs Phänotyp-Modell.")
+
+
+def page_fatigue(wk, rng):
+    st.header("Fatigue Resistance")
+    tbl = profile.fatigue_resistance(list(wk.fatigue))
+    if not tbl: st.info("Keine Daten."); return
+    f = go.Figure()
+    for d, v in tbl.items():
+        kjs = sorted(v)
+        f.add_scatter(x=kjs, y=[v[k][1] for k in kjs], name=f"{d // 60} min" if d >= 60 else f"{d} s", mode="lines+markers")
+    f.update_layout(xaxis_title="Vorab geleistete Arbeit (kJ)", yaxis_title="% des frischen Bestwerts", height=420)
+    st.plotly_chart(f, width="stretch")
+    rows = [dict(Dauer=d, **{f"{k} kJ": f"{v[k][0]:.0f} W ({v[k][1]:.0f} %)" for k in sorted(v)}) for d, v in tbl.items()]
+    st.dataframe(pd.DataFrame(rows), hide_index=True)
+    st.caption("Bestleistung nach X kJ Vorbelastung im gewählten Zeitraum. Fehlende Werte = keine so langen Workouts.")
+
+
+def page_progress(wk, rng):
+    st.header("Fortschritt")
+    all_w = db.workouts_df(sport=rng[2] if rng else None)
+    if all_w.empty: return
+    win = st.slider("Fensterlänge für Modell (Tage)", 42, 180, 90)
+    pts, d = [], pd.to_datetime(all_w.date).min() + timedelta(days=win)
+    while d <= pd.Timestamp(date.today()):
+        sub = all_w[(pd.to_datetime(all_w.date) > d - timedelta(days=win)) & (pd.to_datetime(all_w.date) <= d)]
+        mm = agg_mmp(sub)
+        m = model.fit_pd(mm)
+        row = dict(Datum=d, **{f"{k}s": mm.get(k) for k in (5, 60, 300, 1200, 3600)})
+        if m: row.update(mFTP=m.mftp, FRC=m.frc / 1000, Pmax=m.pmax)
+        pts.append(row); d += timedelta(days=7)
+    df = pd.DataFrame(pts)
+    if "mFTP" not in df: st.info("Zu wenige Daten für Modelltrends."); return
+    for col, title in (("mFTP", "mFTP (W)"), ("FRC", "FRC (kJ)"), ("Pmax", "Pmax (W)")):
+        st.plotly_chart(px.line(df, x="Datum", y=col, title=title, markers=True), width="stretch")
+    best = df.melt("Datum", ["5s", "60s", "300s", "1200s", "3600s"], var_name="Dauer", value_name="Watt")
+    st.plotly_chart(px.line(best, x="Datum", y="Watt", color="Dauer", title=f"Bestwerte (gleitendes {win}-Tage-Fenster)"), width="stretch")
+
+
+def page_plan(wk, rng):
+    st.header("Planung")
+    s = db.get_settings()
+    act = daily_tss()
+    base = pmc.pmc(act, float(s["ctl_tau"]), float(s["atl_tau"]))
+    ctl0 = base.ctl.iloc[-1] if len(base) else 0
+    with st.expander("Aufbauplan generieren (CTL-Ziel)", expanded=True):
+        c = st.columns(5)
+        target = c[0].number_input("Ziel-CTL", 10, 250, int(ctl0 + 10))
+        weeks = c[1].number_input("Wochen", 2, 52, 8)
+        rec = c[2].number_input("Erholungswoche alle n", 0, 8, 4)
+        start = c[3].date_input("Start (Montag)", date.today() + timedelta(days=(7 - date.today().weekday()) % 7))
+        days = c[4].multiselect("Trainingstage", ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"], ["Di", "Do", "Sa", "So"])
+        loads = pmc.ramp_plan(ctl0, target, int(weeks), int(rec))
+        st.write("Wochen-TSS:", ", ".join(map(str, loads)), f"(aktuelle CTL {ctl0:.0f})")
+        if st.button("Plan speichern (ersetzt künftige Einträge)") and days:
+            db.clear_planned_from(str(start))
+            idx = [["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].index(d) for d in days]
+            share = np.array([1.0 if i in (5, 6) else 0.7 for i in idx]); share /= share.sum()
+            for wi, L in enumerate(loads):
+                for i, sh in zip(idx, share):
+                    db.add_planned(str(start + timedelta(days=wi * 7 + i)), "Training", round(L * sh))
+            st.success("Gespeichert.")
+    with st.expander("Einzelnes Workout planen"):
+        c = st.columns(4)
+        d = c[0].date_input("Datum", date.today() + timedelta(days=1)); n = c[1].text_input("Name", "Intervalle")
+        t = c[2].number_input("Geplante TSS", 0, 600, 80)
+        if c[3].button("Hinzufügen"): db.add_planned(str(d), n, t)
+    pl = db.planned_df()
+    if len(pl):
+        until = st.date_input("Prognose bis", pd.to_datetime(pl.date).max().date())
+        planned = pl.groupby("date").tss.sum()
+        fc = pmc.forecast(act, planned, str(until), ctl_tau=float(s["ctl_tau"]), atl_tau=float(s["atl_tau"]))
+        fc = fc.loc[str(date.today() - timedelta(days=60)):]
+        f = go.Figure()
+        for k, n in (("ctl", "CTL"), ("atl", "ATL"), ("tsb", "TSB")):
+            f.add_scatter(x=fc.index, y=fc[k], name=n)
+        f.add_bar(x=fc.index, y=fc.tss.where(fc.geplant), name="geplante TSS", marker_color="rgba(255,165,0,.5)")
+        f.update_layout(height=450, hovermode="x unified"); st.plotly_chart(f, width="stretch")
+        st.write(f"Prognose {until}: CTL **{fc.ctl.iloc[-1]:.0f}**, ATL {fc.atl.iloc[-1]:.0f}, TSB {fc.tsb.iloc[-1]:+.0f}")
+        edit = st.data_editor(pl, hide_index=True, disabled=["id"], width="stretch")
+        dl = st.number_input("ID zum Löschen", 0, int(pl.id.max()), 0)
+        if st.button("Eintrag löschen") and dl: db.delete_planned(int(dl)); st.rerun()
+
+
+def page_athlete(wk, rng):
+    st.header("Athlet & Daten")
+    s = db.get_settings()
+    a, b = st.columns(2)
+    with a:
+        st.subheader("Schwellenwerte (mit Datum)")
+        with st.form("thr"):
+            c = st.columns(4)
+            d = c[0].date_input("Gültig ab", date.today())
+            ftp = c[1].number_input("FTP (W)", 0, 600, int(cur_ftp()))
+            lthr = c[2].number_input("LTHR", 0, 230, int(db.threshold_on(str(date.today()), "lthr", 0) or 0))
+            kg = c[3].number_input("Gewicht (kg)", 30.0, 150.0, float(cur_weight()))
+            if st.form_submit_button("Speichern"):
+                db.add_threshold(str(d), ftp or None, lthr or None, kg); st.rerun()
+        st.dataframe(db.thresholds_df(), hide_index=True)
+        if st.button("Alle Workouts mit Schwellenwert-Verlauf neu berechnen"):
+            st.success(f"{ingest.recompute_all()} Workouts neu berechnet.")
+    with b:
+        st.subheader("Einstellungen")
+        sex = st.selectbox("Geschlecht (Profilreferenz)", ["m", "f"], index=["m", "f"].index(s["sex"]))
+        rest = st.number_input("Ruhepuls", 30, 100, int(s["rest_hr"]))
+        crank = st.number_input("Kurbellänge (mm)", 150.0, 185.0, float(s["crank_mm"]))
+        if st.button("Einstellungen speichern"):
+            for k, v in dict(sex=sex, rest_hr=rest, crank_mm=crank).items(): db.set_setting(k, v)
+            st.success("OK")
+    st.subheader("Daten laden")
+    c = st.columns(4)
+    days = c[0].number_input("Tage zurück", 1, 3650, 30)
+    runs = {"Garmin Connect": ["garmin", "--days", str(days)], "TrainingPeaks": ["trainingpeaks", "--days", str(days)],
+            f"Inbox-Ordner ({config.INBOX})": ["folder"]}
+    for col, (lbl, args) in zip(c[1:], runs.items()):
+        if col.button(lbl):
+            r = subprocess.run([sys.executable, str(ROOT / "sync.py"), *args], capture_output=True, text=True, stdin=subprocess.DEVNULL)
+            (st.success if r.returncode == 0 else st.error)(r.stdout + r.stderr)
+    up = st.file_uploader("Dateien hochladen (FIT/TCX/GPX/CSV/ZIP)", accept_multiple_files=True)
+    if up and st.button("Hochgeladene Dateien importieren"):
+        config.ensure_dirs(); tot = [0, 0, []]
+        for f in up:
+            p = config.INBOX / f.name; p.write_bytes(f.getvalue())
+            n, k, e = ingest.import_path(p, "upload"); tot[0] += n; tot[1] += k; tot[2] += e
+        st.write(f"{tot[0]} neu, {tot[1]} Duplikate"); [st.error(e) for e in tot[2]]
+    if len(wk):
+        st.subheader("Workouts")
+        view = wk[["uid", "start_time", "sport", "name", "source", "duration_s", "np", "tss", "tss_method"]].copy()
+        st.dataframe(view[::-1], hide_index=True, width="stretch")
+        d = st.selectbox("Workout löschen", [""] + list(wk.uid))
+        if d and st.button("Löschen"): db.delete_workout(d); st.rerun()
+
+
+def main():
+    page, wk, rng = sidebar_filters()
+    if rng is None:
+        st.title("WKO Lokal")
+        st.info("Noch keine Daten. Terminal: `python sync.py garmin`, Dateien nach `data/inbox/` + `python sync.py folder`, "
+                "oder `python sync.py demo` für Beispieldaten – oder hier direkt hochladen:")
+        page_athlete(wk, rng); return
+    if wk.empty and page != "Athlet & Daten":
+        st.warning("Keine Workouts im gewählten Zeitraum/Sport."); return
+    dict(zip(PAGES, [page_dashboard, page_workout, page_pd, page_pmc, page_zones, page_profile, page_fatigue,
+                     page_progress, page_plan, page_athlete]))[page](wk, rng)
+
+
+main()

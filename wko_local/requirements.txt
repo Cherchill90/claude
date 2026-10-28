@@ -1,0 +1,9 @@
+numpy
+pandas
+scipy
+plotly
+streamlit
+fitdecode
+garminconnect
+requests
+pytest
