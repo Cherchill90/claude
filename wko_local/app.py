@@ -1,6 +1,7 @@
 """WKO-ähnliche Analyse-Oberfläche. Start: streamlit run app.py"""
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from datetime import date, timedelta
@@ -12,7 +13,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from wkolocal import config, db, ingest, metrics, model, pmc, profile
+from wkolocal import config, db, ingest, insights, metrics, model, pmc, profile
 
 st.set_page_config(page_title="WKO Lokal", layout="wide")
 ROOT = Path(__file__).parent
@@ -94,6 +95,22 @@ def cur_weight() -> float:
     return db.threshold_on(str(date.today()), "weight", 70.0)
 
 
+def show(items: list) -> None:
+    """Kernaussage farbig, Details als Liste (siehe wkolocal/insights.py)."""
+    if not items:
+        return
+    head, rest = items[0], items[1:]
+    {"good": st.success, "info": st.info, "warn": st.warning, "bad": st.error}[head.level](head.text, icon=insights.ICON[head.level])
+    if rest:
+        st.markdown("\n".join(f"- {insights.ICON[i.level]} {i.text}" for i in rest))
+    st.caption("Automatische Einordnung nach Faustregeln – ersetzt keine Trainingsberatung; individuell kann es abweichen.")
+
+
+def explain(key: str) -> None:
+    with st.expander("Wie lese ich diese Ansicht?"):
+        st.markdown(insights.EXPLAIN[key])
+
+
 def daily_tss(sport="Alle") -> pd.Series:
     w = db.workouts_df(sport=sport)
     return w.groupby("date")["tss"].sum() if len(w) else pd.Series(dtype=float)
@@ -104,6 +121,11 @@ def page_dashboard(wk, rng):
     st.header("Dashboard")
     s = db.get_settings()
     d = pmc.pmc(daily_tss(), float(s["ctl_tau"]), float(s["atl_tau"]))
+    explain("Dashboard")
+    sport = rng[2]
+    recent = db.workouts_df(str(date.today() - timedelta(days=28)), str(date.today()), sport)
+    prev = db.workouts_df(str(date.today() - timedelta(days=56)), str(date.today() - timedelta(days=29)), sport)
+    show(insights.assess_dashboard(recent, prev, d))
     last = d.iloc[-1]
     c = st.columns(6)
     c[0].metric("CTL (Fitness)", f"{last.ctl:.0f}", f"{last.ramp:+.1f}/Woche")
@@ -143,6 +165,14 @@ def page_workout(wk, rng):
         run_view(w, df)
         return
     ftp = w.ftp_used or cur_ftp()
+    explain("Workout-Analyse")
+    intent = st.selectbox("Ziel dieser Einheit", ["Automatisch", *insights.RIDE_TYPES],
+                          help="Bewertet wird gegen das Ziel. Bei 'Automatisch' wird der Typ aus Intensität und Intervallen erkannt.")
+    if w.tss_method == "power":
+        show(insights.assess_ride(w, df, ftp, intent))
+        prior = db.workouts_df(str(date.fromisoformat(w.date) - timedelta(days=90)), w.date, w.sport)
+        st.markdown("**Vergleich mit den letzten 90 Tagen**")
+        show(insights.compare_to_history(w, prior))
     c = st.columns(8)
     for col, (lbl, v) in zip(c, [("Dauer", f"{w.duration_s // 3600}:{w.duration_s % 3600 // 60:02d}h"),
                                   ("Ø Watt", f"{w.avg_power:.0f}" if w.avg_power else "–"),
@@ -203,7 +233,7 @@ def page_workout(wk, rng):
         f = go.Figure(go.Scatter(x=t, y=wb / 1000, fill="tozeroy"))
         f.update_layout(yaxis_title="kJ verbleibend", xaxis_title="min", height=300)
         st.plotly_chart(f, width="stretch")
-        st.caption(f"Minimum: {wb.min() / 1000:.1f} kJ ({(1 - wb.min() / wp) * 100:.0f} % von W' verbraucht). Skiba-Integralmodell.")
+        st.caption(f"Minimum: {wb.min() / 1000:.1f} kJ ({(1 - wb.min() / wp) * 100:.0f} % von W' verbraucht). Integralmodell.")
     with tabs[4]:
         st.plotly_chart(mmp_fig({"Workout": w.mmp}), width="stretch")
 
@@ -211,6 +241,11 @@ def page_workout(wk, rng):
 def run_view(w, df):
     sp = metrics.get_speed(df)
     rp = db.threshold_on(w.date, "run_pace", None)
+    explain("Lauf")
+    show(insights.assess_run(w, df, rp))
+    if w.tss_method == "pace":
+        st.markdown("**Vergleich mit den letzten 90 Tagen**")
+        show(insights.compare_to_history(w, db.workouts_df(str(date.fromisoformat(w.date) - timedelta(days=90)), w.date, "Running")))
     c = st.columns(8)
     avg_pace = pace_of(w.avg_speed) if w.avg_speed else None
     for col, (lbl, v) in zip(c, [("Dauer", f"{w.duration_s // 3600}:{w.duration_s % 3600 // 60:02d}h"),
@@ -280,6 +315,8 @@ def page_run(wk, rng):
         for k, v in m.items():
             best[int(k)] = max(best.get(int(k), 0), v)
     cs = model.fit_cs(best)
+    explain("Lauf")
+    show(insights.assess_run_page(cs, run_threshold_pace(), rw))
     fig = go.Figure()
     t = sorted(best)
     fig.add_scatter(x=t, y=[pace_of(best[x]) / 60 for x in t], name="Bestwerte")
@@ -334,9 +371,18 @@ def page_pd(wk, rng):
         curves[comp] = agg_mmp(o)
     mdl = model.fit_pd(mm)
     st.plotly_chart(mmp_fig(curves, mdl, wt), width="stretch")
+    if len(curves) > 1 and mdl:
+        cmp_name = [k for k in curves if k != "Auswahl"][0]
+        rows = [(d, curves["Auswahl"].get(d), curves[cmp_name].get(d)) for d in (5, 60, 300, 1200, 3600)]
+        txt = [f"{'%d s' % d if d < 60 else '%d min' % (d // 60)}: {a:.0f} W vs. {b:.0f} W ({(a / b - 1) * 100:+.1f} %)" for d, a, b in rows if a and b]
+        if txt:
+            show([insights.Insight("info", "Vergleich mit „" + cmp_name + "“ – " + " · ".join(txt) +
+                                   ". Differenzen unter ±2 % sind Schwankung; ein höherer Wert zählt nur, wenn Du in beiden Zeiträumen maximal gefahren bist.")])
     if not mdl:
         st.warning("Zu wenige Daten für das Modell (benötigt Efforts > 10 min).")
         return
+    explain("Power-Duration-Kurve")
+    show(insights.assess_model(mdl, mm, cur_ftp(), cur_weight()))
     c = st.columns(5)
     c[0].metric("mFTP", f"{mdl.mftp:.0f} W"); c[1].metric("FRC", f"{mdl.frc / 1000:.1f} kJ")
     c[2].metric("Pmax", f"{mdl.pmax:.0f} W"); c[3].metric("P(60 min)", f"{mdl.ftp_60:.0f} W")
@@ -363,6 +409,8 @@ def page_pmc(wk, rng):
     st.caption("Alle Sportarten kombiniert (Rad-TSS aus Leistung, Lauf-rTSS aus Pace, sonst HR-Näherung).")
     s = db.get_settings()
     d = pmc.pmc(daily_tss(), float(s["ctl_tau"]), float(s["atl_tau"]))
+    explain("Performance Management (PMC)")
+    show(insights.assess_pmc(d))
     d = d.loc[str(rng[0]):str(rng[1])]
     f = go.Figure()
     f.add_bar(x=d.index, y=d.tss, name="TSS", marker_color="rgba(150,150,150,.4)")
@@ -389,6 +437,8 @@ def page_zones(wk, rng):
     st.plotly_chart(px.bar(x=zn, y=tot / 3600, labels=dict(x="Zone", y="Stunden"), title="Gesamt"), width="stretch")
     wk_df = pd.DataFrame(rows).groupby("Woche").sum().reset_index().melt("Woche", var_name="Zone", value_name="Stunden")
     st.plotly_chart(px.bar(wk_df, x="Woche", y="Stunden", color="Zone", title="Pro Woche"), width="stretch")
+    explain("Zeit in Zonen")
+    show(insights.assess_zones(tot))
     pol = tot / max(tot.sum(), 1) * 100
     st.write(f"Polarisierung: Z1–2 **{pol[:2].sum():.0f} %**, Z3–4 **{pol[2:4].sum():.0f} %**, Z5–7 **{pol[4:].sum():.0f} %**")
 
@@ -400,18 +450,22 @@ def page_profile(wk, rng):
     rows = profile.profile(mm, wt, sex)
     if not rows: st.info("Zu wenige Daten."); return
     df = pd.DataFrame(rows)
+    explain("Profil & Phänotyp")
+    show(insights.assess_profile(rows))
     st.plotly_chart(px.bar_polar(df, r="Score", theta="Dauer", range_r=[0, 100], color="Score", height=420)
                     if False else px.bar(df, x="Dauer", y="Score", text="Level", range_y=[0, 100]), width="stretch")
     st.dataframe(df[["Dauer", "Watt", "WperKg", "Score", "Level"]], hide_index=True)
     ph, desc = profile.phenotype(rows)
     st.subheader(f"Phänotyp: {ph}"); st.write(desc)
-    st.caption("Referenzwerte: Näherung an Coggans Power-Profile-Tabelle (siehe profile.py), Phänotyp-Regeln heuristisch – nicht WKOs Phänotyp-Modell.")
+    st.caption("Referenzwerte: Näherung an die übliche Power-Profile-Tabelle (siehe profile.py), Phänotyp-Regeln heuristisch – nicht WKOs Phänotyp-Modell.")
 
 
 def page_fatigue(wk, rng):
     st.header("Fatigue Resistance")
     tbl = profile.fatigue_resistance(list(wk.fatigue))
+    explain("Fatigue Resistance")
     if not tbl: st.info("Keine Daten."); return
+    show(insights.assess_fatigue(tbl))
     f = go.Figure()
     for d, v in tbl.items():
         kjs = sorted(v)
@@ -438,6 +492,8 @@ def page_progress(wk, rng):
         pts.append(row); d += timedelta(days=7)
     df = pd.DataFrame(pts)
     if "mFTP" not in df: st.info("Zu wenige Daten für Modelltrends."); return
+    explain("Fortschritt")
+    show(insights.assess_progress(df))
     for col, title in (("mFTP", "mFTP (W)"), ("FRC", "FRC (kJ)"), ("Pmax", "Pmax (W)")):
         st.plotly_chart(px.line(df, x="Datum", y=col, title=title, markers=True), width="stretch")
     best = df.melt("Datum", ["5s", "60s", "300s", "1200s", "3600s"], var_name="Dauer", value_name="Watt")
@@ -446,6 +502,7 @@ def page_progress(wk, rng):
 
 def page_plan(wk, rng):
     st.header("Planung")
+    explain("Planung")
     s = db.get_settings()
     act = daily_tss()
     base = pmc.pmc(act, float(s["ctl_tau"]), float(s["atl_tau"]))
@@ -478,6 +535,7 @@ def page_plan(wk, rng):
         planned = pl.groupby("date").tss.sum()
         fc = pmc.forecast(act, planned, str(until), ctl_tau=float(s["ctl_tau"]), atl_tau=float(s["atl_tau"]))
         fc = fc.loc[str(date.today() - timedelta(days=60)):]
+        show(insights.assess_plan(fc))
         f = go.Figure()
         for k, n in (("ctl", "CTL"), ("atl", "ATL"), ("tsb", "TSB")):
             f.add_scatter(x=fc.index, y=fc[k], name=n)
@@ -492,6 +550,8 @@ def page_plan(wk, rng):
 def page_athlete(wk, rng):
     st.header("Athlet & Daten")
     s = db.get_settings()
+    explain("Athlet & Daten")
+    show(insights.assess_data(db.workouts_df(), db.thresholds_df(), date.today()))
     a, b = st.columns(2)
     with a:
         st.subheader("Schwellenwerte (mit Datum)")
@@ -525,11 +585,19 @@ def page_athlete(wk, rng):
     st.subheader("Daten laden")
     c = st.columns(4)
     days = c[0].number_input("Tage zurück", 1, 3650, 30)
+    env = dict(os.environ)
+    if not any(config.TOKEN_DIR.glob("*")):
+        st.info("Garmin ist noch nicht angemeldet. Konten **mit 2FA**: einmalig im Terminal `./sync.command garmin` ausführen "
+                "(fragt Code ab). Konten ohne 2FA: Zugangsdaten unten eingeben (werden nicht gespeichert, nur das Anmelde-Token).")
+        ge, gp = st.columns(2)
+        em, pw = ge.text_input("Garmin E-Mail"), gp.text_input("Garmin Passwort", type="password")
+        if em and pw:
+            env.update(GARMIN_EMAIL=em, GARMIN_PASSWORD=pw)
     runs = {"Garmin Connect": ["garmin", "--days", str(days)], "TrainingPeaks": ["trainingpeaks", "--days", str(days)],
             f"Inbox-Ordner ({config.INBOX})": ["folder"]}
     for col, (lbl, args) in zip(c[1:], runs.items()):
         if col.button(lbl):
-            r = subprocess.run([sys.executable, str(ROOT / "sync.py"), *args], capture_output=True, text=True, stdin=subprocess.DEVNULL)
+            r = subprocess.run([sys.executable, str(ROOT / "sync.py"), *args], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env)
             (st.success if r.returncode == 0 else st.error)(r.stdout + r.stderr)
     up = st.file_uploader("Dateien hochladen (FIT/TCX/GPX/CSV/ZIP)", accept_multiple_files=True)
     if up and st.button("Hochgeladene Dateien importieren"):

@@ -7,3 +7,4 @@ fitdecode
 garminconnect
 requests
 pytest
+pywebview; sys_platform == "darwin"

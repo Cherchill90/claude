@@ -25,9 +25,13 @@ def _login():
         return g
     except Exception:
         pass
-    email = os.environ.get("GARMIN_EMAIL") or input("Garmin E-Mail: ")
-    pw = os.environ.get("GARMIN_PASSWORD") or getpass.getpass("Garmin Passwort: ")
-    g = Garmin(email, pw, prompt_mfa=lambda: input("2FA-Code: "))
+    try:
+        email = os.environ.get("GARMIN_EMAIL") or input("Garmin E-Mail: ")
+        pw = os.environ.get("GARMIN_PASSWORD") or getpass.getpass("Garmin Passwort: ")
+        g = Garmin(email, pw, prompt_mfa=lambda: input("2FA-Code: "))
+    except EOFError:
+        raise SystemExit("Garmin-Anmeldung braucht interaktive Eingabe. Einmalig im Terminal ausführen: "
+                         "./sync.command garmin  (danach funktioniert der Button in der App ohne Passwort).")
     g.login(tok)
     return g
 

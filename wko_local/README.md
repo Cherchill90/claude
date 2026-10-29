@@ -2,7 +2,21 @@
 
 Lokale Python-App: Daten aus Garmin Connect / TrainingPeaks / Dateien → SQLite → Streamlit-Oberfläche.
 
-## Mac (Apple Silicon / Intel)
+## Als Mac-App installieren (eigenes Fenster, kein Browser)
+```bash
+cd claude/wko_local
+./setup_mac.sh            # einmalig (Python-Umgebung)
+./install_mac_app.sh      # baut "WKO Lokal.app" nach ~/Applications  (--system: /Applications, --uninstall: entfernen)
+```
+Danach per Spotlight (Cmd+Leertaste → „WKO Lokal“) oder Launchpad starten; Dock-Symbol → Optionen → „Im Dock behalten“.
+Die App ist ein dünner Starter, der die `.venv` und den Code im Projektordner nutzt und die Oberfläche in einem nativen Fenster (pywebview/WKWebView) zeigt.
+- **Projektordner nicht verschieben/löschen** (Pfad ist eingebaut; sonst `./install_mac_app.sh` erneut). Daten liegen in `wko_local/data/` – regelmäßig sichern (z. B. Time Machine).
+- Updates: `git pull` im Projektordner, danach ggf. `./setup_mac.sh`; die App selbst muss nicht neu gebaut werden.
+- Nicht signiert/notarisiert (nur lokal gebaut). Gatekeeper stört dabei normalerweise nicht, weil die App auf Deinem Mac entsteht; bei Warnung: Rechtsklick → Öffnen.
+- Logs bei Problemen: `~/Library/Logs/WKO Lokal.log` und `WKO Lokal server.log`. Ist pywebview nicht nutzbar, öffnet sich automatisch der Browser.
+- Garmin-Erstanmeldung mit 2FA einmalig im Terminal (`./sync.command garmin`); danach funktioniert der Button in der App.
+
+## Mac im Terminal (Apple Silicon / Intel)
 ```bash
 git clone -b claude/beautiful-bardeen-tnb36k https://github.com/Cherchill90/claude.git
 cd claude/wko_local
@@ -26,6 +40,11 @@ streamlit run app.py
 Daten liegen unter `data/` (überschreibbar mit `WKOLOCAL_HOME`). Nach Änderung von FTP/LTHR:
 `python sync.py recompute` oder Button in „Athlet & Daten“.
 
+## Einordnung der Daten
+Jede Ansicht zeigt oben eine **automatische Einordnung** (farbige Kernaussage + Details) und einen aufklappbaren Abschnitt „Wie lese ich diese Ansicht?“.
+Beispiele: War die Einheit gut für ihr Ziel (Erholung/Grundlage/Tempo/Schwelle/VO2max – automatisch erkannt oder oben wählbar)? Neue Bestwerte oder höhere Effizienz gegenüber den 90 Tagen davor?
+Ist die Form (TSB) passend, die Rampe tragbar, der FTP-Wert noch aktuell? Die Regeln stehen in `wkolocal/insights.py` und sind Richtwerte, keine individuelle Diagnose; Schwellen dort anpassbar.
+
 ## Funktionen (WKO5-Entsprechungen)
 | Ansicht | Inhalt |
 |---|---|
@@ -41,7 +60,7 @@ Daten liegen unter `data/` (überschreibbar mit `WKOLOCAL_HOME`). Nach Änderung
 | Planung | CTL-Aufbauplan, Einzel-Workouts, PMC-Prognose |
 
 ## Laufen
-- Läufe: Pace-Zeitreihe, Splits je km, steigungskorrigierte Pace (GAP, Minetti) und NGP, **rTSS = h · (NGP/Schwellenpace)² · 100**, Pace-/HR-Zonen, Pace:HR-Entkopplung.
+- Läufe: Pace-Zeitreihe, Splits je km, steigungskorrigierte Pace (GAP) und NGP, **rTSS = h · (NGP/Schwellenpace)² · 100**, Pace-/HR-Zonen, Pace:HR-Entkopplung.
 - Dafür unter „Athlet & Daten“ **Lauf-Schwellenpace** (z. B. 4:45) und Lauf-LTHR eintragen, sonst nur grobe HR-Näherung (hrTSS). Die Schwellenpace gilt als ca. 60-min-Bestpace; CS aus dem Modell liefert einen Startwert.
 - Lauf-Leistungsdaten (Stryd/Garmin Running Power) werden **nicht** ausgewertet. Rad- und Lauf-TSS fließen gemeinsam in die PMC; die Vergleichbarkeit hängt von sauber gesetzten Schwellen ab.
 

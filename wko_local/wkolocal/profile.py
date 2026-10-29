@@ -1,6 +1,6 @@
 """Power-Profil, Phänotyp und Fatigue Resistance.
 
-Die Referenzwerte sind eine Näherung an Coggans Power-Profile-Tabelle (Anker: Untrainiert /
+Die Referenzwerte sind eine Näherung an die übliche Power-Profile-Tabelle (Anker: Untrainiert /
 Weltklasse in W/kg, dazwischen log-linear interpoliert). Frauen = 0.88 x Männer. Anker bei
 Bedarf in ANCHORS anpassen – sie sind keine exakte Kopie der Originaltabelle.
 """

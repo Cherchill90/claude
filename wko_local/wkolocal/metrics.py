@@ -99,7 +99,7 @@ def time_in_zones(x: np.ndarray, ref: float, zones=POWER_ZONES) -> pd.DataFrame:
 
 
 def quadrant_analysis(p, cad, ftp: float, crank_mm=172.5, ref_cad=90.0) -> dict:
-    """AEPF/CPV-Quadranten (Coggan). Referenz: FTP bei ref_cad."""
+    """AEPF/CPV-Quadranten. Referenz: FTP bei ref_cad."""
     p, cad = clean_power(p), np.nan_to_num(np.asarray(cad, float))
     m = (cad > 20) & (p > 0)
     r = crank_mm / 1000
@@ -137,7 +137,7 @@ def detect_intervals(p, threshold_w: float, min_s=60, max_gap_s=15, smooth_s=10)
 
 
 def wbal(p, cp: float, w_prime: float) -> np.ndarray:
-    """W'-Bilanz nach Skiba (2015, integral, rekursiv gelöst). Rückgabe: verbleibende J."""
+    """W'-Bilanz (Integralmodell, rekursiv gelöst). Rückgabe: verbleibende J."""
     p = clean_power(p)
     below = p[p < cp]
     dcp = cp - (below.mean() if len(below) else 0)
@@ -158,12 +158,12 @@ def get_speed(df: pd.DataFrame) -> np.ndarray:
 
 
 def _minetti(i: np.ndarray) -> np.ndarray:
-    """Energiekosten des Laufens (J/kg/m) bei Steigung i (Minetti 2002)."""
+    """Energiekosten des Laufens (J/kg/m) bei Steigung i."""
     return 155.4 * i**5 - 30.4 * i**4 - 43.3 * i**3 + 46.3 * i**2 + 19.5 * i + 3.6
 
 
 def grade_adjusted_speed(speed: np.ndarray, altitude: np.ndarray | None) -> np.ndarray:
-    """Steigungskorrigierte Geschwindigkeit (GAP) per Minetti-Faktor; ohne Höhe = unverändert."""
+    """Steigungskorrigierte Geschwindigkeit (GAP) per Energiekosten-Polynom; ohne Höhe = unverändert."""
     if altitude is None or np.isnan(altitude).mean() > .5:
         return speed
     alt = pd.Series(altitude).interpolate(limit_direction="both").rolling(15, min_periods=1, center=True).mean().to_numpy()
