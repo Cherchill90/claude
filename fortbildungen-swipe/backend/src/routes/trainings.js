@@ -74,6 +74,23 @@ trainingsRouter.get('/feed', (req, res) => {
   res.json(rows.map((row) => serializeTraining(row)));
 });
 
+// All trainings by others, including ones already swiped on (left or right),
+// so a user can change their mind later.
+trainingsRouter.get('/all', (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT t.*, u.name AS organizer_name, s.direction AS my_direction
+       FROM trainings t
+       JOIN users u ON u.id = t.organizer_id
+       LEFT JOIN swipes s ON s.training_id = t.id AND s.user_id = ?
+       WHERE t.organizer_id != ?
+       ORDER BY t.date ASC, t.time ASC, t.created_at ASC`
+    )
+    .all(req.user.id, req.user.id);
+
+  res.json(rows.map((row) => serializeTraining(row, { myDirection: row.my_direction || null })));
+});
+
 trainingsRouter.get('/mine', (req, res) => {
   const rows = db
     .prepare(

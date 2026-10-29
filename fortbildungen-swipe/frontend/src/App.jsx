@@ -5,10 +5,12 @@ import ChangePasswordScreen from './components/ChangePasswordScreen.jsx';
 import SwipeDeck from './components/SwipeDeck.jsx';
 import CreateTrainingForm from './components/CreateTrainingForm.jsx';
 import MyTrainings from './components/MyTrainings.jsx';
+import AllTrainings from './components/AllTrainings.jsx';
 import AdminEmployees from './components/AdminEmployees.jsx';
 
 const TABS = [
   { id: 'discover', label: 'Entdecken', icon: '🔥' },
+  { id: 'all', label: 'Alle', icon: '📚' },
   { id: 'create', label: 'Neu', icon: '➕' },
   { id: 'mine', label: 'Meine', icon: '📋' },
 ];
@@ -51,6 +53,7 @@ function Shell() {
 
       <main className="app-main">
         {tab === 'discover' && <SwipeDeck refreshKey={refreshKey} />}
+        {tab === 'all' && <AllTrainings refreshKey={refreshKey} />}
         {tab === 'create' && <CreateTrainingForm onCreated={handleCreated} />}
         {tab === 'mine' && <MyTrainings refreshKey={refreshKey} />}
         {tab === 'admin' && user.role === 'admin' && <AdminEmployees />}

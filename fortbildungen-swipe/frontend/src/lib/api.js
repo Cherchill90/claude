@@ -30,6 +30,7 @@ export const api = {
     request('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword }, token }),
 
   getFeed: (token) => request('/trainings/feed', { token }),
+  getAll: (token) => request('/trainings/all', { token }),
   getMine: (token) => request('/trainings/mine', { token }),
   getInterests: (token) => request('/trainings/interests', { token }),
   getInterested: (token, id) => request(`/trainings/${id}/interested`, { token }),

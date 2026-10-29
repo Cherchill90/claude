@@ -431,6 +431,51 @@ select:focus {
   white-space: nowrap;
 }
 
+.interest-badge-rejected {
+  background: #f1f1f4;
+  color: var(--color-text-muted);
+}
+
+.interest-badge-open {
+  background: #eef6ff;
+  color: #2563a8;
+}
+
+.list-swipe-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.list-swipe-btn {
+  flex: 1;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.list-swipe-btn:disabled {
+  opacity: 0.6;
+}
+
+.list-swipe-btn.nope.active {
+  background: #f1f1f4;
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+.list-swipe-btn.like.active {
+  background: #e4f8ee;
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
 .attendee-list {
   margin-top: 12px;
   padding-top: 12px;
