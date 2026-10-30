@@ -7,13 +7,15 @@ set -euo pipefail
 cd "$(dirname "$0")"
 DEST="$HOME/Applications"; MODE=install
 for a in "$@"; do case "$a" in --system) DEST=/Applications;; --uninstall) MODE=uninstall;; esac; done
+ARCH=""
+if [ "$(uname)" = Darwin ] && [ "$(sysctl -n hw.optional.arm64 2>/dev/null || echo 0)" = 1 ]; then ARCH="arch -arm64"; fi
 APP="$DEST/WKO Lokal.app"
 if [ "$MODE" = uninstall ]; then rm -rf "$APP"; echo "Entfernt: $APP (Daten in $(pwd)/data bleiben erhalten)"; exit 0; fi
 [ "$(uname)" = Darwin ] || echo "Hinweis: Das ist kein macOS – die App wird nur als Test gebaut."
-[ -x .venv/bin/python ] || ./setup_mac.sh
-.venv/bin/python -c "import webview" 2>/dev/null || .venv/bin/python -m pip install --quiet pywebview
+./setup_mac.sh   # prüft/repariert die Umgebung (Architektur!)
+$ARCH .venv/bin/python -c "import webview" 2>/dev/null || $ARCH .venv/bin/python -m pip install --quiet pywebview
 mkdir -p "$DEST"
-.venv/bin/python tools/make_app.py --dest "$DEST"
+$ARCH .venv/bin/python tools/make_app.py --dest "$DEST"
 if command -v codesign >/dev/null; then codesign --force --deep --sign - "$APP" 2>/dev/null || true; fi
 xattr -cr "$APP" 2>/dev/null || true
 touch "$APP"

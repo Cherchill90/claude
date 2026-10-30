@@ -88,6 +88,7 @@ def build(dest: Path, repo: Path = ROOT) -> Path:
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>1.0</string>
 <key>CFBundleVersion</key><string>1</string>
+<key>LSArchitecturePriority</key><array><string>arm64</string><string>x86_64</string></array>
 <key>LSMinimumSystemVersion</key><string>11.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>LSApplicationCategoryType</key><string>public.app-category.healthcare-fitness</string>
@@ -104,7 +105,10 @@ if [ ! -x "$REPO/.venv/bin/python" ]; then
   exit 1
 fi
 cd "$REPO" || exit 1
-exec "$REPO/.venv/bin/python" "$REPO/desktop.py" >>"$LOG" 2>&1
+# Auf Apple Silicon immer nativ (arm64) starten, nie unter Rosetta
+ARCH=""
+if [ "$(sysctl -n hw.optional.arm64 2>/dev/null || echo 0)" = "1" ]; then ARCH="arch -arm64"; fi
+exec $ARCH "$REPO/.venv/bin/python" "$REPO/desktop.py" >>"$LOG" 2>&1
 """)
     launcher.chmod(0o755)
     # Icon: iconset (PNG) und – falls auf macOS – icns

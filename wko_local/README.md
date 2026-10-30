@@ -16,6 +16,11 @@ Die App ist ein dünner Starter, der die `.venv` und den Code im Projektordner n
 - Logs bei Problemen: `~/Library/Logs/WKO Lokal.log` und `WKO Lokal server.log`. Ist pywebview nicht nutzbar, öffnet sich automatisch der Browser.
 - Garmin-Erstanmeldung mit 2FA einmalig im Terminal (`./sync.command garmin`); danach funktioniert der Button in der App.
 
+## Fehlersuche (Mac)
+- **`ImportError … incompatible architecture (have 'arm64', need 'x86_64')`**: Python lief als Intel-Prozess (Rosetta), die Pakete sind aber für Apple Silicon. `git pull && ./setup_mac.sh` erkennt eine solche Umgebung, baut sie neu und startet Python künftig immer nativ (`arch -arm64`). Die Skripte und die App erzwingen das jetzt selbst.
+  Ursachen sind meist ein Terminal mit „Mit Rosetta öffnen“ (Programme → Dienstprogramme → Terminal → Informationen) oder ein Intel-Homebrew unter `/usr/local`; Apple-Silicon-Homebrew liegt unter `/opt/homebrew`.
+- Prüfen: `uname -m` (soll `arm64` sein) und `.venv/bin/python -c "import platform; print(platform.machine())"`.
+
 ## Mac im Terminal (Apple Silicon / Intel)
 ```bash
 git clone -b claude/beautiful-bardeen-tnb36k https://github.com/Cherchill90/claude.git
