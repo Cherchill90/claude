@@ -65,6 +65,23 @@ def _login():
     return g
 
 
+def download_and_parse(g, aid: str, log=print) -> list[dict]:
+    """Originaldatei (FIT im ZIP) laden; ist sie fehlerhaft (z. B. Felder der Größe 0 aus Drittanbieter-Apps),
+    ersatzweise Garmins eigenen TCX-Export derselben Aktivität verwenden."""
+    from garminconnect import Garmin
+    try:
+        raw = g.download_activity(aid, dl_fmt=Garmin.ActivityDownloadFormat.ORIGINAL)
+        return parse_file(Path(f"{aid}.zip"), raw)
+    except Exception as e_orig:
+        try:
+            raw = g.download_activity(aid, dl_fmt=Garmin.ActivityDownloadFormat.TCX)
+            acts = parse_file(Path(f"{aid}.tcx"), raw)
+            log(f"Garmin {aid}: Originaldatei fehlerhaft ({type(e_orig).__name__}: {e_orig}) – TCX-Export verwendet")
+            return acts
+        except Exception as e_tcx:
+            raise RuntimeError(f"Originaldatei: {_describe(e_orig)}; TCX-Ersatz: {_describe(e_tcx)}") from e_tcx
+
+
 def sync_wellness(g, days: int, log=print) -> tuple[int, list[str]]:
     """Schlaf + HRV je Tag. Letzte 3 Tage werden immer neu geladen (Daten werden nachträglich ergänzt)."""
     from .. import db
@@ -107,8 +124,7 @@ def sync(days: int = 30, since: date | None = None, log=print, wellness: bool = 
     for a in acts:
         aid = str(a["activityId"])
         try:
-            raw = g.download_activity(aid, dl_fmt=Garmin.ActivityDownloadFormat.ORIGINAL)  # ZIP mit .fit
-            for act in parse_file(Path(f"{aid}.zip"), raw):
+            for act in download_and_parse(g, aid, log):
                 act["name"] = a.get("activityName") or act["name"]
                 if ingest.add_activity(act, "garmin"): new += 1
                 else: skipped += 1

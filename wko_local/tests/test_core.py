@@ -263,3 +263,22 @@ def test_parse_without_power_or_speed_columns():
     rows2 = [dict(time=t0 + pd.Timedelta(seconds=i), hr=110) for i in range(60)]          # Spalten fehlen ganz
     df2, _ = _to_1hz(rows2)
     assert set(["power", "speed", "altitude"]) <= set(df2.columns)
+
+
+def test_garmin_fallback_to_tcx():
+    """Fehlerhafte Originaldatei -> TCX-Export wird verwendet (Leistung, HF, Sportart)."""
+    import io, zipfile
+    from wkolocal.sync import garmin
+    pts = "".join(f"<Trackpoint><Time>2026-10-01T07:{i // 60:02d}:{i % 60:02d}Z</Time><HeartRateBpm><Value>{120 + i % 5}</Value></HeartRateBpm>"
+                  f"<Cadence>88</Cadence><Extensions><ns3:TPX><ns3:Watts>{180 + i % 7}</ns3:Watts></ns3:TPX></Extensions></Trackpoint>" for i in range(120))
+    tcx = ('<?xml version="1.0"?><TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" '
+           'xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2"><Activities><Activity Sport="Biking"><Lap><Track>'
+           + pts + "</Track></Lap></Activity></Activities></TrainingCenterDatabase>").encode()
+    bad = io.BytesIO()
+    with zipfile.ZipFile(bad, "w") as z:
+        z.writestr("x.fit", b"\x0e\x10" + b"\x00" * 10 + b".FIT" + b"\x00" * 40)
+    class Fake:
+        def download_activity(self, aid, dl_fmt):
+            return bad.getvalue() if dl_fmt.name == "ORIGINAL" else tcx
+    acts = garmin.download_and_parse(Fake(), "1", log=lambda *_: None)
+    assert acts[0]["sport"] == "Cycling" and acts[0]["df"].power.max() >= 180 and acts[0]["df"].hr.notna().any()
