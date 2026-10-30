@@ -57,9 +57,40 @@ def _login():
     return g
 
 
-def sync(days: int = 30, since: date | None = None, log=print) -> tuple[int, int, list[str]]:
+def sync_wellness(g, days: int, log=print) -> tuple[int, list[str]]:
+    """Schlaf + HRV je Tag. Letzte 3 Tage werden immer neu geladen (Daten werden nachträglich ergänzt)."""
+    from .. import db
+    from ..wellness import parse_day
+    new, errors, consecutive = 0, [], 0
+    today = date.today()
+    for i in range(days, -1, -1):
+        day = (today - timedelta(days=i)).isoformat()
+        if i > 3 and db.has_wellness(day):
+            continue
+        try:
+            sleep = g.get_sleep_data(day)
+            hrv = g.get_hrv_data(day)
+            row = parse_day(day, sleep, hrv)
+            if row:
+                db.upsert_wellness(row); new += 1
+            consecutive = 0
+        except Exception as e:
+            consecutive += 1
+            errors.append(f"Schlaf/HRV {day}: {e}")
+            if consecutive >= 3:       # vermutlich Rate-Limit/Sperre: abbrechen statt weiter zu hämmern
+                errors.append("Abbruch nach 3 Fehlern in Folge – später erneut versuchen.")
+                break
+        time.sleep(0.4)
+    log(f"Garmin Schlaf/HRV: {new} Tage gespeichert")
+    return new, errors
+
+
+def sync(days: int = 30, since: date | None = None, log=print, wellness: bool = True, only_wellness: bool = False) -> tuple[int, int, list[str]]:
     from garminconnect import Garmin
     g = _login()
+    if only_wellness:
+        n, errs = sync_wellness(g, days, log)
+        return n, 0, errs
     start = since or (date.today() - timedelta(days=days))
     acts = g.get_activities_by_date(start.isoformat(), date.today().isoformat())
     log(f"Garmin: {len(acts)} Aktivitäten seit {start}")
@@ -75,4 +106,10 @@ def sync(days: int = 30, since: date | None = None, log=print) -> tuple[int, int
                 else: skipped += 1
         except Exception as e:
             errors.append(f"{aid} ({a.get('activityName')}): {e}")
+    if wellness:
+        try:
+            _, werrs = sync_wellness(g, (date.today() - start).days if since else days, log)
+            errors += werrs
+        except Exception as e:
+            errors.append(f"Schlaf/HRV: {e}")
     return new, skipped, errors

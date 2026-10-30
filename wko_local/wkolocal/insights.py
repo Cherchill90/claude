@@ -471,6 +471,10 @@ Referenzen und Phänotyp-Regeln sind Näherungen. Aussagekräftig nur, wenn im Z
 Wie viel Deiner frischen Bestleistung bleibt nach 1000/2000/3000 kJ Vorarbeit? Hohe Werte (≥ 90 %) bedeuten, dass Du auch spät im Rennen noch Leistung bringst. Training: lange Einheiten mit harten Efforts am Ende.""",
 "Fortschritt": """
 Jeder Punkt ist ein Modell über das davorliegende Fenster (z. B. 90 Tage). Änderungen unter ±3 % liegen im Schwankungsbereich. Ein Rückgang kann nur heißen, dass im Fenster keine Maximaltests/Rennen waren.""",
+"Erholung (HRV & Schlaf)": """
+**HRV** (Herzfrequenzvariabilität, Nacht-Durchschnitt in ms) ist individuell – nur der Vergleich mit **Deiner** Baseline zählt. Ein Absinken über mehrere Nächte deutet auf hohe Belastung, Krankheit oder Stress, ein Anstieg auf gute Erholung. Einzelne Nächte schwanken stark; achte auf den 3–7-Tage-Trend.
+**Schlaf:** Richtwert 7–9 h; Schlafscore < 60 = schlechte Qualität. **Ruhepuls:** ≥ 5 bpm über Deiner Baseline kann Übermüdung oder Infekt anzeigen.
+Die Ampel (grün/gelb/rot) fasst die letzten 3 Nächte gegen die 28 Nächte davor zusammen. Jedes Warnsignal zählt als Punkt und senkt die **Form inkl. Erholung** um 5 (max. 25) gegenüber der reinen Lastform (TSB); diese angepasste Form steuert die Trainingsempfehlung. Sie ersetzt keine medizinische Beurteilung; Wearable-Werte sind Schätzungen.""",
 "Wettkämpfe": """
 Trag Wettkämpfe mit Priorität ein: **A** = Hauptziel (Tapering, Form +5…+25), **B** = wichtig (kurze Entlastung), **C** = Training/Test.
 Die PMC-Prognose zeigt Fitness (CTL) und Form (TSB) am Renntag – abhängig von Deinem Plan und der geschätzten Wettkampf-TSS (Dauer × IF² × 100). Die Dashboard-Empfehlung berücksichtigt Tapering, Aktivierung und Erholung nach dem Rennen.""",

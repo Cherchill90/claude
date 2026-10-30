@@ -54,6 +54,12 @@ Ist die Form (TSB) passend, die Rampe tragbar, der FTP-Wert noch aktuell? Die Re
 - **Dashboard → „Trainingsempfehlung für morgen“:** regelbasiert aus Form (TSB), harten Einheiten der letzten Tage, Trainingsserie, Rampe, Wettkämpfen und Plan – mit konkreter Einheit (Dauer, Watt- bzw. Pace-Bereiche, geschätzte TSS) und Begründung. Dein Befinden (Gut/Normal/Müde/Krank) stellst Du direkt darüber ein. Schlaf/HRV/Termine kennt das Programm nicht. Regeln: `wkolocal/recommend.py`.
 - **PMC → „Wettkämpfe anlegen & verwalten“:** Datum, Name, Sportart, Priorität A/B/C, erwartete Dauer/Intensität (→ TSS-Schätzung). Wettkämpfe erscheinen als Markierung im PMC, die Prognose (gepunktet) zeigt Fitness/Form am Renntag; Tapering, Aktivierung und Erholung nach dem Rennen fließen in die Empfehlung ein.
 
+## Schlaf, HRV & Ruhepuls (Garmin)
+- `python sync.py garmin` lädt jetzt zusätzlich **Schlaf (Dauer, Phasen, Score), HRV (Nacht, 7-Tage, Garmin-Normbereich) und Ruhepuls**; nur Wellness: `python sync.py wellness --days 90`; abwählbar mit `--no-wellness` bzw. dem Haken in der App. Die letzten 3 Tage werden immer neu geladen (Garmin ergänzt Daten nachträglich). Pro Tag sind 2 Abrufe nötig – ein erster Lauf über viele Monate dauert einige Minuten; bei 3 Fehlern in Folge bricht der Sync ab (mögliche Sperre).
+- Neue Ansicht **„Erholung (HRV & Schlaf)“**: Ampel aus den letzten 3 Nächten gegen Deine Baseline (28 Nächte davor) für HRV, Schlaf, Schlafscore und Ruhepuls.
+- **Form:** CTL/ATL/TSB bleiben reine Trainingslast. Zusätzlich gibt es **„Form inkl. Erholung“** = TSB − 5 je Warnsignal (max. 25), im Dashboard und als gestrichelte Linie im PMC. Diese angepasste Form steuert die Trainingsempfehlung; bei stark eingeschränkter Erholung wird zusätzlich eine Stufe herabgestuft. Der Abzug ist eine Heuristik, nicht wissenschaftlich kalibriert.
+- Die Felder der Garmin-Antworten sind aus der Bibliotheksdokumentation übernommen; gegen echte Konten wurde nicht getestet.
+
 ## Funktionen (WKO5-Entsprechungen)
 | Ansicht | Inhalt |
 |---|---|

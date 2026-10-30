@@ -68,4 +68,14 @@ def generate(days=240, seed=1) -> int:
         secs = {"easy": 5400, "intervals": 4500, "vo2": 4200, "race": 7200}[kind] + int(rng.integers(-600, 900))
         act = dict(df=_ride(rng, ftp, kind, secs), start=day, sport="Cycling", name=f"Demo {kind}")
         n += bool(ingest.add_activity(act, "demo"))
+    # Schlaf/HRV (letzte 5 Tage bewusst schlechter, damit die Auswertung etwas zeigt)
+    for i in range(days, -1, -1):
+        day = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        bad = i <= 2
+        sleep_h = float(np.clip(rng.normal(5.6 if bad else 7.4, 0.5), 4, 9.5))
+        hrv = float(rng.normal(52 if bad else 68, 5))
+        db.upsert_wellness(dict(date=day, sleep_s=int(sleep_h * 3600), deep_s=int(sleep_h * 3600 * .18), light_s=int(sleep_h * 3600 * .55),
+                                rem_s=int(sleep_h * 3600 * .22), awake_s=int(sleep_h * 3600 * .05), sleep_score=float(np.clip(rng.normal(55 if bad else 78, 6), 30, 98)),
+                                hrv_night=hrv, hrv_week=hrv, hrv_status="UNBALANCED" if bad else "BALANCED", hrv_low=58.0, hrv_high=78.0,
+                                resting_hr=float(rng.normal(58 if bad else 51, 1.5)), source="demo"))
     return n

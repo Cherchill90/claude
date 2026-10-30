@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Lädt Trainingsdaten (Garmin Connect / TrainingPeaks / lokale Dateien) in die lokale Datenbank.
 
-  python sync.py garmin [--days 30 | --since 2025-01-01]
+  python sync.py garmin [--days 30 | --since 2025-01-01] [--no-wellness]   # Aktivitäten + Schlaf/HRV
+  python sync.py wellness [--days 90]  # nur Schlaf/HRV
   python sync.py trainingpeaks [--days 30]
   python sync.py folder [PFAD]        # Standard: data/inbox
   python sync.py demo                 # synthetische Beispieldaten (zum Ausprobieren)
@@ -15,10 +16,11 @@ from pathlib import Path
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("quelle", choices=["garmin", "trainingpeaks", "folder", "demo", "recompute", "all"])
+    ap.add_argument("quelle", choices=["garmin", "wellness", "trainingpeaks", "folder", "demo", "recompute", "all"])
     ap.add_argument("pfad", nargs="?")
     ap.add_argument("--days", type=int, default=30)
     ap.add_argument("--since", type=date.fromisoformat)
+    ap.add_argument("--no-wellness", action="store_true", help="Garmin: Schlaf/HRV nicht mitladen")
     a = ap.parse_args()
 
     from wkolocal import config, ingest
@@ -31,9 +33,9 @@ def main() -> int:
             msg = str(e) or e.__class__.__name__
             results.append((name, (0, 0, [f"{name}: {msg}"])))
 
-    if a.quelle in ("garmin", "all"):
+    if a.quelle in ("garmin", "wellness", "all"):
         from wkolocal.sync import garmin
-        run("Garmin", lambda: garmin.sync(a.days, a.since))
+        run("Garmin", lambda: garmin.sync(a.days, a.since, wellness=not a.no_wellness, only_wellness=a.quelle == "wellness"))
     if a.quelle in ("trainingpeaks", "all"):
         from wkolocal.sync import trainingpeaks
         run("TrainingPeaks", lambda: trainingpeaks.sync(a.days))

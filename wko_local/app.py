@@ -13,12 +13,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from wkolocal import config, db, ingest, insights, metrics, model, pmc, profile, recommend
+from wkolocal import config, db, ingest, insights, metrics, model, pmc, profile, recommend, wellness
 
 st.set_page_config(page_title="WKO Lokal", layout="wide")
 ROOT = Path(__file__).parent
 PAGES = ["Dashboard", "Workout-Analyse", "Power-Duration-Kurve", "Lauf: Pace & Critical Speed", "Performance Management (PMC)",
-         "Zeit in Zonen", "Profil & Phänotyp", "Fatigue Resistance", "Fortschritt", "Planung", "Athlet & Daten"]
+         "Erholung (HRV & Schlaf)", "Zeit in Zonen", "Profil & Phänotyp", "Fatigue Resistance", "Fortschritt", "Planung", "Athlet & Daten"]
 
 
 # ---------------------------------------------------------------- Helfer
@@ -108,6 +108,14 @@ def full_pmc() -> pd.DataFrame:
     return pmc.pmc(a, float(s["ctl_tau"]), float(s["atl_tau"]))
 
 
+def full_pmc_adj() -> pd.DataFrame:
+    """PMC bis heute plus Spalten readiness_pts/tsb_adj (Form inkl. Schlaf/HRV/Ruhepuls)."""
+    d = full_pmc()
+    if d.empty:
+        return d.assign(readiness_pts=0, tsb_adj=d.get("tsb"))
+    return wellness.adjusted_form(d, db.wellness_df(str(date.today() - timedelta(days=200)), str(date.today())))
+
+
 def planned_load() -> pd.Series:
     """Geplante TSS je Tag: Planeinträge + Wettkampf-TSS (nur wo kein Planeintrag am selben Tag liegt)."""
     pl = db.planned_df()
@@ -135,8 +143,10 @@ def recommendation_card() -> None:
                        help="Schlaf, HRV und Gesundheit kennt das Programm nicht – Dein Befinden fließt deshalb direkt ein.")
     today, s = date.today(), db.get_settings()
     recent = db.workouts_df(str(today - timedelta(days=28)), str(today))
+    wdf = db.wellness_df(str(today - timedelta(days=40)), str(today))
+    ready = wellness.readiness(wdf, today) if len(wdf) else None
     r = recommend.recommend(today, daily_tss(), recent, db.races_df(), db.planned_df(), cur_ftp(), run_threshold_pace(),
-                            feeling, float(s["ctl_tau"]), float(s["atl_tau"]))
+                            feeling, float(s["ctl_tau"]), float(s["atl_tau"]), ready)
     with st.container(border=True):
         {"good": st.success, "info": st.info, "warn": st.warning}[r.level](f"**{r.headline}**")
         c = st.columns(3)
@@ -144,6 +154,11 @@ def recommendation_card() -> None:
         if r.tss is not None: c[1].metric("Geschätzte TSS", f"{r.tss[0]}–{r.tss[1]}" if r.tss[1] else "0")
         if r.details: st.markdown("\n".join(f"- {x}" for x in r.details))
         if r.plan_note: {"good": st.success, "info": st.info, "warn": st.warning}[r.plan_note[0]](r.plan_note[1], icon=insights.ICON[r.plan_note[0]])
+        if ready and ready["state"] != "unknown":
+            {"ok": st.success, "reduced": st.warning, "low": st.error}[ready["state"]](
+                ready["items"][0].text + " (Details: Ansicht „Erholung“)", icon=insights.ICON[ready["items"][0].level])
+        elif ready is None:
+            st.caption("Noch keine Schlaf-/HRV-Daten: Garmin-Sync ausführen, dann fließen sie in die Empfehlung ein.")
         with st.expander("Warum diese Empfehlung?"):
             st.markdown("\n".join(f"- {x}" for x in r.reasons))
             st.caption("Regelbasiert aus Belastungshistorie (Form, harte Einheiten, Wettkämpfe, Plan) und Deinem Befinden. "
@@ -175,7 +190,7 @@ def daily_tss(sport="Alle") -> pd.Series:
 def page_dashboard(wk, rng):
     st.header("Dashboard")
     s = db.get_settings()
-    d = full_pmc()
+    d = full_pmc_adj()
     recommendation_card()
     fc = forecast_all()
     rc = db.races_df()
@@ -187,13 +202,18 @@ def page_dashboard(wk, rng):
     prev = db.workouts_df(str(date.today() - timedelta(days=56)), str(date.today() - timedelta(days=29)), sport)
     show(insights.assess_dashboard(recent, prev, d))
     last = d.iloc[-1]
-    c = st.columns(6)
+    has_adj = bool(d.readiness_pts.iloc[-3:].any())
+    c = st.columns(7 if has_adj else 6)
     c[0].metric("CTL (Fitness)", f"{last.ctl:.0f}", f"{last.ramp:+.1f}/Woche")
     c[1].metric("ATL (Ermüdung)", f"{last.atl:.0f}")
-    c[2].metric("TSB (Form)", f"{last.tsb:+.0f}")
-    c[3].metric("Workouts", len(wk))
-    c[4].metric("Stunden", f"{wk.duration_s.sum() / 3600:.1f}")
-    c[5].metric("TSS", f"{wk.tss.sum():.0f}")
+    c[2].metric("TSB (Form, Last)", f"{last.tsb:+.0f}")
+    k = 3
+    if has_adj:
+        c[3].metric("Form inkl. Erholung", f"{last.tsb_adj:+.0f}", f"{last.tsb_adj - last.tsb:+.0f} (Schlaf/HRV/Ruhepuls)", delta_color="off" if last.tsb_adj == last.tsb else "inverse")
+        k = 4
+    c[k].metric("Workouts", len(wk))
+    c[k + 1].metric("Stunden", f"{wk.duration_s.sum() / 3600:.1f}")
+    c[k + 2].metric("TSS", f"{wk.tss.sum():.0f}")
     mm = agg_mmp(wk)
     m = model.fit_pd(mm)
     if m:
@@ -464,6 +484,50 @@ def page_pd(wk, rng):
              f"({float(mdl.power(dmin * 60)) / mdl.mftp * 100:.0f} % mFTP). Typisch trainierbar: 90–100 % davon bei Wiederholungen.")
 
 
+def page_recovery(wk, rng):
+    st.header("Erholung: HRV & Schlaf")
+    explain("Erholung (HRV & Schlaf)")
+    start = rng[0] if rng else date.today() - timedelta(days=90)
+    w = db.wellness_df(str(min(start, date.today() - timedelta(days=60))), str(date.today()))
+    if w.empty:
+        st.info("Noch keine Schlaf-/HRV-Daten. In „Athlet & Daten“ **Garmin Connect** (mit Haken „HRV & Schlaf“) ausführen "
+                "oder im Terminal `./sync.command wellness --days 90`. Nur Garmin-Geräte/-Konten liefern diese Daten.")
+        return
+    ready = wellness.readiness(w, date.today())
+    show(ready["items"])
+    w["d"] = pd.to_datetime(w.date)
+    view = w[w.d >= pd.Timestamp(start)]
+    # --- HRV
+    f = go.Figure()
+    tss = daily_tss(); tss.index = pd.to_datetime(tss.index)
+    tv = tss[tss.index >= pd.Timestamp(start)]
+    f.add_bar(x=tv.index, y=tv.values, name="TSS", marker_color="rgba(150,150,150,.25)", yaxis="y2")
+    if view.hrv_low.notna().any() and view.hrv_high.notna().any():
+        f.add_scatter(x=view.d, y=view.hrv_high, line=dict(width=0), showlegend=False, hoverinfo="skip")
+        f.add_scatter(x=view.d, y=view.hrv_low, fill="tonexty", fillcolor="rgba(44,160,44,.15)", line=dict(width=0), name="Garmin-Normbereich", hoverinfo="skip")
+    f.add_scatter(x=view.d, y=view.hrv_night, mode="lines+markers", name="HRV Nacht (ms)", line=dict(color="#1f77b4", width=1))
+    f.add_scatter(x=view.d, y=w.set_index("d").hrv_night.rolling(7, min_periods=3).mean().reindex(view.d).values, name="7-Tage-Mittel", line=dict(color="#d62728", width=3))
+    f.update_layout(title="HRV (Nacht) und Trainingslast", height=380, hovermode="x unified", yaxis=dict(title="ms"),
+                    yaxis2=dict(overlaying="y", side="right", title="TSS", showgrid=False, tickformat=".0f", nticks=5, rangemode="tozero"), margin=dict(t=40))
+    st.plotly_chart(f, width="stretch")
+    # --- Schlaf
+    sv = view.dropna(subset=["sleep_s"])
+    g = go.Figure()
+    for col, name, color in (("deep_s", "Tiefschlaf", "#08306b"), ("light_s", "Leichtschlaf", "#6baed6"), ("rem_s", "REM", "#9467bd"), ("awake_s", "Wach", "#d9d9d9")):
+        if sv[col].notna().any(): g.add_bar(x=sv.d, y=sv[col] / 3600, name=name, marker_color=color)
+    g.add_hline(y=7, line_dash="dot", annotation_text="7 h")
+    if sv.sleep_score.notna().any():
+        g.add_scatter(x=sv.d, y=sv.sleep_score, name="Schlafscore", yaxis="y2", mode="lines+markers", line=dict(color="#e6b800"))
+    g.update_layout(barmode="stack", title="Schlaf", height=360, hovermode="x unified", yaxis=dict(title="Stunden"),
+                    yaxis2=dict(overlaying="y", side="right", title="Score", range=[0, 100], showgrid=False, tickvals=[0, 25, 50, 75, 100]), margin=dict(t=40))
+    st.plotly_chart(g, width="stretch")
+    if view.resting_hr.notna().any():
+        st.plotly_chart(px.line(view, x="d", y="resting_hr", markers=True, title="Ruhepuls (bpm)", labels=dict(d="", resting_hr="bpm")), width="stretch")
+    t = view[["date", "sleep_s", "sleep_score", "hrv_night", "hrv_week", "hrv_status", "resting_hr"]].copy()
+    t["Schlaf h"] = (t.pop("sleep_s") / 3600).round(1)
+    st.dataframe(t.tail(14)[::-1], hide_index=True, width="stretch")
+
+
 PRIO_COLOR = {"A": "#d62728", "B": "#ff7f0e", "C": "#7f7f7f"}
 
 
@@ -502,8 +566,12 @@ def page_pmc(wk, rng):
     explain("Performance Management (PMC)")
     with st.expander("Wettkämpfe – Hinweise"):
         st.markdown(insights.EXPLAIN["Wettkämpfe"])
-    d = full_pmc()
+    d = full_pmc_adj()
     show(insights.assess_pmc(d))
+    if d.readiness_pts.iloc[-3:].any():
+        adj = d.tsb_adj.iloc[-1] - d.tsb.iloc[-1]
+        st.info(f"Form inkl. Erholungsdaten: **{d.tsb_adj.iloc[-1]:+.0f}** statt {d.tsb.iloc[-1]:+.0f} (Abzug {abs(adj):.0f} wegen Schlaf/HRV/Ruhepuls, siehe „Erholung“). "
+                "Der Abzug ist eine Heuristik (5 Punkte je Warnsignal, max. 25) – CTL/ATL/TSB bleiben reine Trainingslast.", icon="ℹ️")
     races_manager()
     rc = db.races_df()
     fc = forecast_all()
@@ -521,6 +589,9 @@ def page_pmc(wk, rng):
     for col, name, color, kw in (("ctl", "CTL (Fitness)", "#1f77b4", {}), ("atl", "ATL (Ermüdung)", "#d62728", {}), ("tsb", "TSB (Form)", "#e6b800", dict(fill="tozeroy", opacity=.5))):
         f.add_scatter(x=act.index, y=act[col], name=name, line=dict(color=color), **kw)
         if len(fut): f.add_scatter(x=fut.index, y=fut[col], name=f"{name} – Prognose", line=dict(color=color, dash="dot"), showlegend=False)
+    adj_part = d.loc[start:, "tsb_adj"] if "tsb_adj" in d else None
+    if adj_part is not None and (d.readiness_pts.loc[start:] > 0).any():
+        f.add_scatter(x=adj_part.index, y=adj_part, name="TSB inkl. Erholung", line=dict(color="#7b3294", width=2, dash="dash"))
     for r in rc.itertuples():
         x = pd.Timestamp(r.date)
         if start <= x <= end:
@@ -663,13 +734,13 @@ GARMIN_LOG = config.ROOT / "garmin_sync.log"
 GARMIN_MFA = config.ROOT / "garmin_mfa.txt"
 
 
-def start_garmin(days: int, env: dict) -> None:
+def start_garmin(days: int, env: dict, with_wellness: bool = True) -> None:
     """Garmin-Sync als Hintergrundprozess; fragt bei 2FA über das Eingabefeld (garmin_status) nach dem Code."""
     config.ensure_dirs()
     GARMIN_MFA.unlink(missing_ok=True)
     log = open(GARMIN_LOG, "w")
     st.session_state["garmin_proc"] = subprocess.Popen(
-        [sys.executable, "-u", str(ROOT / "sync.py"), "garmin", "--days", str(days)], stdout=log, stderr=subprocess.STDOUT,
+        [sys.executable, "-u", str(ROOT / "sync.py"), "garmin", "--days", str(days), *([] if with_wellness else ["--no-wellness"])], stdout=log, stderr=subprocess.STDOUT,
         stdin=subprocess.DEVNULL, env={**env, "GARMIN_MFA_FILE": str(GARMIN_MFA)})
     st.session_state["mfa_sent"] = False
 
@@ -741,8 +812,9 @@ def page_athlete(wk, rng):
         em, pw = ge.text_input("Garmin E-Mail"), gp.text_input("Garmin Passwort", type="password")
         if em and pw:
             env.update(GARMIN_EMAIL=em, GARMIN_PASSWORD=pw)
+    wl = st.checkbox("HRV & Schlaf mitladen", True, help="Zusätzliche Abrufe pro Tag (ca. 1 s je Tag). Beim ersten Mal mit vielen Tagen dauert das einige Minuten.")
     if c[1].button("Garmin Connect"):
-        start_garmin(days, env)
+        start_garmin(days, env, wl)
     runs = {"TrainingPeaks": ["trainingpeaks", "--days", str(days)], f"Inbox-Ordner ({config.INBOX})": ["folder"]}
     for col, (lbl, args) in zip(c[2:], runs.items()):
         if col.button(lbl):
@@ -779,7 +851,7 @@ def main():
     if page in POWER_PAGES and not wk.empty and not (wk.tss_method == "power").any():
         st.info("Im gewählten Zeitraum/Sport gibt es keine Rad-Workouts mit Leistungsdaten. Für Läufe siehe 'Lauf: Pace & Critical Speed'.")
         return
-    dict(zip(PAGES, [page_dashboard, page_workout, page_pd, page_run, page_pmc, page_zones, page_profile, page_fatigue,
+    dict(zip(PAGES, [page_dashboard, page_workout, page_pd, page_run, page_pmc, page_recovery, page_zones, page_profile, page_fatigue,
                      page_progress, page_plan, page_athlete]))[page](wk, rng)
 
 

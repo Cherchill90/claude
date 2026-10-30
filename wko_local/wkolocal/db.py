@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS races(
   id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, name TEXT, sport TEXT, priority TEXT,
   duration_h REAL, tss REAL, notes TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS wellness(
+  date TEXT PRIMARY KEY, sleep_s INTEGER, deep_s INTEGER, light_s INTEGER, rem_s INTEGER, awake_s INTEGER,
+  sleep_score REAL, hrv_night REAL, hrv_week REAL, hrv_status TEXT, hrv_low REAL, hrv_high REAL,
+  resting_hr REAL, source TEXT);
 CREATE TABLE IF NOT EXISTS planned(
   id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, name TEXT, sport TEXT,
   tss REAL, duration_min REAL, notes TEXT DEFAULT '');
@@ -188,3 +192,27 @@ def add_race(day: str, name: str, sport="Cycling", priority="B", duration_h=None
 def delete_race(rid: int) -> None:
     with connect() as c:
         c.execute("DELETE FROM races WHERE id=?", (rid,))
+
+
+# ---- Erholung (Schlaf/HRV) --------------------------------------------------
+WELLNESS_COLS = ["date", "sleep_s", "deep_s", "light_s", "rem_s", "awake_s", "sleep_score", "hrv_night", "hrv_week",
+                 "hrv_status", "hrv_low", "hrv_high", "resting_hr", "source"]
+
+
+def upsert_wellness(row: dict) -> None:
+    vals = [row.get(c) for c in WELLNESS_COLS]
+    with connect() as c:
+        c.execute(f"INSERT OR REPLACE INTO wellness({','.join(WELLNESS_COLS)}) VALUES({','.join('?' * len(WELLNESS_COLS))})", vals)
+
+
+def wellness_df(start: str | None = None, end: str | None = None) -> pd.DataFrame:
+    q, p = "SELECT * FROM wellness WHERE 1=1", []
+    if start: q += " AND date>=?"; p.append(start)
+    if end: q += " AND date<=?"; p.append(end)
+    with connect() as c:
+        return pd.read_sql(q + " ORDER BY date", c, params=p)
+
+
+def has_wellness(day: str) -> bool:
+    with connect() as c:
+        return c.execute("SELECT 1 FROM wellness WHERE date=?", (day,)).fetchone() is not None

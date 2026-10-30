@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from . import pmc as pmc_mod
+from .wellness import form_adjustment
 
 WEEKDAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
 FEELINGS = ["Gut", "Normal", "Müde", "Krank"]
@@ -119,7 +120,8 @@ def _key_type(r, ftp: float) -> str:
 
 
 def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd.DataFrame, planned: pd.DataFrame,
-              ftp: float, run_pace: float | None, feeling: str = "Normal", ctl_tau=42, atl_tau=7) -> Rec:
+              ftp: float, run_pace: float | None, feeling: str = "Normal", ctl_tau=42, atl_tau=7,
+              readiness: dict | None = None) -> Rec:
     """Empfehlung für today+1. recent: Workouts der letzten ~28 Tage (alle Sportarten)."""
     D = today + timedelta(days=1)
     reasons: list[str] = []
@@ -131,6 +133,9 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
     d = pmc_mod.pmc(s, ctl_tau, atl_tau)
     ctl, atl = float(d.ctl.iloc[-1]), float(d.atl.iloc[-1])
     tsb = ctl - atl
+    # Erholungsdaten (Schlaf/HRV/Ruhepuls) senken die wirksame Form: gleiche Last bei schlechter Erholung ist "härter"
+    adj = form_adjustment(readiness["points"]) if readiness and readiness.get("state") != "unknown" else 0.0
+    tsb_load, tsb = tsb, tsb - adj
     ramp = float(d.ramp.iloc[-1]) if pd.notna(d.ramp.iloc[-1]) else 0.0
     last7 = s.iloc[-7:]
     streak = 0
@@ -158,9 +163,18 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
 
     if len(s) < 42:
         reasons.append(f"Achtung: erst {len(s)} Tage Historie – CTL/TSB sind noch nicht belastbar (Start bei 0), die Form wirkt zu negativ.")
-    reasons.append(f"Form (TSB) morgen früh: {tsb:+.0f} (CTL {ctl:.0f}, ATL {atl:.0f}); Rampe {ramp:+.1f} CTL/Woche.")
+    reasons.append(f"Form (TSB) morgen früh: {tsb_load:+.0f} (CTL {ctl:.0f}, ATL {atl:.0f}); Rampe {ramp:+.1f} CTL/Woche."
+                   + (f" Mit Erholungsdaten angepasst: {tsb:+.0f} (−{adj:.0f})." if adj else ""))
     reasons.append(f"Letzte 7 Tage: {7 - rest7} Trainingstage, {hard7} harte Einheit(en)"
                    + (f"; letzte harte Einheit vor {since_hard} Tag(en)." if since_hard is not None else "; keine harte Einheit in 28 Tagen."))
+
+    # ---- Erholungsdaten (Schlaf/HRV/Ruhepuls) ergänzen Dein Befinden
+    eff = feeling
+    if readiness and readiness.get("state") in ("low", "reduced") and feeling in ("Gut", "Normal"):
+        eff = "Müde" if (readiness["state"] == "low" and feeling == "Normal") else "Reduziert"
+        reasons.append("Schlaf/HRV/Ruhepuls: " + " ".join(i.text for i in readiness["items"][1:] if i.level in ("warn", "bad")))
+    elif readiness and readiness.get("state") == "ok":
+        reasons.append("Schlaf/HRV/Ruhepuls unauffällig.")
 
     # ---- Wettkämpfe
     next_race = None
@@ -222,11 +236,15 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
         if kind == "Grundlage" and D.weekday() >= 5 and tsb >= -20 and hard7 >= 1:
             kind = "Lange Grundlage"; reasons.append("Wochenende: Zeit für einen längeren, lockeren Umfang.")
     # ---- Befinden: müde -> eine Stufe herunter
-    if feeling == "Müde":
+    if eff == "Reduziert":
+        if kind in ("Schwelle", "VO2max"):
+            reasons.append(f"Erholungsdaten eingeschränkt: {kind} → Sweetspot (weniger Stress).")
+            kind = "Sweetspot"
+    if eff == "Müde":
         down = {"Schwelle": "Grundlage", "VO2max": "Grundlage", "Sweetspot": "Grundlage", "Taper": "Grundlage",
                 "Lange Grundlage": "Grundlage", "Grundlage": "Regeneration", "Aktivierung": "Aktivierung", "Wettkampf": "Wettkampf"}
         if kind in down and down[kind] != kind:
-            reasons.append(f"Du fühlst Dich müde: {kind} → {down[kind]}.")
+            reasons.append(("Du fühlst Dich müde" if feeling == "Müde" else "Erholungsdaten deutlich eingeschränkt") + f": {kind} → {down[kind]}.")
             kind = down[kind]
             c["end_min"] = min(c["end_min"], 60)
 
@@ -244,7 +262,7 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
             sport = cands[0]
         else:
             ran_today = len(runs[runs.d == today]) > 0 and runs[runs.d == today].tss.sum() >= 50
-            if kind in ("Regeneration", "Lange Grundlage") or ran_today or feeling == "Müde":
+            if kind in ("Regeneration", "Lange Grundlage") or ran_today or eff == "Müde":
                 sport = "Cycling"
             elif kind in ("Schwelle", "VO2max", "Sweetspot"):
                 sport = max(cands, key=lambda x: (days_since(x, hard=True), x == "Cycling"))

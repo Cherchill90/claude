@@ -157,3 +157,63 @@ def test_forecast_uses_today_boundary():
     pl = pd.Series([100.0, 100.0], index=pd.to_datetime(["2026-10-25", "2026-10-30"]))
     fc = pmc.forecast(act, pl, "2026-11-02", today="2026-10-27")
     assert fc.loc["2026-10-25", "tss"] == 0 and fc.loc["2026-10-30", "tss"] == 100 and bool(fc.loc["2026-10-30", "geplant"]) and not bool(fc.loc["2026-10-27", "geplant"])
+
+
+# ------------------------------------------------------------------ Schlaf / HRV
+def _wdf(hrv_recent, sleep_recent, rhr_recent, n_base=28):
+    import pandas as pd
+    days = pd.date_range("2026-09-01", periods=n_base + 3)
+    rng = np.random.default_rng(0)
+    rows = []
+    for i, d in enumerate(days):
+        rec = i >= n_base
+        rows.append(dict(date=f"{d:%Y-%m-%d}", sleep_s=int((sleep_recent if rec else 7.5) * 3600), sleep_score=75.0,
+                         hrv_night=hrv_recent if rec else 68 + rng.normal(0, 4), hrv_status="BALANCED",
+                         resting_hr=rhr_recent if rec else 51 + rng.normal(0, 1)))
+    return pd.DataFrame(rows), days[-1]
+
+
+def test_parse_garmin_day():
+    from wkolocal import wellness
+    sleep = {"dailySleepDTO": {"sleepTimeSeconds": 27000, "deepSleepSeconds": 5000, "sleepScores": {"overall": {"value": 81}}}, "restingHeartRate": 49}
+    hrv = {"hrvSummary": {"lastNightAvg": 71, "weeklyAvg": 69, "status": "BALANCED", "baseline": {"balancedLow": 60, "balancedUpper": 80}}}
+    r = wellness.parse_day("2026-10-01", sleep, hrv)
+    assert r["sleep_s"] == 27000 and r["sleep_score"] == 81 and r["hrv_night"] == 71 and r["hrv_low"] == 60 and r["resting_hr"] == 49
+    assert wellness.parse_day("2026-10-02", {}, None) is None
+    assert wellness.parse_day("2026-10-03", None, {"hrvSummary": {"lastNightAvg": 55}})["hrv_night"] == 55
+
+
+def test_readiness_states():
+    from wkolocal import wellness
+    import pandas as pd
+    ok, t = _wdf(68, 7.5, 51)
+    assert wellness.readiness(ok, t)["state"] == "ok"
+    low, t = _wdf(48, 5.2, 60)
+    assert wellness.readiness(low, t)["state"] == "low"
+    assert wellness.readiness(pd.DataFrame())["state"] == "unknown"
+
+
+def test_recommend_uses_readiness():
+    from wkolocal import recommend, wellness
+    import pandas as pd
+    today, daily, recent, races = _scenario([55.0] * 45 + [80.0, 0, 70, 0, 80, 0, 0, 60, 0, 0, 80, 0, 70, 50])
+    base = recommend.recommend(today, daily, recent, races, pd.DataFrame(), 250, None)
+    assert base.kind in ("Schwelle", "VO2max", "Sweetspot", "Lange Grundlage")
+    low, t = _wdf(48, 5.2, 60)
+    ready = wellness.readiness(low, t)
+    r = recommend.recommend(today, daily, recent, races, pd.DataFrame(), 250, None, "Normal", readiness=ready)
+    assert r.kind in ("Grundlage", "Regeneration") and any("Erholungsdaten" in x or "Schlaf" in x for x in r.reasons)
+
+
+def test_adjusted_form_and_recommend_reasons():
+    from wkolocal import wellness, pmc as pm
+    import pandas as pd
+    low, t = _wdf(48, 5.2, 60)
+    d = pm.pmc(pd.Series([60.0] * 31, index=pd.date_range("2026-09-01", periods=31)))
+    out = wellness.adjusted_form(d, low)
+    assert out.tsb_adj.iloc[-1] < out.tsb.iloc[-1] and out.tsb_adj.iloc[0] == out.tsb.iloc[0]
+    assert wellness.form_adjustment(10) == 25 and wellness.form_adjustment(0) == 0
+    from wkolocal import recommend
+    today, daily, recent, races = _scenario([55.0] * 45 + [80.0, 0, 70, 0, 80, 0, 0, 60, 0, 0, 80, 0, 70, 50])
+    r = recommend.recommend(today, daily, recent, races, pd.DataFrame(), 250, None, "Normal", readiness=wellness.readiness(low, t))
+    assert any("Mit Erholungsdaten angepasst" in x for x in r.reasons)
