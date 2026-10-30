@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import getpass
 import os
+import sys
+import time
 from datetime import date, timedelta
 
 from .. import config, ingest
@@ -15,23 +17,42 @@ from ..parsers import parse_file
 from pathlib import Path
 
 
+def _prompt_mfa() -> str:
+    """2FA-Code: im Terminal per Eingabe, in der App per Datei (GARMIN_MFA_FILE), sonst klarer Fehler."""
+    f = os.environ.get("GARMIN_MFA_FILE")
+    if f:
+        p = Path(f)
+        p.unlink(missing_ok=True)
+        print("MFA_REQUIRED", flush=True)          # Signal an die Oberfläche
+        for _ in range(300):                        # bis zu 5 min warten
+            if p.exists() and p.read_text().strip():
+                code = p.read_text().strip()
+                p.unlink(missing_ok=True)
+                return code
+            time.sleep(1)
+        raise RuntimeError("2FA-Code wurde nicht rechtzeitig eingegeben.")
+    if sys.stdin and sys.stdin.isatty():
+        return input("2FA-Code: ")
+    raise RuntimeError("Garmin verlangt einen 2FA-Code, aber es ist keine Eingabe möglich. "
+                       "In der App: Sync-Button nutzen (dort gibt es ein Eingabefeld) oder im Terminal ./sync.command garmin.")
+
+
 def _login():
     from garminconnect import Garmin
     config.ensure_dirs()
     tok = str(config.TOKEN_DIR)
     try:
-        g = Garmin()
-        g.login(tok)
+        g = Garmin(prompt_mfa=_prompt_mfa)
+        g.login(tok)                                # gespeichertes Token
         return g
     except Exception:
         pass
-    try:
-        email = os.environ.get("GARMIN_EMAIL") or input("Garmin E-Mail: ")
-        pw = os.environ.get("GARMIN_PASSWORD") or getpass.getpass("Garmin Passwort: ")
-        g = Garmin(email, pw, prompt_mfa=lambda: input("2FA-Code: "))
-    except EOFError:
-        raise SystemExit("Garmin-Anmeldung braucht interaktive Eingabe. Einmalig im Terminal ausführen: "
-                         "./sync.command garmin  (danach funktioniert der Button in der App ohne Passwort).")
+    interactive = bool(sys.stdin and sys.stdin.isatty())
+    email = os.environ.get("GARMIN_EMAIL") or (input("Garmin E-Mail: ") if interactive else "")
+    pw = os.environ.get("GARMIN_PASSWORD") or (getpass.getpass("Garmin Passwort: ") if interactive else "")
+    if not email or not pw:
+        raise SystemExit("Keine Garmin-Zugangsdaten: in der App E-Mail/Passwort eingeben oder im Terminal ./sync.command garmin ausführen.")
+    g = Garmin(email, pw, prompt_mfa=_prompt_mfa)
     g.login(tok)
     return g
 

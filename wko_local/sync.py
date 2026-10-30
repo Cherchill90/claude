@@ -24,12 +24,19 @@ def main() -> int:
     from wkolocal import config, ingest
     config.ensure_dirs()
     results = []
+    def run(name, fn):
+        try:
+            results.append((name, fn()))
+        except (Exception, SystemExit) as e:          # klare Meldung statt Traceback
+            msg = str(e) or e.__class__.__name__
+            results.append((name, (0, 0, [f"{name}: {msg}"])))
+
     if a.quelle in ("garmin", "all"):
         from wkolocal.sync import garmin
-        results.append(("Garmin", garmin.sync(a.days, a.since)))
+        run("Garmin", lambda: garmin.sync(a.days, a.since))
     if a.quelle in ("trainingpeaks", "all"):
         from wkolocal.sync import trainingpeaks
-        results.append(("TrainingPeaks", trainingpeaks.sync(a.days)))
+        run("TrainingPeaks", lambda: trainingpeaks.sync(a.days))
     if a.quelle in ("folder", "all"):
         results.append(("Ordner", ingest.import_path(Path(a.pfad) if a.pfad else config.INBOX)))
     if a.quelle == "demo":

@@ -547,6 +547,42 @@ def page_plan(wk, rng):
         if st.button("Eintrag löschen") and dl: db.delete_planned(int(dl)); st.rerun()
 
 
+GARMIN_LOG = config.ROOT / "garmin_sync.log"
+GARMIN_MFA = config.ROOT / "garmin_mfa.txt"
+
+
+def start_garmin(days: int, env: dict) -> None:
+    """Garmin-Sync als Hintergrundprozess; fragt bei 2FA über das Eingabefeld (garmin_status) nach dem Code."""
+    config.ensure_dirs()
+    GARMIN_MFA.unlink(missing_ok=True)
+    log = open(GARMIN_LOG, "w")
+    st.session_state["garmin_proc"] = subprocess.Popen(
+        [sys.executable, "-u", str(ROOT / "sync.py"), "garmin", "--days", str(days)], stdout=log, stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL, env={**env, "GARMIN_MFA_FILE": str(GARMIN_MFA)})
+    st.session_state["mfa_sent"] = False
+
+
+@st.fragment(run_every=2)
+def garmin_status() -> None:
+    p = st.session_state.get("garmin_proc")
+    if p is None:
+        return
+    log = GARMIN_LOG.read_text() if GARMIN_LOG.exists() else ""
+    shown = log.replace("MFA_REQUIRED\n", "").strip()
+    if p.poll() is None:
+        if "MFA_REQUIRED" in log and not st.session_state.get("mfa_sent"):
+            st.warning("Garmin hat einen 2FA-Code an Dich geschickt (E-Mail/Authenticator). Bitte hier eingeben:")
+            with st.form("mfa"):
+                code = st.text_input("2FA-Code")
+                if st.form_submit_button("Code senden") and code.strip():
+                    GARMIN_MFA.write_text(code.strip())
+                    st.session_state["mfa_sent"] = True
+        else:
+            st.info("Garmin-Sync läuft … " + shown[-300:])
+    else:
+        (st.success if p.returncode == 0 else st.error)(shown or "Fertig.")
+
+
 def page_athlete(wk, rng):
     st.header("Athlet & Daten")
     s = db.get_settings()
@@ -587,18 +623,20 @@ def page_athlete(wk, rng):
     days = c[0].number_input("Tage zurück", 1, 3650, 30)
     env = dict(os.environ)
     if not any(config.TOKEN_DIR.glob("*")):
-        st.info("Garmin ist noch nicht angemeldet. Konten **mit 2FA**: einmalig im Terminal `./sync.command garmin` ausführen "
-                "(fragt Code ab). Konten ohne 2FA: Zugangsdaten unten eingeben (werden nicht gespeichert, nur das Anmelde-Token).")
+        st.info("Garmin ist noch nicht angemeldet: E-Mail und Passwort eingeben und „Garmin Connect“ klicken. Bei aktivierter 2FA erscheint "
+                "danach ein Feld für den Code. Das Passwort wird nicht gespeichert, nur das Anmelde-Token (data/garmin_tokens).")
         ge, gp = st.columns(2)
         em, pw = ge.text_input("Garmin E-Mail"), gp.text_input("Garmin Passwort", type="password")
         if em and pw:
             env.update(GARMIN_EMAIL=em, GARMIN_PASSWORD=pw)
-    runs = {"Garmin Connect": ["garmin", "--days", str(days)], "TrainingPeaks": ["trainingpeaks", "--days", str(days)],
-            f"Inbox-Ordner ({config.INBOX})": ["folder"]}
-    for col, (lbl, args) in zip(c[1:], runs.items()):
+    if c[1].button("Garmin Connect"):
+        start_garmin(days, env)
+    runs = {"TrainingPeaks": ["trainingpeaks", "--days", str(days)], f"Inbox-Ordner ({config.INBOX})": ["folder"]}
+    for col, (lbl, args) in zip(c[2:], runs.items()):
         if col.button(lbl):
             r = subprocess.run([sys.executable, str(ROOT / "sync.py"), *args], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env)
             (st.success if r.returncode == 0 else st.error)(r.stdout + r.stderr)
+    garmin_status()
     up = st.file_uploader("Dateien hochladen (FIT/TCX/GPX/CSV/ZIP)", accept_multiple_files=True)
     if up and st.button("Hochgeladene Dateien importieren"):
         config.ensure_dirs(); tot = [0, 0, []]
