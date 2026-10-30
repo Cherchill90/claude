@@ -159,6 +159,12 @@ def recommendation_card() -> None:
                 ready["items"][0].text + " (Details: Ansicht „Erholung“)", icon=insights.ICON[ready["items"][0].level])
         elif ready is None:
             st.caption("Noch keine Schlaf-/HRV-Daten: Garmin-Sync ausführen, dann fließen sie in die Empfehlung ein.")
+        cited = recommend.cited_ids(r)
+        if cited:
+            with st.expander(f"Quellen zu dieser Empfehlung ({len(cited)})"):
+                for qid in cited:
+                    e = evidence.by_id(qid)
+                    st.markdown(f"**{qid} · {e['level']}** – {e['title']}" + (f"  \n{e['url']}" if e["url"] else "") + f"  \n_Grenzen:_ {e['caveat']}")
         with st.expander("Warum diese Empfehlung?"):
             st.markdown("\n".join(f"- {x}" for x in r.reasons))
             st.caption("Regelbasiert aus Belastungshistorie (Form, harte Einheiten, Wettkämpfe, Plan) und Deinem Befinden. "

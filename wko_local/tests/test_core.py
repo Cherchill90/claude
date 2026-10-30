@@ -232,3 +232,20 @@ def test_evidence_and_guidance():
     assert any("Optional (Ermüdungsresistenz)" in x for x in lines) and any("Verpflegung" in x for x in lines)
     lines, _, _ = recommend.build_session("Grundlage", "Running", 250, 285, dict(end_min=60, long_min=90, strides=True))
     assert any("Steigerungen" in x for x in lines)
+
+
+def test_recommend_evidence_rules():
+    from wkolocal import recommend
+    import pandas as pd
+    # keine lange Einheit (alle 90 min), kaum hart, erholt -> lange Einheit + Quellen + Kraft-Hinweis
+    today, daily, recent, races = _scenario([55.0] * 45 + [60.0, 0, 70, 0, 80, 0, 0, 60, 0, 0, 0, 55, 0, 0])
+    r = recommend.recommend(today, daily, recent, races, pd.DataFrame(), 250, None)
+    assert r.kind in ("Lange Grundlage", "Schwelle", "VO2max", "Sweetspot", "Grundlage")
+    if r.kind == "Lange Grundlage":
+        assert any("Q11" in x for x in r.reasons) and any("Zusatz Kraft" in x for x in r.details)
+    assert all(q.startswith("Q") for q in recommend.cited_ids(r))
+    # mit langer Einheit in den letzten 14 Tagen entfällt der Hinweis
+    today2, daily2, recent2, races2 = _scenario([55.0] * 45 + [60.0, 0, 70, 0, 80, 0, 0, 60, 0, 0, 0, 55, 0, 0])
+    recent2.loc[recent2.index[-2], "duration_s"] = 9000
+    r2 = recommend.recommend(today2, daily2, recent2, races2, pd.DataFrame(), 250, None)
+    assert not any("Seit 14 Tagen keine lange Einheit" in x for x in r2.reasons)

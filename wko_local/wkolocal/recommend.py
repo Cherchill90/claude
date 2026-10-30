@@ -34,6 +34,13 @@ class Rec:
 
 
 # ------------------------------------------------------------------ Formatierung / Sitzungsbausteine
+def cited_ids(rec: "Rec") -> list[str]:
+    """Quellenkürzel [Qn], die in Details/Begründung der Empfehlung vorkommen (für die Quellenanzeige)."""
+    import re
+    ids = re.findall(r"Q\d+", " ".join([*rec.details, *rec.reasons]))
+    return sorted(set(ids), key=lambda s: int(s[1:]))
+
+
 def _pace(sec_km: float) -> str:
     m, s = divmod(int(round(sec_km)), 60)
     return f"{m}:{s:02d}"
@@ -179,6 +186,13 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
     c = dict(end_min=float(endur.duration_s.median() / 60) if len(endur) else 75,
              long_min=float(ride.duration_s.max() / 60) if len(ride) else 150)
     runs = rec[rec.sport == "Running"]
+    # Lange Einheiten (Rad ≥ 120 min, Lauf ≥ 90 min) in den letzten 14 Tagen; Wochenumfang; Krafteinheiten
+    recent14 = rec[[(today - x).days < 14 for x in rec.d]] if len(rec) else rec
+    long_done = bool(len(recent14) and (((recent14.sport == "Cycling") & (recent14.duration_s >= 7200)) | ((recent14.sport == "Running") & (recent14.duration_s >= 5400))).any())
+    h7 = float(rec[[(today - x).days < 7 for x in rec.d]].duration_s.sum() / 3600) if len(rec) else 0.0
+    h_avg = float(rec.duration_s.sum() / 3600 / 4) if len(rec) else 0.0
+    is_strength = rec.sport.map(lambda s: str(s).lower().startswith("strength") or str(s).lower() in ("training", "gym")) if len(rec) else pd.Series(dtype=bool)
+    strength7 = int(sum(1 for x, f in zip(rec.d, is_strength) if f and (today - x).days < 7)) if len(rec) else 0
     if len(runs):
         c["end_min"] = c["end_min"]   # Lauf-Dauern werden in build_session gedeckelt
 
@@ -239,23 +253,32 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
             reasons.append("Heute war eine harte Einheit: morgen locker, damit sie wirkt.")
             if kind == "Grundlage": c["end_min"] = min(c["end_min"], 75)
     # ---- Normalfall
+    normal_path = kind is None
     if kind is None:
         limit = -25 if feeling == "Gut" else -20
         if ramp > 8:
             kind = "Grundlage"; reasons.append(f"Rampe {ramp:.1f} CTL/Woche ist aggressiv: keine zusätzliche Intensität.")
         elif hard7 >= 2 and not (tsb > 15 and hard7 < 3):
             kind = "Lange Grundlage" if D.weekday() >= 5 and tsb >= -20 else "Grundlage"
-            reasons.append(f"{hard7} harte Einheiten in 7 Tagen – das Intensitätskontingent (≈ 2/Woche) ist ausgeschöpft.")
+            reasons.append(f"{hard7} harte Einheiten in 7 Tagen – das Intensitätskontingent (≈ 2/Woche, langer Lauf zählt mit) ist ausgeschöpft. "
+                           "Beobachtungsstudien: Erfolgreiche Ausdauersportler trainieren vor allem viel locker; mehr Intensität allein bringt nicht mehr. " + refs("Q4", "Q6"))
         elif since_hard == 1:
             kind = "Grundlage"; reasons.append("Gestern war eine harte Einheit: heute erst einmal locker.")
         elif tsb >= limit:
             kind = "Sweetspot" if tsb < -10 else ("VO2max" if last_key == "Schwelle" else "Schwelle")
-            reasons.append("Ausreichend erholt für eine Schlüsseleinheit" + (f" (letzte: {last_key} → Abwechslung)." if last_key else "."))
+            reasons.append("Ausreichend erholt für eine Schlüsseleinheit" + (f" (letzte: {last_key} → Abwechslung)." if last_key else ".") + " Pro Woche reichen ca. 2 harte Einheiten, der Rest bleibt locker. " + refs("Q6"))
             if kind == "Sweetspot": reasons.append("Form leicht negativ: Sweetspot setzt Reiz bei geringerer Ermüdung als Schwelle/VO2max.")
         else:
             kind = "Grundlage"; reasons.append(f"Form {tsb:+.0f} ist für harte Intervalle zu niedrig (Grenze {limit}).")
         if kind == "Grundlage" and D.weekday() >= 5 and tsb >= -20 and hard7 >= 1:
             kind = "Lange Grundlage"; reasons.append("Wochenende: Zeit für einen längeren, lockeren Umfang.")
+    if normal_path and kind == "Grundlage" and not long_done and since_hard not in (0, 1) and ramp <= 8 and tsb >= -15 and eff not in ("Müde", "Reduziert"):
+        kind = "Lange Grundlage"
+        reasons.append("Seit 14 Tagen keine lange Einheit (Rad ≥ 2 h, Lauf ≥ 1,5 h). Regelmäßige lange Einheiten hingen bei Läufern mit geringerem Leistungsabfall bei Ermüdung zusammen (Querschnitt, nur Männer; "
+                       "Übersichtsarbeit: plausibel, kaum Interventionsdaten). " + refs("Q11", "Q7"))
+    if kind in ("Grundlage", "Lange Grundlage") and normal_path and h_avg > 3 and h7 < .7 * h_avg and tsb >= -10 and eff not in ("Müde", "Reduziert"):
+        reasons.append(f"Umfang der letzten 7 Tage {h7:.1f} h liegt unter Deinem 4-Wochen-Schnitt ({h_avg:.1f} h/Woche): Kontinuität zählt – Einheit nicht kürzen. " + refs("Q7", "Q4"))
+        c["end_min"] = c["end_min"] * 1.15
     # ---- Befinden: müde -> eine Stufe herunter
     if eff == "Reduziert":
         if kind in ("Schwelle", "VO2max"):
@@ -293,7 +316,8 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
                 sport = max(cands, key=lambda x: (days_since(x), x == "Cycling"))
             if sport == "Running" and kind == "Lange Grundlage" and "Cycling" not in cands:
                 sport = "Running"
-        reasons.append(f"Sportart {sport}: " + ("schonender für Gelenke/Muskulatur" if sport == "Cycling" and kind in ("Regeneration", "Lange Grundlage") else "ergibt sich aus Abstand zur letzten (harten) Einheit."))
+        reasons.append(f"Sportart {sport}: " + ("schonender für Gelenke/Muskulatur – aerober Reiz ohne Laufstoßbelastung (Trainerpraxis, keine Studie)." if sport == "Cycling" and kind in ("Regeneration", "Lange Grundlage", "Grundlage") and len(runs) else
+                                          "schonender für Gelenke/Muskulatur" if sport == "Cycling" and kind in ("Regeneration", "Lange Grundlage") else "ergibt sich aus Abstand zur letzten (harten) Einheit."))
 
     if kind == "Ruhetag":
         details, dur, tss = ["Kein Training. Optional: 20–30 min Spaziergang, Mobilisation, ausreichend Schlaf und Essen."], None, (0, 0)
@@ -306,6 +330,9 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
         if sport == "Running" and not run_pace and kind not in ("Regeneration", "Grundlage", "Lange Grundlage", "Aktivierung"):
             details.insert(0, "Hinweis: keine Schwellenpace hinterlegt – Tempo nach Gefühl (Schwelle ≈ Tempo, das Du ca. 45–60 min halten könntest).")
 
+    if kind in ("Grundlage", "Lange Grundlage") and strength7 < 2 and eff not in ("Müde", "Reduziert"):
+        details.append(f"Zusatz Kraft: {strength7} Krafteinheit(en) in den letzten 7 Tagen erfasst. 2×/Woche Maximalkraft/Plyometrie (z. B. Kniebeugen, Step-ups, Nordic Curls, Pogo-Sprünge; 20–40 min) "
+                       "verbesserte in einem kleinen RCT die Laufökonomie und Leistung nach 90 min Belastung. Ob direkt nach der Ausdauereinheit besser ist, wurde nicht geprüft. " + refs("Q12"))
     level = {"Ruhetag": "info", "Regeneration": "info", "Wettkampf": "good", "Aktivierung": "good"}.get(kind, "good")
     if feeling == "Krank": level = "warn"
     wd = WEEKDAYS[D.weekday()]
