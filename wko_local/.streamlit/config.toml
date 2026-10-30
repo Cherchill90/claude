@@ -1,0 +1,39 @@
+# Design der Oberfläche (Hell/Dunkel folgt der Systemeinstellung, umschaltbar im Menü ⋮ → Settings)
+[theme]
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
+headingFontWeights = [700, 650]
+baseRadius = "0.75rem"
+buttonRadius = "0.6rem"
+showWidgetBorder = true
+showSidebarBorder = false
+
+[theme.light]
+primaryColor = "#2a78d6"
+backgroundColor = "#fcfcfb"
+secondaryBackgroundColor = "#f2f1ed"
+textColor = "#0b0b0b"
+borderColor = "#e3e1db"
+chartCategoricalColors = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
+
+[theme.light.sidebar]
+backgroundColor = "#f5f4f0"
+
+[theme.dark]
+primaryColor = "#3987e5"
+backgroundColor = "#121211"
+secondaryBackgroundColor = "#1e1e1c"
+textColor = "#f0efec"
+borderColor = "#2f2f2c"
+chartCategoricalColors = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"]
+
+[theme.dark.sidebar]
+backgroundColor = "#181817"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+runOnSave = false

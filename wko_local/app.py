@@ -1,27 +1,133 @@
-"""WKO-ähnliche Analyse-Oberfläche. Start: streamlit run app.py"""
+"""WKO-ähnliche Analyse-Oberfläche. Start: streamlit run app.py (oder Mac-App / start.command)."""
 from __future__ import annotations
 
 import os
 import subprocess
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from wkolocal import config, db, evidence, ingest, insights, metrics, model, pmc, profile, recommend, wellness
+from wkolocal import config, db, evidence, ingest, insights, metrics, model, pmc, profile, recommend, ui, wellness
 
-st.set_page_config(page_title="WKO Lokal", layout="wide")
+st.set_page_config(page_title="WKO Lokal", page_icon=":material/monitoring:", layout="wide", initial_sidebar_state="expanded")
+ui.apply_theme()
 ROOT = Path(__file__).parent
-PAGES = ["Dashboard", "Workout-Analyse", "Power-Duration-Kurve", "Lauf: Pace & Critical Speed", "Performance Management (PMC)",
-         "Erholung (HRV & Schlaf)", "Zeit in Zonen", "Profil & Phänotyp", "Fatigue Resistance", "Fortschritt", "Planung", "Athlet & Daten", "Quellen & Evidenz"]
+DISCLAIMER = "Automatische Einordnung nach Faustregeln und Studienlage – ersetzt keine Trainingsberatung; individuell kann es abweichen."
 
 
-# ---------------------------------------------------------------- Helfer
+# =============================================================== Daten-Cache
+# Alles Teure wird zwischengespeichert. Schlüssel ist der Änderungsstand der Datenbank: jede Änderung
+# (Import, Schwellenwert, Plan …) erzeugt automatisch neue Ergebnisse, ohne manuelles Leeren.
+def ver() -> int:
+    try:
+        return os.stat(config.DB_PATH).st_mtime_ns
+    except FileNotFoundError:
+        return 0
+
+
+TODAY = date.today()
+
+
+@st.cache_data(show_spinner=False, max_entries=96)
+def _workouts(start, end, sport, v):
+    return db.workouts_df(start, end, sport)
+
+
+def W(start=None, end=None, sport=None) -> pd.DataFrame:
+    return _workouts(None if start is None else str(start), None if end is None else str(end), sport, ver())
+
+
+@st.cache_data(show_spinner=False, max_entries=24)
+def stream(uid: str) -> pd.DataFrame:
+    return db.load_stream(uid)
+
+
+@st.cache_data(show_spinner=False, max_entries=8)
+def _small(kind: str, v):
+    return {"thr": db.thresholds_df, "races": db.races_df, "planned": db.planned_df, "settings": db.get_settings}[kind]()
+
+
+def thresholds(): return _small("thr", ver())
+def races(): return _small("races", ver())
+def planned(): return _small("planned", ver())
+def settings(): return _small("settings", ver())
+
+
+def thr_on(day, field, default=None):
+    df = thresholds().dropna(subset=[field])
+    if df.empty:
+        return default
+    past = df[df["date"] <= str(day)]
+    return float((past.iloc[-1] if len(past) else df.iloc[0])[field])
+
+
+def cur_ftp(): return thr_on(TODAY, "ftp", 200.0)
+def cur_weight(): return thr_on(TODAY, "weight", 70.0)
+def run_threshold_pace(): return thr_on(TODAY, "run_pace", None)
+
+
+@st.cache_data(show_spinner=False, max_entries=8)
+def _wellness(start, end, v):
+    return db.wellness_df(start, end)
+
+
+def wellness_df(start, end): return _wellness(str(start), str(end), ver())
+
+
+@st.cache_data(show_spinner=False, max_entries=8)
+def _daily_tss(sport, v):
+    w = db.workouts_df(sport=sport)
+    return w.groupby("date")["tss"].sum() if len(w) else pd.Series(dtype=float)
+
+
+def daily_tss(sport="Alle"): return _daily_tss(sport, ver())
+
+
+@st.cache_data(show_spinner=False, max_entries=8)
+def _pmc_adj(today, v):
+    s = settings()
+    a = daily_tss()
+    if a.empty:
+        d = pmc.pmc(a)
+        return d.assign(readiness_pts=0, tsb_adj=d.get("tsb"))
+    a = a.copy(); a.index = pd.to_datetime(a.index)
+    t = pd.Timestamp(today)
+    if a.index.max() < t:
+        a.loc[t] = 0.0
+    d = pmc.pmc(a, float(s["ctl_tau"]), float(s["atl_tau"]))
+    return wellness.adjusted_form(d, db.wellness_df(str(TODAY - timedelta(days=200)), str(TODAY)))
+
+
+def full_pmc() -> pd.DataFrame: return _pmc_adj(str(TODAY), ver())
+
+
+def planned_load() -> pd.Series:
+    pl = planned()
+    ser = pl.groupby("date").tss.sum() if len(pl) else pd.Series(dtype=float)
+    for r in races().itertuples():
+        if r.tss and pd.notna(r.tss) and r.date not in ser.index:
+            ser.loc[r.date] = float(r.tss)
+    return ser
+
+
+@st.cache_data(show_spinner=False, max_entries=8)
+def _forecast(today, v):
+    ser, rc = planned_load(), races()
+    future = [d for d in list(ser.index) + list(rc.date) if d > today]
+    if not future:
+        return None
+    s = settings()
+    return pmc.forecast(daily_tss(), ser, max(future), ctl_tau=float(s["ctl_tau"]), atl_tau=float(s["atl_tau"]))
+
+
+def forecast_all(): return _forecast(str(TODAY), ver())
+
+
 def agg_mmp(df: pd.DataFrame, key="mmp") -> dict[int, float]:
     out: dict[int, float] = {}
     for m in df[key]:
@@ -30,35 +136,75 @@ def agg_mmp(df: pd.DataFrame, key="mmp") -> dict[int, float]:
     return out
 
 
-def mmp_fig(curves: dict[str, dict], mdl: model.PDModel | None = None, weight=None):
-    fig = go.Figure()
-    for name, c in curves.items():
-        t = sorted(c)
-        y = [c[x] / (weight or 1) for x in t]
-        fig.add_scatter(x=t, y=y, name=name, mode="lines")
-    if mdl:
-        t = np.logspace(0.5, np.log10(7200), 200)
-        fig.add_scatter(x=t, y=mdl.power(t) / (weight or 1), name="Modell", line=dict(dash="dash", color="black"))
-    ticks = [1, 5, 15, 60, 300, 1200, 3600, 7200]
-    fig.update_xaxes(type="log", tickvals=ticks, ticktext=["1s", "5s", "15s", "1m", "5m", "20m", "1h", "2h"], title="Dauer")
-    fig.update_yaxes(title="W/kg" if weight else "Watt")
-    fig.update_layout(height=450, hovermode="x unified", margin=dict(t=20))
-    return fig
+@st.cache_data(show_spinner=False, max_entries=48)
+def _mmp_model(start, end, sport, v):
+    mm = agg_mmp(db.workouts_df(start, end, sport))
+    return mm, model.fit_pd(mm)
 
 
-def fmt_pace(sec_per_km: float) -> str:
+def mmp_model(start, end, sport): return _mmp_model(str(start), str(end), sport, ver())
+
+
+@st.cache_data(show_spinner=False, max_entries=16)
+def _zones(start, end, sport, ftp, v):
+    tot = np.zeros(7); rows = []
+    for w in db.workouts_df(start, end, sport).itertuples():
+        if w.tss_method != "power":
+            continue
+        z = metrics.time_in_zones(db.load_stream(w.uid).power.to_numpy(), w.ftp_used or ftp)["Sekunden"].to_numpy()
+        tot += z
+        rows.append(dict(Woche=pd.Timestamp(w.date).to_period("W").start_time, **{f"Z{i + 1}": z[i] / 3600 for i in range(7)}))
+    return tot, pd.DataFrame(rows)
+
+
+@st.cache_data(show_spinner=False, max_entries=8)
+def _progress(sport, win, v):
+    all_w = db.workouts_df(sport=sport)
+    if all_w.empty:
+        return pd.DataFrame()
+    dates = pd.to_datetime(all_w.date)
+    pts, d = [], dates.min() + timedelta(days=win)
+    while d <= pd.Timestamp(TODAY):
+        sub = all_w[(dates > d - timedelta(days=win)) & (dates <= d)]
+        mm = agg_mmp(sub)
+        m = model.fit_pd(mm)
+        row = dict(Datum=d, **{f"{k}s": mm.get(k) for k in (5, 60, 300, 1200, 3600)})
+        if m:
+            row.update(mFTP=m.mftp, FRC=m.frc / 1000, Pmax=m.pmax)
+        pts.append(row); d += timedelta(days=7)
+    return pd.DataFrame(pts)
+
+
+@st.cache_data(show_spinner=False, max_entries=8)
+def _readiness(today, v):
+    w = db.wellness_df(str(TODAY - timedelta(days=40)), today)
+    return wellness.readiness(w, TODAY) if len(w) else None
+
+
+def readiness(): return _readiness(str(TODAY), ver())
+
+
+@st.cache_data(show_spinner=False, max_entries=16)
+def _recommendation(today, feeling, v):
+    s = settings()
+    recent = db.workouts_df(str(TODAY - timedelta(days=28)), today)
+    return recommend.recommend(TODAY, daily_tss(), recent, races(), planned(), cur_ftp(), run_threshold_pace(),
+                               feeling, float(s["ctl_tau"]), float(s["atl_tau"]), readiness())
+
+
+# =============================================================== Helfer
+def fmt_pace(sec_per_km) -> str:
     if not sec_per_km or not np.isfinite(sec_per_km):
         return "–"
     m, sec = divmod(int(round(sec_per_km)), 60)
     return f"{m}:{sec:02d}"
 
 
-def pace_of(speed_ms: float) -> float:
+def pace_of(speed_ms) -> float:
     return 1000 / speed_ms if speed_ms and speed_ms > 0 else float("nan")
 
 
-def parse_pace(txt: str) -> float | None:
-    """'4:45' -> 285 s/km"""
+def parse_pace(txt: str):
     try:
         m, sec = txt.strip().split(":")
         return int(m) * 60 + int(sec)
@@ -66,675 +212,746 @@ def parse_pace(txt: str) -> float | None:
         return None
 
 
-def run_threshold_pace() -> float | None:
-    return db.threshold_on(str(date.today()), "run_pace", None)
+def fmt_dur(sec) -> str:
+    sec = int(sec or 0)
+    return f"{sec // 3600}:{sec % 3600 // 60:02d} h"
 
 
-def sidebar_filters():
-    st.sidebar.title("WKO Lokal")
-    page = st.sidebar.radio("Ansicht", PAGES)
-    wk_all = db.workouts_df()
-    if wk_all.empty:
-        return page, wk_all, None
-    sports = ["Alle"] + sorted(wk_all["sport"].unique())
-    sport = st.sidebar.selectbox("Sportart", sports, index=0)
-    presets = {"Letzte 28 Tage": 28, "Letzte 90 Tage": 90, "Letzte 180 Tage": 180, "Letzte 365 Tage": 365, "Alles": 99999}
-    p = st.sidebar.selectbox("Zeitraum", list(presets) + ["Benutzerdefiniert"], index=1)
-    if p == "Benutzerdefiniert":
-        a, b = st.sidebar.date_input("Von – Bis", (date.today() - timedelta(days=90), date.today()))
-    else:
-        b, a = date.today(), date.today() - timedelta(days=presets[p])
-    return page, db.workouts_df(str(a), str(b), sport), (a, b, sport)
-
-
-def cur_ftp() -> float:
-    return db.threshold_on(str(date.today()), "ftp", 200.0)
-
-
-def cur_weight() -> float:
-    return db.threshold_on(str(date.today()), "weight", 70.0)
-
-
-def full_pmc() -> pd.DataFrame:
-    """PMC bis einschließlich heute (Tage ohne Training zählen als 0 TSS)."""
-    s = db.get_settings()
-    a = daily_tss()
-    if a.empty:
-        return pmc.pmc(a)
-    a = a.copy(); a.index = pd.to_datetime(a.index)
-    t = pd.Timestamp(date.today())
-    if a.index.max() < t:
-        a.loc[t] = 0.0
-    return pmc.pmc(a, float(s["ctl_tau"]), float(s["atl_tau"]))
-
-
-def full_pmc_adj() -> pd.DataFrame:
-    """PMC bis heute plus Spalten readiness_pts/tsb_adj (Form inkl. Schlaf/HRV/Ruhepuls)."""
-    d = full_pmc()
-    if d.empty:
-        return d.assign(readiness_pts=0, tsb_adj=d.get("tsb"))
-    return wellness.adjusted_form(d, db.wellness_df(str(date.today() - timedelta(days=200)), str(date.today())))
-
-
-def planned_load() -> pd.Series:
-    """Geplante TSS je Tag: Planeinträge + Wettkampf-TSS (nur wo kein Planeintrag am selben Tag liegt)."""
-    pl = db.planned_df()
-    ser = pl.groupby("date").tss.sum() if len(pl) else pd.Series(dtype=float)
-    rc = db.races_df()
-    for r in rc.itertuples():
-        if r.tss and pd.notna(r.tss) and r.date not in ser.index:
-            ser.loc[r.date] = float(r.tss)
-    return ser
-
-
-def forecast_all() -> pd.DataFrame | None:
-    """Prognose-PMC über Plan und Wettkämpfe hinaus; None, wenn nichts Zukünftiges vorliegt."""
-    ser, rc = planned_load(), db.races_df()
-    future = [d for d in list(ser.index) + list(rc.date) if d > str(date.today())]
-    if not future:
-        return None
-    s = db.get_settings()
-    return pmc.forecast(daily_tss(), ser, max(future), ctl_tau=float(s["ctl_tau"]), atl_tau=float(s["atl_tau"]))
-
-
-def recommendation_card() -> None:
-    st.subheader("Trainingsempfehlung für morgen")
-    feeling = st.radio("Wie fühlst Du Dich heute?", recommend.FEELINGS, index=1, horizontal=True, key="feeling",
-                       help="Schlaf, HRV und Gesundheit kennt das Programm nicht – Dein Befinden fließt deshalb direkt ein.")
-    today, s = date.today(), db.get_settings()
-    recent = db.workouts_df(str(today - timedelta(days=28)), str(today))
-    wdf = db.wellness_df(str(today - timedelta(days=40)), str(today))
-    ready = wellness.readiness(wdf, today) if len(wdf) else None
-    r = recommend.recommend(today, daily_tss(), recent, db.races_df(), db.planned_df(), cur_ftp(), run_threshold_pace(),
-                            feeling, float(s["ctl_tau"]), float(s["atl_tau"]), ready)
-    with st.container(border=True):
-        {"good": st.success, "info": st.info, "warn": st.warning}[r.level](f"**{r.headline}**")
-        c = st.columns(3)
-        if r.duration_min: c[0].metric("Dauer", f"{r.duration_min[0]}–{r.duration_min[1]} min")
-        if r.tss is not None: c[1].metric("Geschätzte TSS", f"{r.tss[0]}–{r.tss[1]}" if r.tss[1] else "0")
-        if r.details: st.markdown("\n".join(f"- {x}" for x in r.details))
-        if r.plan_note: {"good": st.success, "info": st.info, "warn": st.warning}[r.plan_note[0]](r.plan_note[1], icon=insights.ICON[r.plan_note[0]])
-        if ready and ready["state"] != "unknown":
-            {"ok": st.success, "reduced": st.warning, "low": st.error}[ready["state"]](
-                ready["items"][0].text + " (Details: Ansicht „Erholung“)", icon=insights.ICON[ready["items"][0].level])
-        elif ready is None:
-            st.caption("Noch keine Schlaf-/HRV-Daten: Garmin-Sync ausführen, dann fließen sie in die Empfehlung ein.")
-        cited = recommend.cited_ids(r)
-        if cited:
-            with st.expander(f"Quellen zu dieser Empfehlung ({len(cited)})"):
-                for qid in cited:
-                    e = evidence.by_id(qid)
-                    st.markdown(f"**{qid} · {e['level']}** – {e['title']}" + (f"  \n{e['url']}" if e["url"] else "") + f"  \n_Grenzen:_ {e['caveat']}")
-        with st.expander("Warum diese Empfehlung?"):
-            st.markdown("\n".join(f"- {x}" for x in r.reasons))
-            st.caption("Regelbasiert aus Belastungshistorie (Form, harte Einheiten, Wettkämpfe, Plan) und Deinem Befinden. "
-                       "Keine Kenntnis von Schlaf, HRV, Stress oder Terminen – im Zweifel auf den Körper hören. Keine medizinische Beratung.")
-
-
-def show(items: list) -> None:
-    """Kernaussage farbig, Details als Liste (siehe wkolocal/insights.py)."""
-    if not items:
-        return
-    head, rest = items[0], items[1:]
-    {"good": st.success, "info": st.info, "warn": st.warning, "bad": st.error}[head.level](head.text, icon=insights.ICON[head.level])
-    if rest:
-        st.markdown("\n".join(f"- {insights.ICON[i.level]} {i.text}" for i in rest))
-    st.caption("Automatische Einordnung nach Faustregeln und Studienlage (Quellen & Evidenz) – ersetzt keine Trainingsberatung; Studien sind oft klein und schwer replizierbar, individuell kann es abweichen.")
+def show(items, foot: bool = False) -> None:
+    ui.insight_block(items, DISCLAIMER if foot else None)
 
 
 def explain(key: str) -> None:
-    with st.expander("Wie lese ich diese Ansicht?"):
+    with st.expander("Wie lese ich diese Ansicht?", icon=":material/help:"):
         st.markdown(insights.EXPLAIN[key])
 
 
-def daily_tss(sport="Alle") -> pd.Series:
-    w = db.workouts_df(sport=sport)
-    return w.groupby("date")["tss"].sum() if len(w) else pd.Series(dtype=float)
-
-
-# ---------------------------------------------------------------- Seiten
-def page_dashboard(wk, rng):
-    st.header("Dashboard")
-    s = db.get_settings()
-    d = full_pmc_adj()
-    recommendation_card()
-    fc = forecast_all()
-    rc = db.races_df()
-    if fc is not None and len(rc):
-        show(insights.assess_races(fc, rc, date.today()))
-    explain("Dashboard")
-    sport = rng[2]
-    recent = db.workouts_df(str(date.today() - timedelta(days=28)), str(date.today()), sport)
-    prev = db.workouts_df(str(date.today() - timedelta(days=56)), str(date.today() - timedelta(days=29)), sport)
-    show(insights.assess_dashboard(recent, prev, d))
-    last = d.iloc[-1]
-    has_adj = bool(d.readiness_pts.iloc[-3:].any())
-    c = st.columns(7 if has_adj else 6)
-    c[0].metric("CTL (Fitness)", f"{last.ctl:.0f}", f"{last.ramp:+.1f}/Woche")
-    c[1].metric("ATL (Ermüdung)", f"{last.atl:.0f}")
-    c[2].metric("TSB (Form, Last)", f"{last.tsb:+.0f}")
-    k = 3
-    if has_adj:
-        c[3].metric("Form inkl. Erholung", f"{last.tsb_adj:+.0f}", f"{last.tsb_adj - last.tsb:+.0f} (Schlaf/HRV/Ruhepuls)", delta_color="off" if last.tsb_adj == last.tsb else "inverse")
-        k = 4
-    c[k].metric("Workouts", len(wk))
-    c[k + 1].metric("Stunden", f"{wk.duration_s.sum() / 3600:.1f}")
-    c[k + 2].metric("TSS", f"{wk.tss.sum():.0f}")
-    mm = agg_mmp(wk)
-    m = model.fit_pd(mm)
-    if m:
-        c = st.columns(5)
-        c[0].metric("mFTP", f"{m.mftp:.0f} W", f"{m.mftp / cur_weight():.2f} W/kg")
-        c[1].metric("FRC", f"{m.frc / 1000:.1f} kJ")
-        c[2].metric("Pmax", f"{m.pmax:.0f} W")
-        c[3].metric("Stamina-Abfall", f"{m.stamina * 100:.1f} %")
-        c[4].metric("FTP (hinterlegt)", f"{cur_ftp():.0f} W")
-    left, right = st.columns(2)
-    wkly = wk.assign(Woche=pd.to_datetime(wk.date).dt.to_period("W").dt.start_time).groupby(["Woche", "sport"]).agg(
-        TSS=("tss", "sum")).reset_index()
-    left.plotly_chart(px.bar(wkly, x="Woche", y="TSS", color="sport", title="Wochen-TSS nach Sportart"), width="stretch")
-    dd = d.loc[str(rng[0]):]
-    f = go.Figure([go.Scatter(x=dd.index, y=dd[k], name=n) for k, n in (("ctl", "CTL"), ("atl", "ATL"), ("tsb", "TSB"))])
-    f.update_layout(title="PMC", margin=dict(t=40))
-    right.plotly_chart(f, width="stretch")
-    st.plotly_chart(mmp_fig({"Zeitraum": mm}, m, None), width="stretch")
-
-
-def page_workout(wk, rng):
-    st.header("Workout-Analyse")
-    wk = wk.sort_values("start_time", ascending=False)
-    labels = {r.uid: f"{r.start_time[:16]}  {r['name']}  ({r.duration_s / 60:.0f} min, {r.tss:.0f} TSS)" for _, r in wk.iterrows()}
-    uid = st.selectbox("Workout", list(labels), format_func=labels.get)
-    w = wk[wk.uid == uid].iloc[0]
-    df = db.load_stream(uid)
-    if w.sport == "Running":
-        run_view(w, df)
-        return
-    ftp = w.ftp_used or cur_ftp()
-    explain("Workout-Analyse")
-    intent = st.selectbox("Ziel dieser Einheit", ["Automatisch", *insights.RIDE_TYPES],
-                          help="Bewertet wird gegen das Ziel. Bei 'Automatisch' wird der Typ aus Intensität und Intervallen erkannt.")
-    if w.tss_method == "power":
-        show(insights.assess_ride(w, df, ftp, intent))
-        prior = db.workouts_df(str(date.fromisoformat(w.date) - timedelta(days=90)), w.date, w.sport)
-        st.markdown("**Vergleich mit den letzten 90 Tagen**")
-        show(insights.compare_to_history(w, prior))
-    c = st.columns(8)
-    for col, (lbl, v) in zip(c, [("Dauer", f"{w.duration_s // 3600}:{w.duration_s % 3600 // 60:02d}h"),
-                                  ("Ø Watt", f"{w.avg_power:.0f}" if w.avg_power else "–"),
-                                  ("NP", f"{w.np:.0f}" if w.np else "–"), ("IF", f"{w.if_:.2f}" if w.if_ else "–"),
-                                  ("TSS", f"{w.tss:.0f}"), ("VI", f"{w.vi:.2f}" if w.vi else "–"),
-                                  ("kJ", f"{w.work_kj:.0f}" if w.work_kj else "–"),
-                                  ("Pw:HR", f"{w.decoupling:.1f} %" if pd.notna(w.decoupling) else "–")]):
-        col.metric(lbl, v)
-    smooth = st.slider("Glättung (s)", 1, 60, 10)
-    t = df.index / 60
+def mmp_fig(curves: dict[str, dict], mdl=None, weight=None, height=420) -> go.Figure:
     fig = go.Figure()
-    if (df.power > 0).any():
-        fig.add_scatter(x=t, y=df.power.rolling(smooth, min_periods=1).mean(), name="Watt", line=dict(color="#d62728", width=1))
-        fig.add_hline(y=ftp, line_dash="dot", annotation_text=f"FTP {ftp:.0f}")
-    if df.hr.notna().any():
-        fig.add_scatter(x=t, y=df.hr.rolling(smooth, min_periods=1).mean(), name="HR", yaxis="y2", line=dict(color="#1f77b4", width=1))
-    if df.altitude.notna().any():
-        fig.add_scatter(x=t, y=df.altitude, name="Höhe", yaxis="y3", fill="tozeroy", opacity=.15, line=dict(color="gray"))
-    fig.update_layout(height=420, xaxis_title="min", yaxis=dict(title="Watt"),
-                      yaxis2=dict(overlaying="y", side="right", title="HR"),
-                      yaxis3=dict(overlaying="y", visible=False), hovermode="x unified", margin=dict(t=20))
-    st.plotly_chart(fig, width="stretch")
-    if not (df.power > 0).any():
-        st.info("Keine Leistungsdaten – es sind nur HR-basierte Werte verfügbar.")
-        return
-    tabs = st.tabs(["Intervalle", "Zonen", "Quadranten", "W'-Bilanz (FRC)", "Mean-Max"])
-    with tabs[0]:
-        thr = st.slider("Schwelle (% FTP)", 60, 150, 90) / 100 * ftp
-        iv = metrics.detect_intervals(df.power.to_numpy(), thr, min_s=st.slider("Mindestdauer (s)", 15, 600, 60))
-        iv["Ø % FTP"] = (iv["Ø_W"] / ftp * 100).round() if len(iv) else []
-        st.dataframe(iv.round(0), width="stretch", hide_index=True)
-    with tabs[1]:
+    for i, (name, cv) in enumerate(curves.items()):
+        t = sorted(cv)
+        fig.add_scatter(x=t, y=[cv[x] / (weight or 1) for x in t], name=name, mode="lines", line=dict(color=ui.c(i + 1), width=2),
+                        hovertemplate="%{y:.0f}" + (" W/kg" if weight else " W") + "<extra>" + name + "</extra>")
+    if mdl:
+        t = np.logspace(0.5, np.log10(7200), 200)
+        fig.add_scatter(x=t, y=mdl.power(t) / (weight or 1), name="Modell", line=dict(dash="dash", color=ui.text2(), width=1.5),
+                        hovertemplate="%{y:.0f}<extra>Modell</extra>")
+    ticks = [1, 5, 15, 60, 300, 1200, 3600, 7200]
+    fig.update_xaxes(type="log", tickvals=ticks, ticktext=["1s", "5s", "15s", "1m", "5m", "20m", "1h", "2h"])
+    fig.update_yaxes(title="W/kg" if weight else "Watt")
+    return ui.style(fig, height)
+
+
+def kpi(col, label, value, delta=None, spark=None, help=None, delta_color="normal", chart_type="area", height=None):
+    """Kennzahl-Kachel; mit Mini-Verlauf, wenn spark gegeben. height (px) vereinheitlicht Kachelreihen."""
+    with col:
+        st.metric(label, value, delta, help=help, border=True, chart_data=list(spark) if spark is not None and len(spark) > 1 else None,
+                  chart_type=chart_type, delta_color=delta_color, height=height or "content")
+
+
+# =============================================================== Seiten
+def page_dashboard():
+    wk, rng = WK, RNG
+    hour = datetime.now().hour
+    greet = "Guten Morgen" if hour < 11 else "Guten Tag" if hour < 18 else "Guten Abend"
+    ui.page_header(greet, f"{['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'][TODAY.weekday()]}, {TODAY:%d.%m.%Y}")
+    d = full_pmc()
+    last = d.iloc[-1]
+
+    left, right = st.columns([1.75, 1], gap="large")
+    with left:
+        feeling = st.segmented_control("Wie fühlst Du Dich heute?", recommend.FEELINGS, default="Normal", required=True, key="feeling",
+                                       help="Schlaf, HRV und Ruhepuls fließen automatisch ein, wenn Garmin-Daten vorliegen; Krankheit oder Stress kennt das Programm nicht.")
+        r = _recommendation(str(TODAY), feeling, ver())
+        chips = []
+        if r.sport != "–": chips.append(("🚴 " if r.sport == "Cycling" else "🏃 ") + ui.sport_label(r.sport))
+        if r.duration_min: chips.append(f"⏱ {r.duration_min[0]}–{r.duration_min[1]} min")
+        if r.tss and r.tss[1]: chips.append(f"TSS {r.tss[0]}–{r.tss[1]}")
+        ui.hero(f"Empfehlung für {r.headline.split('(')[1].split(')')[0] if '(' in r.headline else 'morgen'}", r.kind, chips, r.details,
+                "warn" if r.level == "warn" else "good")
+        if r.plan_note:
+            show([insights.Insight(r.plan_note[0], r.plan_note[1])])
         a, b = st.columns(2)
-        z = metrics.time_in_zones(df.power.to_numpy(), ftp)
-        a.plotly_chart(px.bar(z, x="Zone", y="Sekunden", title=f"Leistungszonen (FTP {ftp:.0f} W)"), width="stretch")
-        a.dataframe(z, hide_index=True)
-        lthr = db.threshold_on(w.date, "lthr", None)
+        with a.popover("Warum diese Empfehlung?", icon=":material/psychology:", width="stretch"):
+            st.markdown("\n".join(f"- {x}" for x in r.reasons))
+            st.caption("Regelbasiert aus Form, harten Einheiten, Wettkämpfen, Plan, Befinden und – falls vorhanden – Schlaf/HRV. Keine medizinische Beratung.")
+        cited = recommend.cited_ids(r)
+        with b.popover(f"Quellen ({len(cited)})", icon=":material/menu_book:", width="stretch", disabled=not cited):
+            for qid in cited:
+                e = evidence.by_id(qid)
+                st.markdown(f"**{qid} · {e['level']}** – {e['title']}" + (f"  \n{e['url']}" if e["url"] else "") + f"  \n_Grenzen:_ {e['caveat']}")
+    with right:
+        tsb30 = d.tsb.iloc[-30:]
+        has_adj = bool(d.readiness_pts.iloc[-3:].any())
+        kpi(st.container(), "Form heute (TSB)", f"{last.tsb:+.0f}", None, tsb30,
+            help="CTL − ATL am Morgen: > +5 frisch, −10…−30 produktiver Block, < −30 Überlastungsrisiko.")
+        if has_adj:
+            kpi(st.container(), "Form inkl. Erholung", f"{last.tsb_adj:+.0f}", f"{last.tsb_adj - last.tsb:+.0f} durch Schlaf/HRV/Ruhepuls",
+                d.tsb_adj.iloc[-30:], delta_color="off")
+        ready = readiness()
+        if ready and ready["state"] != "unknown":
+            show(ready["items"][:1])
+        elif ready is None:
+            st.caption("Keine Schlaf-/HRV-Daten – Garmin-Sync mit „HRV & Schlaf“ ausführen.")
+        rc = races()
+        up = rc[rc.date >= str(TODAY)].head(1) if len(rc) else rc
+        if len(up):
+            nr = up.iloc[0]
+            days = (date.fromisoformat(nr.date) - TODAY).days
+            fc = forecast_all()
+            tsb_r = f" · Form am Renntag {fc.loc[pd.Timestamp(nr.date)].tsb:+.0f}" if fc is not None and pd.Timestamp(nr.date) in fc.index else ""
+            st.markdown(f"**🏁 Nächster Wettkampf:** {ui.esc(nr['name'])} ({nr.priority}) in **{days} Tagen**{tsb_r}")
+
+    st.markdown("#### Überblick")
+    c = st.columns(3) + st.columns(3)
+    week = d.iloc[-7:]
+    wh = W(TODAY - timedelta(days=84), TODAY, rng[2])
+    weekly = wh.assign(W=pd.to_datetime(wh.date).dt.to_period("W").dt.start_time).groupby("W").agg(h=("duration_s", "sum"), t=("tss", "sum"))
+    kpi(c[0], "Fitness (CTL)", f"{last.ctl:.0f}", f"{last.ramp:+.1f}/Woche" if pd.notna(last.ramp) else None, d.ctl.iloc[-60:], height=178)
+    kpi(c[1], "Ermüdung (ATL)", f"{last.atl:.0f}", None, d.atl.iloc[-60:], height=178)
+    kpi(c[2], "TSS 7 Tage", f"{week.tss.sum():.0f}", None, weekly.t, chart_type="bar", height=178)
+    kpi(c[3], "Stunden 7 Tage", f"{wh[wh.date > str(TODAY - timedelta(days=7))].duration_s.sum() / 3600:.1f}", None, weekly.h / 3600, chart_type="bar", height=178)
+    mm, m = mmp_model(rng[0], rng[1], rng[2])
+    kpi(c[4], "mFTP (Modell)", f"{m.mftp:.0f} W" if m else "–", f"{m.mftp / cur_weight():.2f} W/kg" if m else None, delta_color="off", height=178)
+    kpi(c[5], "Einheiten im Zeitraum", f"{len(wk)}", f"{wk.duration_s.sum() / 3600:.0f} h", delta_color="off", height=178)
+
+    a, b = st.columns(2, gap="large")
+    with a:
+        recent = W(TODAY - timedelta(days=28), TODAY, rng[2])
+        prev = W(TODAY - timedelta(days=56), TODAY - timedelta(days=29), rng[2])
+        show(insights.assess_dashboard(recent, prev, d), foot=True)
+    with b:
+        fc = forecast_all()
+        if fc is not None and len(races()):
+            show(insights.assess_races(fc, races(), TODAY))
+        else:
+            explain("Dashboard")
+
+    a, b = st.columns([1.4, 1], gap="large")
+    with a:
+        dd = d.loc[str(TODAY - timedelta(days=120)):]
+        f = go.Figure()
+        f.add_scatter(x=dd.index, y=dd.tsb, name="Form (TSB)", fill="tozeroy", line=dict(color=ui.c(3), width=1.5), fillcolor=ui.NEUTRAL_FILL[ui.mode()])
+        f.add_scatter(x=dd.index, y=dd.ctl, name="Fitness (CTL)", line=dict(color=ui.c(1), width=2.5))
+        f.add_scatter(x=dd.index, y=dd.atl, name="Ermüdung (ATL)", line=dict(color=ui.c(2), width=1.5))
+        ui.chart(ui.style(f, 340, title="Fitness, Ermüdung & Form – 4 Monate"))
+    with b:
+        g = go.Figure()
+        wk2 = W(TODAY - timedelta(days=84), TODAY)
+        if len(wk2):
+            wk2 = wk2.assign(Woche=pd.to_datetime(wk2.date).dt.to_period("W").dt.start_time)
+            for s in sorted(wk2.sport.unique(), key=lambda x: ui.SPORT_SLOT.get(x, 9)):
+                ws = wk2[wk2.sport == s].groupby("Woche").tss.sum()
+                g.add_bar(x=ws.index, y=ws.values, name=ui.sport_label(s), marker_color=ui.sport_color(s),
+                          hovertemplate="%{y:.0f} TSS<extra>" + ui.sport_label(s) + "</extra>")
+        g.update_layout(barmode="stack")
+        ui.chart(ui.style(g, 340, title="Wochenlast nach Sportart (12 Wochen)"))
+
+    st.markdown("#### Letzte Einheiten")
+    st.caption("Auf einen Balken klicken öffnet die Workout-Analyse.")
+    lw = W(TODAY - timedelta(days=42), TODAY, rng[2])
+    if len(lw):
+        h = go.Figure()
+        for s in sorted(lw.sport.unique(), key=lambda x: ui.SPORT_SLOT.get(x, 9)):
+            x = lw[lw.sport == s]
+            h.add_bar(x=pd.to_datetime(x.start_time), y=x.tss, name=ui.sport_label(s), marker_color=ui.sport_color(s), customdata=x.uid,
+                      text=x["name"], textposition="none", hovertemplate="<b>%{text}</b><br>%{x|%a %d.%m.} · %{y:.0f} TSS<extra></extra>", width=86400000 * .7)
+        h.update_layout(barmode="overlay", clickmode="event+select")
+        ev = ui.chart(ui.style(h, 260, hover="closest"), key="recent_click", on_select="rerun")
+        try:
+            pts = ev.selection.points if ev else []
+        except AttributeError:
+            pts = []
+        if pts:
+            st.session_state["wk_uid"] = pts[0]["customdata"]
+            st.switch_page(PAGE["workout"])
+    st.markdown("#### Leistungskurve im Zeitraum")
+    ui.chart(mmp_fig({"Bestwerte": mm}, m, None, 360))
+
+
+def ride_series_fig(df: pd.DataFrame, ftp: float, smooth: int) -> go.Figure:
+    t = df.index / 60
+    rows = [("Leistung (W)", "power")] if (df.power > 0).any() else []
+    if df.hr.notna().any(): rows.append(("Herzfrequenz (bpm)", "hr"))
+    if df.altitude.notna().any(): rows.append(("Höhe (m)", "altitude"))
+    heights = {1: [1], 2: [.62, .38], 3: [.5, .3, .2]}[max(len(rows), 1)]
+    f = ui.stacked(max(len(rows), 1), heights)
+    for i, (lbl, col) in enumerate(rows, start=1):
+        y = df[col].rolling(smooth, min_periods=1).mean() if col != "altitude" else df[col]
+        color = {"power": ui.c(1), "hr": ui.c(2), "altitude": ui.text2()}[col]
+        f.add_scatter(x=t, y=y, name=lbl, line=dict(color=color, width=1.3), fill="tozeroy" if col == "altitude" else None,
+                      fillcolor=ui.NEUTRAL_FILL[ui.mode()] if col == "altitude" else None, row=i, col=1,
+                      hovertemplate="%{y:.0f}<extra>" + lbl + "</extra>")
+        f.update_yaxes(title_text=lbl, row=i, col=1, title_font=dict(size=11))
+        if col == "power":
+            f.add_hline(y=ftp, line_dash="dot", line_color=ui.text2(), annotation_text=f"FTP {ftp:.0f}", annotation_font_size=11, row=i, col=1)
+    f.update_xaxes(title_text="min", row=max(len(rows), 1), col=1)
+    return ui.style(f, 470, legend=False)
+
+
+def zones_bar(z: pd.DataFrame, title: str) -> go.Figure:
+    f = go.Figure(go.Bar(x=z["Sekunden"] / 60, y=z["Zone"], orientation="h", marker_color=ui.BLUE_RAMP[:len(z)],
+                         text=[f"{p:.0f} %" for p in z["Anteil %"]], textposition="outside",
+                         hovertemplate="%{y}: %{x:.0f} min<extra></extra>"))
+    f.update_yaxes(autorange="reversed"); f.update_xaxes(title="Minuten")
+    return ui.style(f, 300, legend=False, hover="closest", title=title)
+
+
+def page_workout():
+    wk = WK.sort_values("start_time", ascending=False)
+    ui.page_header("Workout-Analyse")
+    labels = {r.uid: f"{r.start_time[:16]} · {r.name} · {r.duration_s / 60:.0f} min · {r.tss:.0f} TSS" for r in wk.itertuples()}
+    sel = st.session_state.pop("wk_uid", None)
+    opts = list(labels)
+    if sel and sel not in labels:
+        one = W().query("uid == @sel")
+        if len(one):
+            wk = pd.concat([one, wk]); labels = {sel: f"{one.start_time.iloc[0][:16]} · {one.name.iloc[0]}", **labels}; opts = list(labels)
+    uid = st.selectbox("Einheit", opts, index=opts.index(sel) if sel in opts else 0, format_func=labels.get)
+    w = wk[wk.uid == uid].iloc[0]
+    df = stream(uid)
+    if w.sport == "Running":
+        return run_view(w, df)
+    ftp = w.ftp_used or cur_ftp()
+    ui.stats([("Dauer", fmt_dur(w.duration_s)), ("Ø Leistung", f"{w.avg_power:.0f} W" if w.avg_power else "–"),
+              ("NP", f"{w.np:.0f} W" if w.np else "–"), ("IF", f"{w.if_:.2f}" if w.if_ else "–"),
+              ("TSS", f"{w.tss:.0f}"), ("VI", f"{w.vi:.2f}" if w.vi else "–"),
+              ("Arbeit", f"{w.work_kj:.0f} kJ" if w.work_kj else "–"), ("Ø HF", f"{w.avg_hr:.0f}" if pd.notna(w.avg_hr) else "–"),
+              ("Pw:HR", f"{w.decoupling:.1f} %" if pd.notna(w.decoupling) else "–")])
+    if w.tss_method == "power":
+        intent = st.pills("Ziel der Einheit", ["Automatisch", *insights.RIDE_TYPES], default="Automatisch", required=True,
+                          help="Bewertet wird gegen das Ziel. 'Automatisch' erkennt den Typ aus Intensität und Intervallen.")
+        a, b = st.columns([1.2, 1], gap="large")
+        with a:
+            show(insights.assess_ride(w, df, ftp, intent))
+        with b:
+            st.markdown("**Vergleich mit den 90 Tagen davor**")
+            show(insights.compare_to_history(w, W(date.fromisoformat(w.date) - timedelta(days=90), w.date, w.sport)))
+    smooth = st.select_slider("Glättung", [1, 3, 5, 10, 20, 30, 60], value=10, format_func=lambda s: f"{s} s")
+    ui.chart(ride_series_fig(df, ftp, smooth))
+    if not (df.power > 0).any():
+        st.info("Keine Leistungsdaten – nur HR-basierte Werte verfügbar."); return
+    tabs = st.tabs([":material/view_timeline: Intervalle", ":material/stacked_bar_chart: Zonen", ":material/scatter_plot: Quadranten",
+                    ":material/battery_5_bar: W'-Bilanz", ":material/show_chart: Mean-Max"])
+    with tabs[0]:
+        a, b = st.columns(2)
+        thr = a.slider("Schwelle (% FTP)", 60, 150, 90) / 100 * ftp
+        mn = b.slider("Mindestdauer (s)", 15, 600, 60)
+        iv = metrics.detect_intervals(df.power.to_numpy(), thr, min_s=mn)
+        if len(iv):
+            iv["Ø % FTP"] = (iv["Ø_W"] / ftp * 100).round()
+            iv["Start"] = iv["Start"].map(lambda s: f"{s // 60}:{s % 60:02d}")
+            iv["Dauer_s"] = iv["Dauer_s"].map(lambda s: f"{s // 60}:{s % 60:02d}")
+            iv = iv.rename(columns={"Dauer_s": "Dauer", "Ø_W": "Ø W", "Max_W": "Max W"})
+            st.dataframe(iv.round(0), width="stretch", hide_index=True,
+                         column_config={"Ø % FTP": st.column_config.ProgressColumn("Ø % FTP", min_value=0, max_value=150, format="%d %%")})
+        else:
+            st.info("Keine Intervalle über der Schwelle.")
+    with tabs[1]:
+        a, b = st.columns(2, gap="large")
+        a.plotly_chart(zones_bar(metrics.time_in_zones(df.power.to_numpy(), ftp), f"Leistungszonen · FTP {ftp:.0f} W"), width="stretch", config=ui.PLOT_CONFIG)
+        lthr = thr_on(w.date, "lthr", None)
         if lthr and df.hr.notna().any():
-            zh = metrics.time_in_zones(df.hr.to_numpy(), lthr, metrics.HR_ZONES)
-            b.plotly_chart(px.bar(zh, x="Zone", y="Sekunden", title=f"HR-Zonen (LTHR {lthr:.0f})"), width="stretch")
+            b.plotly_chart(zones_bar(metrics.time_in_zones(df.hr.to_numpy(), lthr, metrics.HR_ZONES), f"Herzfrequenzzonen · LTHR {lthr:.0f}"), width="stretch", config=ui.PLOT_CONFIG)
+        else:
+            b.info("Für HR-Zonen eine LTHR unter „Athlet & Daten“ eintragen.")
     with tabs[2]:
-        q = metrics.quadrant_analysis(df.power.to_numpy(), df.cadence.to_numpy(), ftp, float(db.get_settings()["crank_mm"]))
+        q = metrics.quadrant_analysis(df.power.to_numpy(), df.cadence.to_numpy(), ftp, float(settings()["crank_mm"]))
         if len(q["aepf"]):
             idx = np.random.default_rng(0).choice(len(q["aepf"]), min(4000, len(q["aepf"])), replace=False)
-            f = px.scatter(x=q["cpv"][idx], y=q["aepf"][idx], opacity=.3, labels=dict(x="CPV (m/s)", y="AEPF (N)"))
-            f.add_vline(x=q["cpv_ref"]); f.add_hline(y=q["aepf_ref"])
-            a, b = st.columns([2, 1])
-            a.plotly_chart(f, width="stretch")
-            b.dataframe(pd.DataFrame(q["share"], index=["% Zeit"]).T.round(1))
-            b.caption("QI: hohe Kraft/hohe Geschw. · QII: hohe Kraft/niedrige Geschw. · QIII: Erholung · QIV: niedrige Kraft/hohe Geschw. Referenz: FTP bei 90 U/min.")
+            f = go.Figure(go.Scattergl(x=q["cpv"][idx], y=q["aepf"][idx], mode="markers", marker=dict(size=4, color=ui.c(1), opacity=.35),
+                                       hovertemplate="CPV %{x:.2f} m/s · AEPF %{y:.0f} N<extra></extra>"))
+            f.add_vline(x=q["cpv_ref"], line_color=ui.text2(), line_dash="dot"); f.add_hline(y=q["aepf_ref"], line_color=ui.text2(), line_dash="dot")
+            f.update_xaxes(title="Pedalgeschwindigkeit CPV (m/s)"); f.update_yaxes(title="Pedalkraft AEPF (N)")
+            a, b = st.columns([2, 1], gap="large")
+            a.plotly_chart(ui.style(f, 380, legend=False, hover="closest"), width="stretch", config=ui.PLOT_CONFIG)
+            for k, lbl in (("QI", "QI · viel Kraft, schnell"), ("QII", "QII · viel Kraft, langsam"), ("QIII", "QIII · wenig Kraft, langsam"), ("QIV", "QIV · wenig Kraft, schnell")):
+                b.progress(min(q["share"][k] / 100, 1.0), text=f"{lbl}: {q['share'][k]:.0f} %")
+            b.caption("Referenz: FTP bei 90 U/min.")
         else:
             st.info("Keine Kadenzdaten.")
     with tabs[3]:
-        mdl = model.fit_pd(agg_mmp(db.workouts_df(str(date.fromisoformat(w.date) - timedelta(days=90)), w.date)))
-        cp = st.number_input("CP / mFTP (W)", 50.0, 600.0, float(mdl.mftp if mdl else ftp))
-        wp = st.number_input("W' / FRC (J)", 2000.0, 60000.0, float(mdl.frc if mdl else 20000))
+        _, mdl = mmp_model(date.fromisoformat(w.date) - timedelta(days=90), w.date, None)
+        a, b = st.columns(2)
+        cp = a.number_input("CP / mFTP (W)", 50.0, 600.0, float(round(mdl.mftp)) if mdl else float(ftp), 5.0)
+        wp = b.number_input("W' / FRC (J)", 2000.0, 60000.0, float(round(mdl.frc, -2)) if mdl else 20000.0, 500.0)
         wb = metrics.wbal(df.power.to_numpy(), cp, wp)
-        f = go.Figure(go.Scatter(x=t, y=wb / 1000, fill="tozeroy"))
-        f.update_layout(yaxis_title="kJ verbleibend", xaxis_title="min", height=300)
-        st.plotly_chart(f, width="stretch")
-        st.caption(f"Minimum: {wb.min() / 1000:.1f} kJ ({(1 - wb.min() / wp) * 100:.0f} % von W' verbraucht). Integralmodell.")
+        f = go.Figure(go.Scatter(x=df.index / 60, y=wb / 1000, fill="tozeroy", line=dict(color=ui.c(1), width=1.5), fillcolor=ui.NEUTRAL_FILL[ui.mode()],
+                                 hovertemplate="%{y:.1f} kJ<extra></extra>"))
+        f.update_yaxes(title="kJ verbleibend", rangemode="tozero"); f.update_xaxes(title="min")
+        ui.chart(ui.style(f, 300, legend=False))
+        st.caption(f"Minimum {wb.min() / 1000:.1f} kJ – {(1 - wb.min() / wp) * 100:.0f} % von W' verbraucht (Integralmodell).")
     with tabs[4]:
-        st.plotly_chart(mmp_fig({"Workout": w.mmp}), width="stretch")
+        ui.chart(mmp_fig({"Diese Einheit": w.mmp, "Bestwerte 90 Tage": mmp_model(date.fromisoformat(w.date) - timedelta(days=90), w.date, w.sport)[0]}))
+    explain("Workout-Analyse")
 
 
 def run_view(w, df):
     sp = metrics.get_speed(df)
-    rp = db.threshold_on(w.date, "run_pace", None)
-    explain("Lauf")
-    show(insights.assess_run(w, df, rp))
-    if w.tss_method == "pace":
-        st.markdown("**Vergleich mit den letzten 90 Tagen**")
-        show(insights.compare_to_history(w, db.workouts_df(str(date.fromisoformat(w.date) - timedelta(days=90)), w.date, "Running")))
-    c = st.columns(8)
-    avg_pace = pace_of(w.avg_speed) if w.avg_speed else None
-    for col, (lbl, v) in zip(c, [("Dauer", f"{w.duration_s // 3600}:{w.duration_s % 3600 // 60:02d}h"),
-                                  ("Distanz", f"{sp.sum() / 1000:.2f} km"), ("Ø Pace", f"{fmt_pace(avg_pace)} /km"),
-                                  ("NGP", f"{fmt_pace(pace_of(w.ngp))} /km" if w.ngp else "–"),
-                                  ("rIF", f"{w.if_:.2f}" if pd.notna(w.if_) else "–"),
+    rp = thr_on(w.date, "run_pace", None)
+    ui.stats([("Dauer", fmt_dur(w.duration_s)), ("Distanz", f"{sp.sum() / 1000:.2f} km"),
+                                  ("Ø Pace", f"{fmt_pace(pace_of(w.avg_speed))} /km" if w.avg_speed else "–"),
+                                  ("NGP", f"{fmt_pace(pace_of(w.ngp))} /km" if w.ngp else "–"), ("rIF", f"{w.if_:.2f}" if pd.notna(w.if_) else "–"),
                                   (f"TSS ({w.tss_method})", f"{w.tss:.0f}"), ("Ø HR", f"{w.avg_hr:.0f}" if pd.notna(w.avg_hr) else "–"),
-                                  ("Pace:HR-Entk.", f"{w.decoupling:.1f} %" if pd.notna(w.decoupling) else "–")]):
-        col.metric(lbl, v)
-    if w.tss_method == "hr":
-        st.warning("Keine Schwellenpace hinterlegt – TSS ist nur eine grobe HR-Näherung. Pace unter 'Athlet & Daten' eintragen und neu berechnen.")
-    smooth = st.slider("Glättung (s)", 1, 60, 15)
+                                  ("Pace:HR", f"{w.decoupling:.1f} %" if pd.notna(w.decoupling) else "–")])
+    a, b = st.columns([1.2, 1], gap="large")
+    with a:
+        show(insights.assess_run(w, df, rp))
+    with b:
+        if w.tss_method == "pace":
+            st.markdown("**Vergleich mit den 90 Tagen davor**")
+            show(insights.compare_to_history(w, W(date.fromisoformat(w.date) - timedelta(days=90), w.date, "Running")))
+    smooth = st.select_slider("Glättung", [1, 5, 10, 15, 30, 60], value=15, format_func=lambda s: f"{s} s")
     t = df.index / 60
     sm = pd.Series(sp).rolling(smooth, min_periods=1).mean().to_numpy()
-    pace = np.where(sm > 0.5, 1000 / np.maximum(sm, 0.5) / 60, np.nan)       # min/km
-    fig = go.Figure()
-    fig.add_scatter(x=t, y=np.clip(pace, 2.5, 10), name="Pace", line=dict(color="#2ca02c", width=1),
-                    text=[fmt_pace(x * 60) if np.isfinite(x) else "" for x in pace], hovertemplate="%{text} /km")
-    if rp: fig.add_hline(y=rp / 60, line_dash="dot", annotation_text=f"Schwelle {fmt_pace(rp)}")
-    if df.hr.notna().any():
-        fig.add_scatter(x=t, y=df.hr.rolling(smooth, min_periods=1).mean(), name="HR", yaxis="y2", line=dict(color="#1f77b4", width=1))
-    if df.altitude.notna().any():
-        fig.add_scatter(x=t, y=df.altitude, name="Höhe", yaxis="y3", fill="tozeroy", opacity=.15, line=dict(color="gray"))
-    fig.update_layout(height=420, xaxis_title="min", yaxis=dict(title="min/km", autorange="reversed"),
-                      yaxis2=dict(overlaying="y", side="right", title="HR"), yaxis3=dict(overlaying="y", visible=False),
-                      hovermode="x unified", margin=dict(t=20))
-    st.plotly_chart(fig, width="stretch")
-    tabs = st.tabs(["Splits", "Pace-Zonen", "HR-Zonen", "Bestzeiten"])
+    pace = np.where(sm > 0.5, 1000 / np.maximum(sm, 0.5) / 60, np.nan)
+    rows = [("Pace (min/km)", "pace")] + ([("Herzfrequenz", "hr")] if df.hr.notna().any() else []) + ([("Höhe (m)", "alt")] if df.altitude.notna().any() else [])
+    f = ui.stacked(len(rows), {1: [1], 2: [.62, .38], 3: [.5, .3, .2]}[len(rows)])
+    for i, (lbl, k) in enumerate(rows, start=1):
+        if k == "pace":
+            f.add_scatter(x=t, y=np.clip(pace, 2.5, 10), name=lbl, line=dict(color=ui.c(2), width=1.3), row=i, col=1,
+                          text=[fmt_pace(x * 60) if np.isfinite(x) else "" for x in pace], hovertemplate="%{text} /km<extra></extra>")
+            f.update_yaxes(autorange="reversed", title_text=lbl, row=i, col=1, title_font=dict(size=11))
+            if rp: f.add_hline(y=rp / 60, line_dash="dot", line_color=ui.text2(), annotation_text=f"Schwelle {fmt_pace(rp)}", annotation_font_size=11, row=i, col=1)
+        elif k == "hr":
+            f.add_scatter(x=t, y=df.hr.rolling(smooth, min_periods=1).mean(), name=lbl, line=dict(color=ui.c(1), width=1.3), row=i, col=1,
+                          hovertemplate="%{y:.0f} bpm<extra></extra>")
+            f.update_yaxes(title_text="bpm", row=i, col=1, title_font=dict(size=11))
+        else:
+            f.add_scatter(x=t, y=df.altitude, name=lbl, fill="tozeroy", line=dict(color=ui.text2(), width=1), fillcolor=ui.NEUTRAL_FILL[ui.mode()], row=i, col=1,
+                          hovertemplate="%{y:.0f} m<extra></extra>")
+            f.update_yaxes(title_text="m", row=i, col=1, title_font=dict(size=11))
+    f.update_xaxes(title_text="min", row=len(rows), col=1)
+    ui.chart(ui.style(f, 470, legend=False))
+    tabs = st.tabs([":material/flag: Splits", ":material/speed: Pace-Zonen", ":material/favorite: HR-Zonen", ":material/emoji_events: Bestzeiten"])
     with tabs[0]:
         spl = metrics.km_splits(sp, df.hr.to_numpy(float), df.altitude.to_numpy(float))
         if spl.empty:
             st.info("Weniger als 1 km.")
         else:
             spl["Pace"] = spl["Pace_s_km"].map(fmt_pace)
-            st.plotly_chart(px.bar(spl, x="km", y="Pace_s_km", hover_data=["Pace"], title="Pace je km (s/km, niedriger = schneller)"), width="stretch")
-            st.dataframe(spl.drop(columns=["Pace_s_km"]).round(0), hide_index=True)
+            avg = spl["Pace_s_km"].mean()
+            g = go.Figure(go.Bar(x=spl.km, y=spl.Pace_s_km - avg, marker_color=[ui.c(1) if v <= 0 else ui.c(2) for v in spl.Pace_s_km - avg],
+                                 text=spl.Pace, hovertemplate="km %{x}: %{text} /km<extra></extra>"))
+            g.update_yaxes(title="s/km vs. Ø (negativ = schneller)"); g.update_xaxes(title="km", dtick=1)
+            ui.chart(ui.style(g, 300, legend=False, hover="closest"))
+            st.dataframe(spl.drop(columns=["Pace_s_km"]).round(0), hide_index=True, width="stretch")
     with tabs[1]:
         if rp:
             z = metrics.time_in_zones(sp, 1000 / rp, metrics.PACE_ZONES)
-            z["von"] = z["von"].map(lambda v: f"{fmt_pace(1000 / v)}" if v else "–")
-            z["bis"] = z["bis"].map(lambda v: f"{fmt_pace(1000 / v)}" if v else "schneller")
-            z = z.rename(columns={"von": "langsamer als", "bis": "schneller als"})
-            st.plotly_chart(px.bar(z, x="Zone", y="Sekunden"), width="stretch"); st.dataframe(z, hide_index=True)
-            st.caption("Zonengrenzen als % der Schwellengeschwindigkeit (Näherung). Pausen (v≈0) zählen in Z1.")
+            st.plotly_chart(zones_bar(z, f"Pace-Zonen · Schwelle {fmt_pace(rp)} /km"), width="stretch", config=ui.PLOT_CONFIG)
+            st.caption("Zonengrenzen als % der Schwellengeschwindigkeit (Näherung). Pausen zählen in Z1.")
         else:
-            st.info("Schwellenpace fehlt.")
+            st.info("Schwellenpace fehlt (Athlet & Daten).")
     with tabs[2]:
-        lthr = db.threshold_on(w.date, "lthr_run", db.threshold_on(w.date, "lthr", None))
+        lthr = thr_on(w.date, "lthr_run", thr_on(w.date, "lthr", None))
         if lthr and df.hr.notna().any():
-            zh = metrics.time_in_zones(df.hr.to_numpy(), lthr, metrics.HR_ZONES)
-            st.plotly_chart(px.bar(zh, x="Zone", y="Sekunden", title=f"LTHR {lthr:.0f}"), width="stretch")
+            st.plotly_chart(zones_bar(metrics.time_in_zones(df.hr.to_numpy(), lthr, metrics.HR_ZONES), f"HR-Zonen · LTHR {lthr:.0f}"), width="stretch", config=ui.PLOT_CONFIG)
         else:
             st.info("Lauf-LTHR oder HR-Daten fehlen.")
     with tabs[3]:
         rows = [(f"{d // 60} min" if d >= 60 else f"{d} s", fmt_pace(pace_of(w.smm.get(str(d)))), round(w.smm[str(d)] * d))
                 for d in (60, 300, 600, 1200, 1800, 3600) if str(d) in w.smm]
         st.dataframe(pd.DataFrame(rows, columns=["Dauer", "Pace /km", "Distanz m"]), hide_index=True)
+    explain("Lauf")
 
 
-def page_run(wk, rng):
-    st.header("Lauf: Pace-Duration & Critical Speed")
-    rw = db.workouts_df(str(rng[0]), str(rng[1]), "Running")
+def page_run():
+    rng = RNG
+    ui.page_header("Laufen", "Pace-Duration-Kurve, Critical Speed und Entwicklung")
+    rw = W(rng[0], rng[1], "Running")
     if rw.empty:
         st.info("Keine Läufe im gewählten Zeitraum."); return
-    best = {}
-    for m in rw.smm:
-        for k, v in m.items():
-            best[int(k)] = max(best.get(int(k), 0), v)
+    best = agg_mmp(rw, "smm")
     cs = model.fit_cs(best)
-    explain("Lauf")
     show(insights.assess_run_page(cs, run_threshold_pace(), rw))
+    c = st.columns(4)
+    rp = run_threshold_pace()
+    kpi(c[0], "Critical Speed", f"{fmt_pace(cs.cs_pace_s_km)} /km" if cs else "–", height=178)
+    kpi(c[1], "D′", f"{cs.dprime:.0f} m" if cs else "–", height=178)
+    kpi(c[2], "Schwellenpace (hinterlegt)", f"{fmt_pace(rp)} /km" if rp else "–", height=178)
+    km_w = (rw.avg_speed.fillna(0) * rw.duration_s / 1000).groupby(pd.to_datetime(rw.date).dt.to_period("W").dt.start_time).sum()
+    kpi(c[3], "km / Woche (Ø)", f"{km_w.mean():.0f}", None, km_w, chart_type="bar", height=178)
     fig = go.Figure()
     t = sorted(best)
-    fig.add_scatter(x=t, y=[pace_of(best[x]) / 60 for x in t], name="Bestwerte")
+    fig.add_scatter(x=t, y=[pace_of(best[x]) / 60 for x in t], name="Bestwerte", line=dict(color=ui.c(2), width=2),
+                    text=[fmt_pace(pace_of(best[x])) for x in t], hovertemplate="%{text} /km<extra>Bestwert</extra>")
     if cs:
         tt = np.logspace(np.log10(60), np.log10(7200), 100)
-        fig.add_scatter(x=tt, y=1000 / cs.speed(tt) / 60, name="CS-Modell", line=dict(dash="dash", color="black"))
+        fig.add_scatter(x=tt, y=1000 / cs.speed(tt) / 60, name="CS-Modell", line=dict(dash="dash", color=ui.text2(), width=1.5),
+                        text=[fmt_pace(1000 / cs.speed(x)) for x in tt], hovertemplate="%{text} /km<extra>Modell</extra>")
     fig.update_xaxes(type="log", tickvals=[60, 300, 600, 1200, 1800, 3600, 7200], ticktext=["1m", "5m", "10m", "20m", "30m", "1h", "2h"])
     fig.update_yaxes(title="min/km", autorange="reversed")
-    fig.update_layout(height=430, hovermode="x unified", margin=dict(t=20))
-    st.plotly_chart(fig, width="stretch")
+    ui.chart(ui.style(fig, 400, title="Pace-Duration-Kurve"))
     if cs:
-        c = st.columns(4)
-        c[0].metric("Critical Speed", f"{fmt_pace(cs.cs_pace_s_km)} /km"); c[1].metric("D'", f"{cs.dprime:.0f} m")
-        c[2].metric("R² des Fits", f"{cs.r2:.3f}")
-        rp = run_threshold_pace()
-        c[3].metric("Schwellenpace (hinterlegt)", f"{fmt_pace(rp)} /km" if rp else "–")
-        st.caption("2-Parameter-Modell aus Bestwerten 3–30 min. Ohne maximale Efforts in diesem Bereich wird CS unterschätzt. "
-                   "Als Schwellenpace taugt meist ein Wert nahe CS (leicht langsamer).")
+        a, b = st.columns([1, 1], gap="large")
         rows = [(lbl, fmt_pace(1000 / float(cs.speed(sec))), fmt_pace(pace_of(best[sec])) if sec in best else "–")
                 for lbl, sec in (("3 min", 180), ("5 min", 300), ("10 min", 600), ("20 min", 1200), ("30 min", 1800), ("60 min", 3600))]
-        st.dataframe(pd.DataFrame(rows, columns=["Dauer", "Modell /km", "Bestwert /km"]), hide_index=True)
-        if st.button(f"CS-Pace {fmt_pace(cs.cs_pace_s_km)} als Schwellenpace ab heute übernehmen"):
-            db.add_threshold(str(date.today()), run_pace=round(cs.cs_pace_s_km)); st.success("Gespeichert – unter 'Athlet & Daten' neu berechnen.")
-    else:
-        st.warning("Zu wenige Bestwerte zwischen 3 und 30 min für das CS-Modell.")
-    st.subheader("Umfang & Entwicklung")
-    wkly = rw.assign(Woche=pd.to_datetime(rw.date).dt.to_period("W").dt.start_time)
-    wkly["km"] = wkly.avg_speed.fillna(0) * wkly.duration_s / 1000
-    g = wkly.groupby("Woche").agg(km=("km", "sum"), TSS=("tss", "sum")).reset_index()
-    st.plotly_chart(px.bar(g, x="Woche", y="km", title="Wochenkilometer (Näherung aus Ø-Tempo)"), width="stretch")
-    ef = rw.dropna(subset=["ef"])
-    if len(ef):
-        st.plotly_chart(px.scatter(ef, x="date", y="ef", trendline="lowess" if False else None,
-                                   title="Efficiency Factor (m/min je Herzschlag) – steigend = aerobe Verbesserung"), width="stretch")
+        a.dataframe(pd.DataFrame(rows, columns=["Dauer", "Modell /km", "Bestwert /km"]), hide_index=True, width="stretch")
+        b.caption(f"2-Parameter-Modell aus Bestwerten 3–30 min (R² {cs.r2:.3f}). Ohne maximale Efforts wird CS unterschätzt.")
+        if b.button(f"CS-Pace {fmt_pace(cs.cs_pace_s_km)} als Schwellenpace übernehmen", icon=":material/check:"):
+            db.add_threshold(str(TODAY), run_pace=round(cs.cs_pace_s_km)); st.toast("Gespeichert – unter „Athlet & Daten“ neu berechnen.")
+    a, b = st.columns(2, gap="large")
+    with a:
+        g = go.Figure(go.Bar(x=km_w.index, y=km_w.values, marker_color=ui.c(2), hovertemplate="%{y:.0f} km<extra></extra>"))
+        ui.chart(ui.style(g, 300, legend=False, title="Wochenkilometer (aus Ø-Tempo)"))
+    with b:
+        ef = rw.dropna(subset=["ef"])
+        if len(ef):
+            e = go.Figure(go.Scatter(x=pd.to_datetime(ef.date), y=ef.ef, mode="markers", marker=dict(size=8, color=ui.c(2), opacity=.6), name="Lauf",
+                                     hovertemplate="%{y:.2f}<extra></extra>"))
+            e.add_scatter(x=pd.to_datetime(ef.date), y=ef.ef.rolling(5, min_periods=2).mean(), name="Trend (5 Läufe)", line=dict(color=ui.c(1), width=2))
+            ui.chart(ui.style(e, 300, title="Effizienz (m/min je Herzschlag)"))
+    explain("Lauf")
 
 
-def page_pd(wk, rng):
-    st.header("Power-Duration-Kurve & Modell")
-    per_kg = st.toggle("W/kg", False)
-    wt = cur_weight() if per_kg else None
-    a, b = st.columns(2)
-    comp = a.selectbox("Vergleichszeitraum", ["Keiner", "Vorherige gleiche Länge", "Letzte 365 Tage (Bestwerte)"])
-    mm = agg_mmp(wk)
+def page_pd():
+    rng = RNG
+    ui.page_header("Power-Duration-Kurve", "Bestwerte, Modell und Trainingsbereiche")
+    a, b = st.columns([1, 2])
+    per_kg = a.toggle("W/kg", False)
+    comp = b.segmented_control("Vergleich", ["Keiner", "Vorperiode", "365 Tage"], default="Keiner", required=True)
+    mm, mdl = mmp_model(rng[0], rng[1], rng[2])
     curves = {"Auswahl": mm}
-    if comp != "Keiner" and rng:
-        s0, e0 = rng[0], rng[1]
-        if comp.startswith("Vorherige"):
-            span = (e0 - s0).days or 1
-            o = db.workouts_df(str(s0 - timedelta(days=span)), str(s0 - timedelta(days=1)), rng[2])
-        else:
-            o = db.workouts_df(str(date.today() - timedelta(days=365)), str(date.today()), rng[2])
-        curves[comp] = agg_mmp(o)
-    mdl = model.fit_pd(mm)
-    st.plotly_chart(mmp_fig(curves, mdl, wt), width="stretch")
+    if comp == "Vorperiode":
+        span = (rng[1] - rng[0]).days or 1
+        curves["Vorperiode"] = mmp_model(rng[0] - timedelta(days=span), rng[0] - timedelta(days=1), rng[2])[0]
+    elif comp == "365 Tage":
+        curves["365 Tage"] = mmp_model(TODAY - timedelta(days=365), TODAY, rng[2])[0]
+    ui.chart(mmp_fig(curves, mdl, cur_weight() if per_kg else None, 440))
     if len(curves) > 1 and mdl:
         cmp_name = [k for k in curves if k != "Auswahl"][0]
         rows = [(d, curves["Auswahl"].get(d), curves[cmp_name].get(d)) for d in (5, 60, 300, 1200, 3600)]
-        txt = [f"{'%d s' % d if d < 60 else '%d min' % (d // 60)}: {a:.0f} W vs. {b:.0f} W ({(a / b - 1) * 100:+.1f} %)" for d, a, b in rows if a and b]
+        txt = [f"{'%d s' % d if d < 60 else '%d min' % (d // 60)}: {x:.0f} vs. {y:.0f} W ({(x / y - 1) * 100:+.1f} %)" for d, x, y in rows if x and y]
         if txt:
-            show([insights.Insight("info", "Vergleich mit „" + cmp_name + "“ – " + " · ".join(txt) +
-                                   ". Differenzen unter ±2 % sind Schwankung; ein höherer Wert zählt nur, wenn Du in beiden Zeiträumen maximal gefahren bist.")])
+            show([insights.Insight("info", f"Vergleich mit „{cmp_name}“ – " + " · ".join(txt) + ". Unter ±2 % ist Schwankung; höher zählt nur bei Maximalbelastung in beiden Zeiträumen.")])
     if not mdl:
-        st.warning("Zu wenige Daten für das Modell (benötigt Efforts > 10 min).")
-        return
-    explain("Power-Duration-Kurve")
-    show(insights.assess_model(mdl, mm, cur_ftp(), cur_weight()))
+        st.warning("Zu wenige Daten für das Modell (benötigt Efforts > 10 min)."); return
     c = st.columns(5)
-    c[0].metric("mFTP", f"{mdl.mftp:.0f} W"); c[1].metric("FRC", f"{mdl.frc / 1000:.1f} kJ")
-    c[2].metric("Pmax", f"{mdl.pmax:.0f} W"); c[3].metric("P(60 min)", f"{mdl.ftp_60:.0f} W")
-    c[4].metric("Modellfehler (RMSE)", f"{mdl.rmse:.0f} W")
-    st.caption("Eigenes WKO-ähnliches Modell, nicht identisch mit WKO. Je weniger Maximalbelastungen im Zeitraum, desto unsicherer die Parameter.")
-    l, r = st.columns(2)
+    kpi(c[0], "mFTP", f"{mdl.mftp:.0f} W", f"{mdl.mftp / cur_weight():.2f} W/kg", delta_color="off")
+    kpi(c[1], "FRC", f"{mdl.frc / 1000:.1f} kJ")
+    kpi(c[2], "Pmax", f"{mdl.pmax:.0f} W")
+    kpi(c[3], "P(60 min)", f"{mdl.ftp_60:.0f} W")
+    kpi(c[4], "Modellfehler", f"{mdl.rmse:.0f} W", help="RMSE zwischen Modell und Bestwerten")
+    show(insights.assess_model(mdl, mm, cur_ftp(), cur_weight()))
+    a, b = st.columns(2, gap="large")
     durs = [1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600, 5400]
     tbl = pd.DataFrame([dict(Dauer=f"{d // 60}:{d % 60:02d}" if d >= 60 else f"{d}s", Bestwert=round(mm[d]) if d in mm else None,
                              Modell=round(float(mdl.power(d)))) for d in durs])
     tbl["W/kg"] = (tbl["Bestwert"] / cur_weight()).round(2)
-    l.subheader("Bestwerte vs. Modell"); l.dataframe(tbl, hide_index=True)
+    a.markdown("**Bestwerte vs. Modell**"); a.dataframe(tbl, hide_index=True, width="stretch")
     z = pd.DataFrame([(n, round(lo), round(hi) if hi else None) for n, lo, hi in mdl.zones()], columns=["Zone", "von W", "bis W"])
-    r.subheader("Zonen (aus mFTP)"); r.dataframe(z, hide_index=True)
-    if mdl.mftp != cur_ftp() and st.button(f"mFTP {mdl.mftp:.0f} W als FTP ab heute übernehmen"):
-        db.add_threshold(str(date.today()), ftp=round(mdl.mftp)); st.success("Gespeichert. Unter 'Athlet & Daten' neu berechnen.")
-    st.subheader("Intervall-Planer")
-    dmin = st.slider("Intervalldauer (min)", 1, 60, 5)
-    st.write(f"Modell-Maximalleistung für {dmin} min: **{float(mdl.power(dmin * 60)):.0f} W** "
-             f"({float(mdl.power(dmin * 60)) / mdl.mftp * 100:.0f} % mFTP). Typisch trainierbar: 90–100 % davon bei Wiederholungen.")
+    b.markdown("**Trainingsbereiche aus mFTP**"); b.dataframe(z, hide_index=True, width="stretch")
+    if round(mdl.mftp) != round(cur_ftp()) and b.button(f"mFTP {mdl.mftp:.0f} W als FTP übernehmen", icon=":material/check:"):
+        db.add_threshold(str(TODAY), ftp=round(mdl.mftp)); st.toast("Gespeichert – unter „Athlet & Daten“ neu berechnen.")
+    with st.container(border=True):
+        st.markdown("**Intervall-Planer**")
+        dmin = st.slider("Intervalldauer (min)", 1, 60, 5)
+        p = float(mdl.power(dmin * 60))
+        st.markdown(f"Modell-Maximum für {dmin} min: **{p:.0f} W** ({p / mdl.mftp * 100:.0f} % mFTP). Für Wiederholungen meist 90–100 % davon.")
+    explain("Power-Duration-Kurve")
 
 
-def page_recovery(wk, rng):
-    st.header("Erholung: HRV & Schlaf")
-    explain("Erholung (HRV & Schlaf)")
-    start = rng[0] if rng else date.today() - timedelta(days=90)
-    w = db.wellness_df(str(min(start, date.today() - timedelta(days=60))), str(date.today()))
+def page_recovery():
+    rng = RNG
+    ui.page_header("Erholung", "HRV, Schlaf und Ruhepuls aus Garmin")
+    start = rng[0] if rng else TODAY - timedelta(days=90)
+    w = wellness_df(min(start, TODAY - timedelta(days=60)), TODAY)
     if w.empty:
-        st.info("Noch keine Schlaf-/HRV-Daten. In „Athlet & Daten“ **Garmin Connect** (mit Haken „HRV & Schlaf“) ausführen "
-                "oder im Terminal `./sync.command wellness --days 90`. Nur Garmin-Geräte/-Konten liefern diese Daten.")
+        st.info("Noch keine Schlaf-/HRV-Daten. In „Athlet & Daten“ Garmin Connect mit „HRV & Schlaf“ synchronisieren "
+                "oder im Terminal `./sync.command wellness --days 90`.", icon=":material/bedtime:")
         return
-    ready = wellness.readiness(w, date.today())
-    show(ready["items"])
-    w["d"] = pd.to_datetime(w.date)
+    ready = readiness()
+    w = w.copy(); w["d"] = pd.to_datetime(w.date)
     view = w[w.d >= pd.Timestamp(start)]
-    # --- HRV
-    f = go.Figure()
+    c = st.columns(4)
+    hrv7 = w.set_index("d").hrv_night.rolling(7, min_periods=3).mean()
+    kpi(c[0], "HRV (7-Tage)", f"{hrv7.dropna().iloc[-1]:.0f} ms" if hrv7.notna().any() else "–", None, hrv7.dropna().iloc[-30:], height=178)
+    sl = w.sleep_s.dropna() / 3600
+    kpi(c[1], "Schlaf (Ø 7 Nächte)", f"{sl.iloc[-7:].mean():.1f} h" if len(sl) else "–", None, sl.iloc[-30:], chart_type="bar", height=178)
+    rhr = w.resting_hr.dropna()
+    kpi(c[2], "Ruhepuls", f"{rhr.iloc[-1]:.0f} bpm" if len(rhr) else "–", f"{rhr.iloc[-1] - rhr.iloc[-31:-3].median():+.0f} vs. Norm" if len(rhr) > 10 else None,
+        rhr.iloc[-30:], delta_color="inverse", height=178)
+    sc = w.sleep_score.dropna()
+    kpi(c[3], "Schlafscore", f"{sc.iloc[-1]:.0f}" if len(sc) else "–", None, sc.iloc[-30:], height=178)
+    if ready:
+        show(ready["items"])
     tss = daily_tss(); tss.index = pd.to_datetime(tss.index)
     tv = tss[tss.index >= pd.Timestamp(start)]
-    f.add_bar(x=tv.index, y=tv.values, name="TSS", marker_color="rgba(150,150,150,.25)", yaxis="y2")
+    f = ui.stacked(2, [.7, .3])
     if view.hrv_low.notna().any() and view.hrv_high.notna().any():
-        f.add_scatter(x=view.d, y=view.hrv_high, line=dict(width=0), showlegend=False, hoverinfo="skip")
-        f.add_scatter(x=view.d, y=view.hrv_low, fill="tonexty", fillcolor="rgba(44,160,44,.15)", line=dict(width=0), name="Garmin-Normbereich", hoverinfo="skip")
-    f.add_scatter(x=view.d, y=view.hrv_night, mode="lines+markers", name="HRV Nacht (ms)", line=dict(color="#1f77b4", width=1))
-    f.add_scatter(x=view.d, y=w.set_index("d").hrv_night.rolling(7, min_periods=3).mean().reindex(view.d).values, name="7-Tage-Mittel", line=dict(color="#d62728", width=3))
-    f.update_layout(title="HRV (Nacht) und Trainingslast", height=380, hovermode="x unified", yaxis=dict(title="ms"),
-                    yaxis2=dict(overlaying="y", side="right", title="TSS", showgrid=False, tickformat=".0f", nticks=5, rangemode="tozero"), margin=dict(t=40))
-    st.plotly_chart(f, width="stretch")
-    # --- Schlaf
+        f.add_scatter(x=view.d, y=view.hrv_high, line=dict(width=0), showlegend=False, hoverinfo="skip", row=1, col=1)
+        f.add_scatter(x=view.d, y=view.hrv_low, fill="tonexty", fillcolor=ui.NEUTRAL_FILL[ui.mode()], line=dict(width=0),
+                      name="Garmin-Normbereich", hoverinfo="skip", row=1, col=1)
+    f.add_scatter(x=view.d, y=view.hrv_night, mode="markers", name="HRV Nacht", marker=dict(size=6, color=ui.c(1), opacity=.55),
+                  hovertemplate="%{y:.0f} ms<extra>Nacht</extra>", row=1, col=1)
+    f.add_scatter(x=view.d, y=hrv7.reindex(view.d).values, name="7-Tage-Mittel", line=dict(color=ui.c(1), width=2.5),
+                  hovertemplate="%{y:.0f} ms<extra>7 Tage</extra>", row=1, col=1)
+    f.add_bar(x=tv.index, y=tv.values, name="Trainingslast (TSS)", marker_color=ui.text2(), opacity=.45, hovertemplate="%{y:.0f} TSS<extra></extra>", row=2, col=1)
+    f.update_yaxes(title_text="ms", row=1, col=1); f.update_yaxes(title_text="TSS", row=2, col=1)
+    ui.chart(ui.style(f, 440, title="HRV und Trainingslast"))
     sv = view.dropna(subset=["sleep_s"])
-    g = go.Figure()
-    for col, name, color in (("deep_s", "Tiefschlaf", "#08306b"), ("light_s", "Leichtschlaf", "#6baed6"), ("rem_s", "REM", "#9467bd"), ("awake_s", "Wach", "#d9d9d9")):
-        if sv[col].notna().any(): g.add_bar(x=sv.d, y=sv[col] / 3600, name=name, marker_color=color)
-    g.add_hline(y=7, line_dash="dot", annotation_text="7 h")
+    g = ui.stacked(2, [.7, .3])
+    for i, (col, name) in enumerate((("deep_s", "Tiefschlaf"), ("rem_s", "REM"), ("light_s", "Leichtschlaf"))):
+        if sv[col].notna().any():
+            g.add_bar(x=sv.d, y=sv[col] / 3600, name=name, marker_color=ui.c(i + 1), hovertemplate="%{y:.1f} h<extra>" + name + "</extra>", row=1, col=1)
+    if sv.awake_s.notna().any():
+        g.add_bar(x=sv.d, y=sv.awake_s / 3600, name="Wach", marker_color=ui.text2(), opacity=.4, hovertemplate="%{y:.1f} h<extra>Wach</extra>", row=1, col=1)
+    g.add_hline(y=7, line_dash="dot", line_color=ui.text2(), annotation_text="7 h", annotation_font_size=11, row=1, col=1)
     if sv.sleep_score.notna().any():
-        g.add_scatter(x=sv.d, y=sv.sleep_score, name="Schlafscore", yaxis="y2", mode="lines+markers", line=dict(color="#e6b800"))
-    g.update_layout(barmode="stack", title="Schlaf", height=360, hovermode="x unified", yaxis=dict(title="Stunden"),
-                    yaxis2=dict(overlaying="y", side="right", title="Score", range=[0, 100], showgrid=False, tickvals=[0, 25, 50, 75, 100]), margin=dict(t=40))
-    st.plotly_chart(g, width="stretch")
-    if view.resting_hr.notna().any():
-        st.plotly_chart(px.line(view, x="d", y="resting_hr", markers=True, title="Ruhepuls (bpm)", labels=dict(d="", resting_hr="bpm")), width="stretch")
-    t = view[["date", "sleep_s", "sleep_score", "hrv_night", "hrv_week", "hrv_status", "resting_hr"]].copy()
-    t["Schlaf h"] = (t.pop("sleep_s") / 3600).round(1)
-    st.dataframe(t.tail(14)[::-1], hide_index=True, width="stretch")
+        g.add_scatter(x=sv.d, y=sv.sleep_score, name="Schlafscore", line=dict(color=ui.c(1), width=2), hovertemplate="%{y:.0f}<extra>Score</extra>", row=2, col=1)
+    g.update_layout(barmode="stack"); g.update_yaxes(title_text="h", row=1, col=1); g.update_yaxes(title_text="Score", range=[0, 100], row=2, col=1)
+    ui.chart(ui.style(g, 420, title="Schlaf"))
+    with st.expander("Tabelle der letzten 14 Tage", icon=":material/table:"):
+        t = view[["date", "sleep_s", "sleep_score", "hrv_night", "hrv_week", "hrv_status", "resting_hr"]].copy()
+        t["Schlaf h"] = (t.pop("sleep_s") / 3600).round(1)
+        st.dataframe(t.tail(14)[::-1], hide_index=True, width="stretch")
+    explain("Erholung (HRV & Schlaf)")
 
 
-PRIO_COLOR = {"A": "#d62728", "B": "#ff7f0e", "C": "#7f7f7f"}
+PRIO_DASH = {"A": "solid", "B": "dash", "C": "dot"}
 
 
 def races_manager() -> None:
-    with st.expander("Wettkämpfe anlegen & verwalten", expanded=db.races_df().empty):
-        with st.form("race"):
+    rc = races()
+    with st.expander("Wettkämpfe anlegen & verwalten", expanded=rc.empty, icon=":material/flag:"):
+        with st.form("race", border=False):
             c = st.columns(4)
-            d = c[0].date_input("Datum", date.today() + timedelta(days=28))
-            name = c[1].text_input("Name", "")
+            d = c[0].date_input("Datum", TODAY + timedelta(days=28))
+            name = c[1].text_input("Name")
             sport = c[2].selectbox("Sportart", ["Cycling", "Running", "Other"], format_func={"Cycling": "Rad", "Running": "Lauf", "Other": "Sonstige"}.get)
-            prio = c[3].selectbox("Priorität", ["A", "B", "C"], index=1, help="A = Hauptziel, B = wichtig, C = Training/Test")
+            prio = c[3].segmented_control("Priorität", ["A", "B", "C"], default="B", required=True, help="A = Hauptziel, B = wichtig, C = Training/Test")
             c = st.columns(3)
             dur = c[0].number_input("Erwartete Dauer (h)", 0.0, 24.0, 2.0, 0.25)
-            iff = c[1].number_input("Erwartete Intensität (IF)", 0.5, 1.2, 0.85, 0.01, help="Rennen: ca. 0,85–1,0 je nach Dauer; je kürzer, desto höher.")
+            iff = c[1].number_input("Erwartete Intensität (IF)", 0.5, 1.2, 0.85, 0.01, help="Rennen: ca. 0,85–1,0; je kürzer, desto höher.")
             c[2].metric("Geschätzte TSS", f"{dur * iff * iff * 100:.0f}")
-            if st.form_submit_button("Wettkampf speichern"):
+            if st.form_submit_button("Wettkampf speichern", icon=":material/add:", type="primary"):
                 if not name.strip():
                     st.error("Bitte einen Namen eingeben.")
                 else:
-                    db.add_race(str(d), name.strip(), sport, prio, dur, round(dur * iff * iff * 100), "")
-                    st.rerun()
-        rc = db.races_df()
+                    db.add_race(str(d), name.strip(), sport, prio, dur, round(dur * iff * iff * 100), ""); st.rerun()
         if len(rc):
-            st.dataframe(rc[["id", "date", "name", "sport", "priority", "duration_h", "tss"]].rename(columns={
+            st.dataframe(rc[["date", "name", "sport", "priority", "duration_h", "tss"]].rename(columns={
                 "date": "Datum", "name": "Name", "sport": "Sportart", "priority": "Prio", "duration_h": "Dauer h", "tss": "TSS (Schätzung)"}),
                 hide_index=True, width="stretch")
-            rid = st.selectbox("Wettkampf löschen", [0, *rc.id], format_func=lambda i: "–" if i == 0 else f"{rc[rc.id == i].date.iloc[0]}  {rc[rc.id == i].name.iloc[0]}")
-            if rid and st.button("Löschen"):
+            a, b = st.columns([3, 1])
+            rid = a.selectbox("Wettkampf löschen", [0, *rc.id], format_func=lambda i: "–" if i == 0 else f"{rc[rc.id == i].date.iloc[0]} · {rc[rc.id == i].name.iloc[0]}")
+            if b.button("Löschen", icon=":material/delete:", disabled=not rid):
                 db.delete_race(int(rid)); st.rerun()
-        st.caption("Die TSS-Schätzung fließt in die Prognose ein (Dauer × IF² × 100). Wettkämpfe in der Vergangenheit erscheinen als Markierung im Verlauf; ihre echte Belastung kommt aus dem importierten Workout.")
 
 
-def page_pmc(wk, rng):
-    st.header("Performance Management Chart")
-    st.caption("Alle Sportarten kombiniert (Rad-TSS aus Leistung, Lauf-rTSS aus Pace, sonst HR-Näherung).")
-    explain("Performance Management (PMC)")
-    with st.expander("Wettkämpfe – Hinweise"):
-        st.markdown(insights.EXPLAIN["Wettkämpfe"])
-    d = full_pmc_adj()
-    show(insights.assess_pmc(d))
-    if d.readiness_pts.iloc[-3:].any():
-        adj = d.tsb_adj.iloc[-1] - d.tsb.iloc[-1]
-        st.info(f"Form inkl. Erholungsdaten: **{d.tsb_adj.iloc[-1]:+.0f}** statt {d.tsb.iloc[-1]:+.0f} (Abzug {abs(adj):.0f} wegen Schlaf/HRV/Ruhepuls, siehe „Erholung“). "
-                "Der Abzug ist eine Heuristik (5 Punkte je Warnsignal, max. 25) – CTL/ATL/TSB bleiben reine Trainingslast.", icon="ℹ️")
-    races_manager()
-    rc = db.races_df()
+def page_pmc():
+    rng = RNG
+    ui.page_header("Performance Management", "Fitness (CTL), Ermüdung (ATL) und Form (TSB) – alle Sportarten")
+    d = full_pmc()
+    last = d.iloc[-1]
+    c = st.columns(5)
+    kpi(c[0], "Fitness (CTL)", f"{last.ctl:.0f}", f"{last.ramp:+.1f}/Woche" if pd.notna(last.ramp) else None, d.ctl.iloc[-60:], height=178)
+    kpi(c[1], "Ermüdung (ATL)", f"{last.atl:.0f}", None, d.atl.iloc[-60:], height=178)
+    kpi(c[2], "Form (TSB)", f"{last.tsb:+.0f}", None, d.tsb.iloc[-60:], height=178)
+    has_adj = bool(d.readiness_pts.iloc[-3:].any())
+    kpi(c[3], "Form inkl. Erholung", f"{last.tsb_adj:+.0f}" if has_adj else "–", f"{last.tsb_adj - last.tsb:+.0f}" if has_adj else None,
+        d.tsb_adj.iloc[-60:] if has_adj else None, delta_color="off", help="TSB minus 5 je Warnsignal aus Schlaf/HRV/Ruhepuls (max. 25).", height=178)
+    kpi(c[4], "TSS 7 Tage", f"{d.tss.iloc[-7:].sum():.0f}", None, d.tss.iloc[-28:], chart_type="bar", height=178)
+    a, b = st.columns(2, gap="large")
+    with a:
+        show(insights.assess_pmc(d))
+    rc = races()
     fc = forecast_all()
-    if fc is not None and len(rc):
-        show(insights.assess_races(fc, rc, date.today()))
+    with b:
+        if fc is not None and len(rc):
+            show(insights.assess_races(fc, rc, TODAY))
+        else:
+            races_manager()
     v = fc if fc is not None else d.assign(geplant=False)
-    start, end = pd.Timestamp(rng[0]), max(pd.Timestamp(rng[1]), v.index.max() if fc is not None else pd.Timestamp(rng[1]))
+    start = pd.Timestamp(rng[0])
+    end = max(pd.Timestamp(rng[1]), v.index.max())
     v = v.loc[start:end]
     act, fut = v[~v.geplant], v[v.geplant]
     if len(fut) and len(act):
-        fut = pd.concat([act.iloc[[-1]], fut])           # nahtloser Übergang
+        fut = pd.concat([act.iloc[[-1]], fut])
     f = go.Figure()
-    f.add_bar(x=act.index, y=act.tss, name="TSS", marker_color="rgba(150,150,150,.4)")
-    if len(fut): f.add_bar(x=fut.index[1:], y=fut.tss.iloc[1:], name="geplante TSS", marker_color="rgba(255,165,0,.45)")
-    for col, name, color, kw in (("ctl", "CTL (Fitness)", "#1f77b4", {}), ("atl", "ATL (Ermüdung)", "#d62728", {}), ("tsb", "TSB (Form)", "#e6b800", dict(fill="tozeroy", opacity=.5))):
-        f.add_scatter(x=act.index, y=act[col], name=name, line=dict(color=color), **kw)
-        if len(fut): f.add_scatter(x=fut.index, y=fut[col], name=f"{name} – Prognose", line=dict(color=color, dash="dot"), showlegend=False)
-    adj_part = d.loc[start:, "tsb_adj"] if "tsb_adj" in d else None
-    if adj_part is not None and (d.readiness_pts.loc[start:] > 0).any():
-        f.add_scatter(x=adj_part.index, y=adj_part, name="TSB inkl. Erholung", line=dict(color="#7b3294", width=2, dash="dash"))
+    f.add_bar(x=act.index, y=act.tss, name="TSS", marker_color=ui.text2(), opacity=.28, hovertemplate="%{y:.0f}<extra>TSS</extra>")
+    if len(fut) > 1:
+        f.add_bar(x=fut.index[1:], y=fut.tss.iloc[1:], name="geplante TSS", marker_color=ui.text2(), opacity=.12, hovertemplate="%{y:.0f}<extra>geplant</extra>")
+    for i, (col, name) in enumerate((("ctl", "Fitness (CTL)"), ("atl", "Ermüdung (ATL)"), ("tsb", "Form (TSB)")), start=1):
+        f.add_scatter(x=act.index, y=act[col], name=name, line=dict(color=ui.c(i), width=2.5 if col == "ctl" else 1.6),
+                      hovertemplate="%{y:.0f}<extra>" + name + "</extra>")
+        if len(fut) > 1:
+            f.add_scatter(x=fut.index, y=fut[col], name=name + " · Prognose", line=dict(color=ui.c(i), dash="dot", width=1.6), showlegend=False,
+                          hovertemplate="%{y:.0f}<extra>Prognose</extra>")
+    if has_adj or (d.readiness_pts.loc[start:] > 0).any():
+        adj = d.loc[start:, "tsb_adj"]
+        f.add_scatter(x=adj.index, y=adj, name="Form inkl. Erholung", line=dict(color=ui.c(4), width=1.6, dash="dash"),
+                      hovertemplate="%{y:.0f}<extra>inkl. Erholung</extra>")
     for r in rc.itertuples():
         x = pd.Timestamp(r.date)
         if start <= x <= end:
-            col = PRIO_COLOR.get(r.priority, "#7f7f7f")
-            f.add_shape(type="line", x0=x, x1=x, y0=0, y1=1, yref="paper", line=dict(color=col, width=2, dash="dash"))
-            f.add_annotation(x=x, y=1, yref="paper", text=f"{r.priority}: {r.name}", showarrow=False, yanchor="bottom", font=dict(color=col))
-    f.update_layout(height=540, hovermode="x unified", margin=dict(t=40))
-    st.plotly_chart(f, width="stretch")
-    if len(fut):
-        st.caption("Gepunktet = Prognose aus Plan und Wettkampf-TSS (ab morgen). Ohne Planeinträge wird 0 TSS angenommen.")
-    st.caption("TSB-Richtwerte: > +25 Detraining, +5…+25 Frische/Peaking, −10…+5 neutral, −30…−10 produktives Training, < −30 Überlastungsrisiko. Rampe: > 7 CTL/Woche gilt als aggressiv.")
-    st.dataframe(d.tail(14).round(1)[::-1])
+            f.add_shape(type="line", x0=x, x1=x, y0=0, y1=1, yref="paper", line=dict(color=ui.text2(), width=1.5, dash=PRIO_DASH.get(r.priority, "dot")))
+            f.add_annotation(x=x, y=1, yref="paper", text=f"🏁 {r.priority}: {ui.esc(r.name)}", showarrow=False, yanchor="bottom", font=dict(size=11, color=ui.text2()))
+    ui.range_buttons(f)
+    ui.chart(ui.style(f, 540))
+    st.caption("Gepunktet = Prognose aus Plan und Wettkampf-TSS (ab morgen; ohne Planeinträge 0 TSS). Rennen: durchgezogen A · gestrichelt B · gepunktet C.")
+    if fc is not None and len(rc):
+        races_manager()
+    with st.expander("Tabelle der letzten 14 Tage", icon=":material/table:"):
+        st.dataframe(d.tail(14).round(1)[::-1], width="stretch")
+    explain("Performance Management (PMC)")
+    with st.expander("Wettkämpfe – Hinweise", icon=":material/flag:"):
+        st.markdown(insights.EXPLAIN["Wettkämpfe"])
 
 
-def page_zones(wk, rng):
-    st.header("Zeit in Zonen")
-    ftp = cur_ftp()
-    tot = np.zeros(7); rows = []
-    for _, w in wk.iterrows():
-        if w.tss_method != "power": continue  # nur Rad
-        z = metrics.time_in_zones(db.load_stream(w.uid).power.to_numpy(), w.ftp_used or ftp)["Sekunden"].to_numpy()
-        tot += z
-        rows.append(dict(Woche=pd.Timestamp(w.date).to_period("W").start_time, **{metrics.POWER_ZONES[i][0][:2]: z[i] / 3600 for i in range(7)}))
-    if not rows: st.info("Keine Leistungsdaten."); return
-    zn = [z[0] for z in metrics.POWER_ZONES]
-    st.plotly_chart(px.bar(x=zn, y=tot / 3600, labels=dict(x="Zone", y="Stunden"), title="Gesamt"), width="stretch")
-    wk_df = pd.DataFrame(rows).groupby("Woche").sum().reset_index().melt("Woche", var_name="Zone", value_name="Stunden")
-    st.plotly_chart(px.bar(wk_df, x="Woche", y="Stunden", color="Zone", title="Pro Woche"), width="stretch")
-    explain("Zeit in Zonen")
-    show(insights.assess_zones(tot))
+def page_zones():
+    rng = RNG
+    ui.page_header("Zeit in Zonen", "Intensitätsverteilung der Rad-Einheiten mit Leistung")
+    tot, rows = _zones(str(rng[0]), str(rng[1]), rng[2], cur_ftp(), ver())
+    if rows.empty:
+        st.info("Keine Leistungsdaten im Zeitraum."); return
     pol = tot / max(tot.sum(), 1) * 100
-    st.write(f"Polarisierung: Z1–2 **{pol[:2].sum():.0f} %**, Z3–4 **{pol[2:4].sum():.0f} %**, Z5–7 **{pol[4:].sum():.0f} %**")
+    c = st.columns(4)
+    kpi(c[0], "Locker (Z1–2)", f"{pol[:2].sum():.0f} %")
+    kpi(c[1], "Mittel (Z3–4)", f"{pol[2:4].sum():.0f} %")
+    kpi(c[2], "Hart (Z5–7)", f"{pol[4:].sum():.0f} %")
+    kpi(c[3], "Stunden mit Leistung", f"{tot.sum() / 3600:.0f} h")
+    show(insights.assess_zones(tot))
+    a, b = st.columns([1, 1.6], gap="large")
+    zn = [z[0] for z in metrics.POWER_ZONES]
+    with a:
+        f = go.Figure(go.Bar(x=tot / 3600, y=zn, orientation="h", marker_color=ui.BLUE_RAMP, text=[f"{p:.0f} %" for p in pol], textposition="outside",
+                             hovertemplate="%{y}: %{x:.1f} h<extra></extra>"))
+        f.update_yaxes(autorange="reversed"); f.update_xaxes(title="Stunden")
+        ui.chart(ui.style(f, 360, legend=False, hover="closest", title="Gesamt"))
+    with b:
+        wk_df = rows.groupby("Woche").sum()
+        g = go.Figure()
+        for i, z in enumerate(wk_df.columns):
+            g.add_bar(x=wk_df.index, y=wk_df[z], name=z, marker_color=ui.BLUE_RAMP[i], hovertemplate="%{y:.1f} h<extra>" + z + "</extra>")
+        g.update_layout(barmode="stack"); g.update_yaxes(title="Stunden")
+        ui.chart(ui.style(g, 360, title="Pro Woche"))
+    explain("Zeit in Zonen")
 
 
-def page_profile(wk, rng):
-    st.header("Profil & Phänotyp")
-    sex = db.get_settings()["sex"]; wt = cur_weight()
-    mm = agg_mmp(wk)
-    rows = profile.profile(mm, wt, sex)
-    if not rows: st.info("Zu wenige Daten."); return
-    df = pd.DataFrame(rows)
-    explain("Profil & Phänotyp")
-    show(insights.assess_profile(rows))
-    st.plotly_chart(px.bar_polar(df, r="Score", theta="Dauer", range_r=[0, 100], color="Score", height=420)
-                    if False else px.bar(df, x="Dauer", y="Score", text="Level", range_y=[0, 100]), width="stretch")
-    st.dataframe(df[["Dauer", "Watt", "WperKg", "Score", "Level"]], hide_index=True)
+def page_profile():
+    rng = RNG
+    ui.page_header("Profil & Phänotyp", "Bestwerte im Vergleich zu Referenzstufen")
+    mm, _ = mmp_model(rng[0], rng[1], rng[2])
+    rows = profile.profile(mm, cur_weight(), settings()["sex"])
+    if not rows:
+        st.info("Zu wenige Daten."); return
     ph, desc = profile.phenotype(rows)
-    st.subheader(f"Phänotyp: {ph}"); st.write(desc)
-    st.caption("Referenzwerte: Näherung an die übliche Power-Profile-Tabelle (siehe profile.py), Phänotyp-Regeln heuristisch – nicht WKOs Phänotyp-Modell.")
+    st.badge(f"Phänotyp: {ph}", icon=":material/fingerprint:", color="blue")
+    st.caption(desc)
+    ui.stats([(r["Dauer"], f"{r['WperKg']:.2f} W/kg", f"{r['Level']} · Score {r['Score']}") for r in rows])
+    show(insights.assess_profile(rows))
+    df = pd.DataFrame(rows)
+    f = go.Figure(go.Bar(x=df.Dauer, y=df.Score, marker_color=ui.c(1), text=df.Level, textposition="outside",
+                         hovertemplate="%{x}: Score %{y}<extra></extra>"))
+    f.update_yaxes(range=[0, 110], title="Score (0 = untrainiert, 100 = Weltklasse)")
+    ui.chart(ui.style(f, 360, legend=False, hover="closest"))
+    st.caption("Referenzwerte: Näherung an die übliche Power-Profile-Tabelle (profile.py); Phänotyp-Regeln heuristisch.")
+    explain("Profil & Phänotyp")
 
 
-def page_fatigue(wk, rng):
-    st.header("Fatigue Resistance")
+def page_fatigue():
+    wk = WK
+    ui.page_header("Fatigue Resistance", "Wie viel Deiner frischen Leistung bleibt nach Vorbelastung?")
     tbl = profile.fatigue_resistance(list(wk.fatigue))
-    explain("Fatigue Resistance")
-    if not tbl: st.info("Keine Daten."); return
+    if not tbl:
+        st.info("Keine Daten."); return
     show(insights.assess_fatigue(tbl))
-    f = go.Figure()
-    for d, v in tbl.items():
-        kjs = sorted(v)
-        f.add_scatter(x=kjs, y=[v[k][1] for k in kjs], name=f"{d // 60} min" if d >= 60 else f"{d} s", mode="lines+markers")
-    f.update_layout(xaxis_title="Vorab geleistete Arbeit (kJ)", yaxis_title="% des frischen Bestwerts", height=420)
-    st.plotly_chart(f, width="stretch")
     wtk = cur_weight()
+    f = go.Figure()
+    for i, (d, v) in enumerate(tbl.items()):
+        kjs = sorted(v)
+        lbl = f"{d // 60} min" if d >= 60 else f"{d} s"
+        f.add_scatter(x=kjs, y=[v[k][1] for k in kjs], name=lbl, mode="lines+markers", line=dict(color=ui.c(i + 1), width=2), marker=dict(size=9),
+                      customdata=[v[k][0] for k in kjs], hovertemplate="%{y:.0f} % (%{customdata:.0f} W)<extra>" + lbl + "</extra>")
+    f.update_xaxes(title="Vorab geleistete Arbeit (kJ)", tickvals=[0, 1000, 2000, 3000],
+                   ticktext=[f"{k} kJ<br>{k / wtk:.0f} kJ/kg" for k in (0, 1000, 2000, 3000)])
+    f.update_yaxes(title="% des frischen Bestwerts")
+    ui.chart(ui.style(f, 420))
     rows = [dict(Dauer=d, **{f"{k} kJ ({k / wtk:.0f} kJ/kg)": f"{v[k][0]:.0f} W ({v[k][1]:.0f} %)" for k in sorted(v)}) for d, v in tbl.items()]
-    st.dataframe(pd.DataFrame(rows), hide_index=True)
-    st.caption("Bestleistung nach X kJ Vorbelastung im gewählten Zeitraum. Fehlende Werte = keine so langen Workouts.")
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    explain("Fatigue Resistance")
 
 
-def page_progress(wk, rng):
-    st.header("Fortschritt")
-    all_w = db.workouts_df(sport=rng[2] if rng else None)
-    if all_w.empty: return
-    win = st.slider("Fensterlänge für Modell (Tage)", 42, 180, 90)
-    pts, d = [], pd.to_datetime(all_w.date).min() + timedelta(days=win)
-    while d <= pd.Timestamp(date.today()):
-        sub = all_w[(pd.to_datetime(all_w.date) > d - timedelta(days=win)) & (pd.to_datetime(all_w.date) <= d)]
-        mm = agg_mmp(sub)
-        m = model.fit_pd(mm)
-        row = dict(Datum=d, **{f"{k}s": mm.get(k) for k in (5, 60, 300, 1200, 3600)})
-        if m: row.update(mFTP=m.mftp, FRC=m.frc / 1000, Pmax=m.pmax)
-        pts.append(row); d += timedelta(days=7)
-    df = pd.DataFrame(pts)
-    if "mFTP" not in df: st.info("Zu wenige Daten für Modelltrends."); return
-    explain("Fortschritt")
+def page_progress():
+    rng = RNG
+    ui.page_header("Fortschritt", "Modellparameter und Bestwerte im gleitenden Fenster")
+    win = st.select_slider("Fensterlänge", [42, 60, 90, 120, 180], value=90, format_func=lambda d: f"{d} Tage")
+    with st.spinner("Berechne Verlauf …"):
+        df = _progress(rng[2] if rng else None, win, ver())
+    if df.empty or "mFTP" not in df:
+        st.info("Zu wenige Daten für Modelltrends."); return
     show(insights.assess_progress(df))
-    for col, title in (("mFTP", "mFTP (W)"), ("FRC", "FRC (kJ)"), ("Pmax", "Pmax (W)")):
-        st.plotly_chart(px.line(df, x="Datum", y=col, title=title, markers=True), width="stretch")
-    best = df.melt("Datum", ["5s", "60s", "300s", "1200s", "3600s"], var_name="Dauer", value_name="Watt")
-    st.plotly_chart(px.line(best, x="Datum", y="Watt", color="Dauer", title=f"Bestwerte (gleitendes {win}-Tage-Fenster)"), width="stretch")
+    c = st.columns(3, gap="large")
+    for col, (k, title, unit) in zip(c, (("mFTP", "mFTP", "W"), ("FRC", "FRC", "kJ"), ("Pmax", "Pmax", "W"))):
+        with col:
+            s = df.dropna(subset=[k])
+            f = go.Figure(go.Scatter(x=s.Datum, y=s[k], line=dict(color=ui.c(1), width=2.5), fill="tozeroy", fillcolor=ui.NEUTRAL_FILL[ui.mode()],
+                                     hovertemplate="%{y:.1f} " + unit + "<extra></extra>"))
+            f.update_yaxes(rangemode="normal")
+            ui.chart(ui.style(f, 240, legend=False, title=f"{title} ({unit})"))
+    best = go.Figure()
+    for i, (k, lbl) in enumerate((("5s", "5 s"), ("60s", "1 min"), ("300s", "5 min"), ("1200s", "20 min"), ("3600s", "60 min"))):
+        if k in df:
+            best.add_scatter(x=df.Datum, y=df[k], name=lbl, line=dict(color=ui.c(i + 1), width=2), hovertemplate="%{y:.0f} W<extra>" + lbl + "</extra>")
+    best.update_yaxes(title="Watt", type="log")
+    ui.chart(ui.style(best, 380, title=f"Bestwerte (gleitendes {win}-Tage-Fenster, log. Skala)"))
+    explain("Fortschritt")
 
 
-def page_plan(wk, rng):
-    st.header("Planung")
-    explain("Planung")
-    s = db.get_settings()
+def page_plan():
+    ui.page_header("Planung", "Aufbaupläne, Einzeltermine und Prognose")
     act = daily_tss()
     base = full_pmc()
     ctl0 = base.ctl.iloc[-1] if len(base) else 0
-    with st.expander("Aufbauplan generieren (CTL-Ziel)", expanded=True):
-        c = st.columns(5)
+    t1, t2 = st.tabs([":material/auto_graph: Aufbauplan", ":material/add_task: Einzeltermin"])
+    with t1:
+        c = st.columns(4)
         target = c[0].number_input("Ziel-CTL", 10, 250, int(ctl0 + 10))
         weeks = c[1].number_input("Wochen", 2, 52, 8)
-        rec = c[2].number_input("Erholungswoche alle n", 0, 8, 4)
-        start = c[3].date_input("Start (Montag)", date.today() + timedelta(days=(7 - date.today().weekday()) % 7))
-        days = c[4].multiselect("Trainingstage", ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"], ["Di", "Do", "Sa", "So"])
+        rec = c[2].number_input("Entlastung alle n Wochen", 0, 8, 4)
+        start = c[3].date_input("Start (Montag)", TODAY + timedelta(days=(7 - TODAY.weekday()) % 7))
+        days = st.pills("Trainingstage", ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"], selection_mode="multi", default=["Di", "Do", "Sa", "So"])
         loads = pmc.ramp_plan(ctl0, target, int(weeks), int(rec))
-        st.write("Wochen-TSS:", ", ".join(map(str, loads)), f"(aktuelle CTL {ctl0:.0f})")
-        if st.button("Plan speichern (ersetzt künftige Einträge)") and days:
+        g = go.Figure(go.Bar(x=[f"W{i + 1}" for i in range(len(loads))], y=loads, marker_color=ui.c(1), hovertemplate="%{y} TSS<extra></extra>"))
+        ui.chart(ui.style(g, 220, legend=False, hover="closest", title=f"Wochen-TSS (aktuelle CTL {ctl0:.0f} → Ziel {target})"))
+        if st.button("Plan speichern (ersetzt künftige Einträge)", icon=":material/save:", type="primary", disabled=not days):
             db.clear_planned_from(str(start))
-            idx = [["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].index(d) for d in days]
+            idx = [["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].index(x) for x in days]
             share = np.array([1.0 if i in (5, 6) else 0.7 for i in idx]); share /= share.sum()
             for wi, L in enumerate(loads):
                 for i, sh in zip(idx, share):
                     db.add_planned(str(start + timedelta(days=wi * 7 + i)), "Training", round(L * sh))
-            st.success("Gespeichert.")
-    with st.expander("Einzelnes Workout planen"):
+            st.toast("Plan gespeichert"); st.rerun()
+    with t2:
         c = st.columns(4)
-        d = c[0].date_input("Datum", date.today() + timedelta(days=1)); n = c[1].text_input("Name", "Intervalle")
-        t = c[2].number_input("Geplante TSS", 0, 600, 80)
-        if c[3].button("Hinzufügen"): db.add_planned(str(d), n, t)
-    pl = db.planned_df()
+        d = c[0].date_input("Datum", TODAY + timedelta(days=1)); n = c[1].text_input("Name", "Intervalle")
+        tval = c[2].number_input("Geplante TSS", 0, 600, 80)
+        if c[3].button("Hinzufügen", icon=":material/add:"):
+            db.add_planned(str(d), n, tval); st.toast("Hinzugefügt"); st.rerun()
+    pl = planned()
     if len(pl):
-        until = st.date_input("Prognose bis", pd.to_datetime(pl.date).max().date())
-        planned = planned_load()
-        fc = pmc.forecast(act, planned, str(max(until, pd.to_datetime(planned.index).max().date())), ctl_tau=float(s["ctl_tau"]), atl_tau=float(s["atl_tau"]))
-        fc = fc.loc[str(date.today() - timedelta(days=60)):]
+        s = settings()
+        planned_ser = planned_load()
+        until = max(pd.to_datetime(pl.date).max().date(), pd.to_datetime(planned_ser.index).max().date())
+        fc = pmc.forecast(act, planned_ser, str(until), ctl_tau=float(s["ctl_tau"]), atl_tau=float(s["atl_tau"]))
+        fc = fc.loc[str(TODAY - timedelta(days=60)):]
         show(insights.assess_plan(fc))
         f = go.Figure()
-        for k, n in (("ctl", "CTL"), ("atl", "ATL"), ("tsb", "TSB")):
-            f.add_scatter(x=fc.index, y=fc[k], name=n)
-        f.add_bar(x=fc.index, y=fc.tss.where(fc.geplant), name="geplante TSS", marker_color="rgba(255,165,0,.5)")
-        f.update_layout(height=450, hovermode="x unified"); st.plotly_chart(f, width="stretch")
-        st.write(f"Prognose {until}: CTL **{fc.ctl.iloc[-1]:.0f}**, ATL {fc.atl.iloc[-1]:.0f}, TSB {fc.tsb.iloc[-1]:+.0f}")
-        edit = st.data_editor(pl, hide_index=True, disabled=["id"], width="stretch")
-        dl = st.number_input("ID zum Löschen", 0, int(pl.id.max()), 0)
-        if st.button("Eintrag löschen") and dl: db.delete_planned(int(dl)); st.rerun()
+        f.add_bar(x=fc.index, y=fc.tss.where(fc.geplant), name="geplante TSS", marker_color=ui.text2(), opacity=.25, hovertemplate="%{y:.0f}<extra>geplant</extra>")
+        for i, (k, nme) in enumerate((("ctl", "Fitness (CTL)"), ("atl", "Ermüdung (ATL)"), ("tsb", "Form (TSB)")), start=1):
+            f.add_scatter(x=fc.index, y=fc[k], name=nme, line=dict(color=ui.c(i), width=2.5 if k == "ctl" else 1.6), hovertemplate="%{y:.0f}<extra>" + nme + "</extra>")
+        f.add_vline(x=pd.Timestamp(TODAY), line_dash="dot", line_color=ui.text2())
+        ui.chart(ui.style(f, 420, title=f"Prognose bis {until:%d.%m.%Y}"))
+        with st.expander("Geplante Einträge", icon=":material/list:"):
+            st.dataframe(pl, hide_index=True, width="stretch")
+            a, b = st.columns([3, 1])
+            dl = a.selectbox("Eintrag löschen", [0, *pl.id], format_func=lambda i: "–" if i == 0 else f"{pl[pl.id == i].date.iloc[0]} · {pl[pl.id == i].name.iloc[0]} · {pl[pl.id == i].tss.iloc[0]:.0f} TSS")
+            if b.button("Löschen", icon=":material/delete:", disabled=not dl):
+                db.delete_planned(int(dl)); st.rerun()
+    explain("Planung")
 
 
 GARMIN_LOG = config.ROOT / "garmin_sync.log"
@@ -742,7 +959,6 @@ GARMIN_MFA = config.ROOT / "garmin_mfa.txt"
 
 
 def start_garmin(days: int, env: dict, with_wellness: bool = True) -> None:
-    """Garmin-Sync als Hintergrundprozess; fragt bei 2FA über das Eingabefeld (garmin_status) nach dem Code."""
     config.ensure_dirs()
     GARMIN_MFA.unlink(missing_ok=True)
     log = open(GARMIN_LOG, "w")
@@ -761,124 +977,176 @@ def garmin_status() -> None:
     shown = log.replace("MFA_REQUIRED\n", "").strip()
     if p.poll() is None:
         if "MFA_REQUIRED" in log and not st.session_state.get("mfa_sent"):
-            st.warning("Garmin hat einen 2FA-Code an Dich geschickt (E-Mail/Authenticator). Bitte hier eingeben:")
+            st.warning("Garmin hat einen 2FA-Code geschickt (E-Mail/Authenticator). Bitte hier eingeben:", icon=":material/key:")
             with st.form("mfa"):
                 code = st.text_input("2FA-Code")
                 if st.form_submit_button("Code senden") and code.strip():
                     GARMIN_MFA.write_text(code.strip())
                     st.session_state["mfa_sent"] = True
         else:
-            st.info("Garmin-Sync läuft … " + shown[-300:])
+            with st.status("Garmin-Sync läuft …", expanded=True):
+                st.code(shown[-600:] or "Anmeldung …", language=None)
     else:
         (st.success if p.returncode == 0 else st.error)(shown or "Fertig.")
 
 
-def page_sources(wk, rng):
-    st.header("Quellen & Evidenz")
-    st.markdown("Studien, auf die sich Hinweise und Empfehlungen stützen – mit Einordnung, **was das Video sagt**, **was die Studie (laut Abstract) zeigt** und **wo die Grenzen liegen**. "
-                "Grundlage: drei Trainings-Videos und eine Websuche nach den genannten Studien; Volltexte wurden nicht gelesen. Autorennamen sind weggelassen (Titel + Jahr + Link).")
-    lv = st.multiselect("Evidenzstufe", evidence.LEVELS, default=evidence.LEVELS)
-    q = st.text_input("Suche (Titel, Thema, Verwendung)")
+def page_sources():
+    ui.page_header("Quellen & Evidenz", "Studien hinter Hinweisen und Empfehlungen – mit Aussagekraft und Grenzen")
+    st.markdown("Für jede Quelle: **was das Video sagt**, **was die Studie (laut Abstract) zeigt** und **wo die Grenzen liegen**. "
+                "Volltexte wurden nicht gelesen; Autorennamen sind weggelassen (Titel + Jahr + Link).")
+    a, b = st.columns([2, 1])
+    lv = a.pills("Evidenzstufe", evidence.LEVELS, selection_mode="multi", default=evidence.LEVELS)
+    q = b.text_input("Suche", placeholder="z. B. Kohlenhydrate, Kraft, Zonen")
+    color = {"Review": "blue", "RCT": "green", "Beobachtung": "orange", "Hypothese": "violet", "Nicht verifiziert": "gray"}
     for e in evidence.EVIDENCE:
-        if e["level"] not in lv or (q and q.lower() not in (e["title"] + e["finding"] + e["used_in"] + e["video"]).lower()):
+        if e["level"] not in (lv or []) or (q and q.lower() not in (e["title"] + e["finding"] + e["used_in"] + e["video"]).lower()):
             continue
-        icon = {"Review": "📚", "RCT": "🧪", "Beobachtung": "📈", "Hypothese": "💭", "Nicht verifiziert": "❓"}[e["level"]]
-        with st.expander(f"{icon} {e['id']} · {e['level']} · {e['year'] or '—'} · {e['title'][:110]}"):
-            st.markdown(f"**Titel:** {e['title']}  \n**Journal:** {e['journal']}" + (f"  \n**Link:** {e['url']}" if e["url"] else "  \n**Link:** nicht eindeutig gefunden – Titel suchen"))
-            st.markdown(f"**Video-Aussage:** {e['video']}")
-            st.markdown(f"**Befund (laut Zusammenfassung):** {e['finding']}")
-            st.warning(f"**Grenzen:** {e['caveat']}", icon="⚠️")
-            st.caption(f"Verwendet in der App: {e['used_in']}")
-    st.info("Reihenfolge der Aussagekraft grob: Übersicht/RCT > Beobachtung > Hypothese/Fallstudie. Kleine, kurze Studien und Trainer-Erfahrung sind Hinweise, keine Belege.")
+        with st.container(border=True):
+            h1, h2 = st.columns([5, 1])
+            h1.markdown(f"**{e['id']} · {ui.esc(e['title'])}**  \n<span style='opacity:.65'>{ui.esc(e['journal'])} · {e['year'] or '—'}</span>", unsafe_allow_html=True)
+            with h2:
+                st.badge(e["level"], color=color[e["level"]])
+            st.markdown(f"**Video:** {e['video']}  \n**Befund:** {e['finding']}")
+            st.caption(f"⚠️ Grenzen: {e['caveat']}  ·  Verwendet in: {e['used_in']}" + (f"  ·  [Link]({e['url']})" if e["url"] else ""))
 
 
-def page_athlete(wk, rng):
-    st.header("Athlet & Daten")
-    s = db.get_settings()
-    explain("Athlet & Daten")
-    show(insights.assess_data(db.workouts_df(), db.thresholds_df(), date.today()))
-    a, b = st.columns(2)
-    with a:
-        st.subheader("Schwellenwerte (mit Datum)")
+def page_athlete():
+    wk = WK
+    ui.page_header("Athlet & Daten", "Schwellenwerte, Einstellungen und Import")
+    show(insights.assess_data(W(), thresholds(), TODAY))
+    tabs = st.tabs([":material/cloud_download: Daten laden", ":material/tune: Schwellenwerte", ":material/settings: Einstellungen", ":material/list: Workouts"])
+    with tabs[0]:
+        c = st.columns([1, 1, 1, 1])
+        days = c[0].number_input("Tage zurück", 1, 3650, 30)
+        env = dict(os.environ)
+        if not any(config.TOKEN_DIR.glob("*")):
+            st.info("Garmin ist noch nicht angemeldet: E-Mail und Passwort eingeben und „Garmin Connect“ klicken. Bei 2FA erscheint danach ein Feld für den Code. "
+                    "Das Passwort wird nicht gespeichert, nur das Anmelde-Token.", icon=":material/lock:")
+            ge, gp = st.columns(2)
+            em, pw = ge.text_input("Garmin E-Mail"), gp.text_input("Garmin Passwort", type="password")
+            if em and pw:
+                env.update(GARMIN_EMAIL=em, GARMIN_PASSWORD=pw)
+        wl = st.toggle("HRV & Schlaf mitladen", True, help="Zusätzliche Abrufe pro Tag (ca. 1 s je Tag).")
+        if c[1].button("Garmin Connect", icon=":material/sync:", type="primary", width="stretch"):
+            start_garmin(days, env, wl)
+        for col, (lbl, args, icon) in zip(c[2:], (("TrainingPeaks", ["trainingpeaks", "--days", str(days)], ":material/cloud:"),
+                                                  ("Inbox-Ordner", ["folder"], ":material/folder_open:"))):
+            if col.button(lbl, icon=icon, width="stretch", help=str(config.INBOX) if lbl == "Inbox-Ordner" else None):
+                with st.spinner(f"{lbl} …"):
+                    r = subprocess.run([sys.executable, str(ROOT / "sync.py"), *args], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env)
+                (st.success if r.returncode == 0 else st.error)(r.stdout + r.stderr)
+        garmin_status()
+        up = st.file_uploader("Dateien hochladen (FIT/TCX/GPX/CSV/ZIP)", accept_multiple_files=True)
+        if up and st.button("Hochgeladene Dateien importieren", icon=":material/upload:"):
+            config.ensure_dirs(); tot = [0, 0, []]
+            with st.spinner("Importiere …"):
+                for f in up:
+                    p = config.INBOX / f.name; p.write_bytes(f.getvalue())
+                    n, k, e = ingest.import_path(p, "upload"); tot[0] += n; tot[1] += k; tot[2] += e
+            st.success(f"{tot[0]} neu, {tot[1]} Duplikate"); [st.error(e) for e in tot[2]]
+    with tabs[1]:
         with st.form("thr"):
             c = st.columns(3)
-            d = c[0].date_input("Gültig ab", date.today())
+            d = c[0].date_input("Gültig ab", TODAY)
             ftp = c[1].number_input("Rad-FTP (W)", 0, 600, int(cur_ftp()))
             kg = c[2].number_input("Gewicht (kg)", 30.0, 150.0, float(cur_weight()))
             c = st.columns(3)
-            lthr = c[0].number_input("Rad-LTHR (bpm)", 0, 230, int(db.threshold_on(str(date.today()), "lthr", 0) or 0))
-            lthr_run = c[1].number_input("Lauf-LTHR (bpm)", 0, 230, int(db.threshold_on(str(date.today()), "lthr_run", 0) or 0))
+            lthr = c[0].number_input("Rad-LTHR (bpm)", 0, 230, int(thr_on(TODAY, "lthr", 0) or 0))
+            lthr_run = c[1].number_input("Lauf-LTHR (bpm)", 0, 230, int(thr_on(TODAY, "lthr_run", 0) or 0))
             rp0 = run_threshold_pace()
             rp_txt = c[2].text_input("Lauf-Schwellenpace (min:sek /km)", fmt_pace(rp0) if rp0 else "")
-            if st.form_submit_button("Speichern"):
+            if st.form_submit_button("Speichern", icon=":material/save:", type="primary"):
                 rp = parse_pace(rp_txt) if rp_txt else None
                 if rp_txt and rp is None:
                     st.error("Pace-Format: 4:45")
                 else:
-                    db.add_threshold(str(d), ftp or None, lthr or None, kg, rp, lthr_run or None); st.rerun()
-        st.dataframe(db.thresholds_df(), hide_index=True)
-        if st.button("Alle Workouts (Rad + Lauf) mit Schwellenwert-Verlauf neu berechnen"):
-            st.success(f"{ingest.recompute_all()} Workouts neu berechnet.")
-    with b:
-        st.subheader("Einstellungen")
-        sex = st.selectbox("Geschlecht (Profilreferenz)", ["m", "f"], index=["m", "f"].index(s["sex"]))
-        rest = st.number_input("Ruhepuls", 30, 100, int(s["rest_hr"]))
-        crank = st.number_input("Kurbellänge (mm)", 150.0, 185.0, float(s["crank_mm"]))
-        if st.button("Einstellungen speichern"):
-            for k, v in dict(sex=sex, rest_hr=rest, crank_mm=crank).items(): db.set_setting(k, v)
-            st.success("OK")
-    st.subheader("Daten laden")
-    c = st.columns(4)
-    days = c[0].number_input("Tage zurück", 1, 3650, 30)
-    env = dict(os.environ)
-    if not any(config.TOKEN_DIR.glob("*")):
-        st.info("Garmin ist noch nicht angemeldet: E-Mail und Passwort eingeben und „Garmin Connect“ klicken. Bei aktivierter 2FA erscheint "
-                "danach ein Feld für den Code. Das Passwort wird nicht gespeichert, nur das Anmelde-Token (data/garmin_tokens).")
-        ge, gp = st.columns(2)
-        em, pw = ge.text_input("Garmin E-Mail"), gp.text_input("Garmin Passwort", type="password")
-        if em and pw:
-            env.update(GARMIN_EMAIL=em, GARMIN_PASSWORD=pw)
-    wl = st.checkbox("HRV & Schlaf mitladen", True, help="Zusätzliche Abrufe pro Tag (ca. 1 s je Tag). Beim ersten Mal mit vielen Tagen dauert das einige Minuten.")
-    if c[1].button("Garmin Connect"):
-        start_garmin(days, env, wl)
-    runs = {"TrainingPeaks": ["trainingpeaks", "--days", str(days)], f"Inbox-Ordner ({config.INBOX})": ["folder"]}
-    for col, (lbl, args) in zip(c[2:], runs.items()):
-        if col.button(lbl):
-            r = subprocess.run([sys.executable, str(ROOT / "sync.py"), *args], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env)
-            (st.success if r.returncode == 0 else st.error)(r.stdout + r.stderr)
-    garmin_status()
-    up = st.file_uploader("Dateien hochladen (FIT/TCX/GPX/CSV/ZIP)", accept_multiple_files=True)
-    if up and st.button("Hochgeladene Dateien importieren"):
-        config.ensure_dirs(); tot = [0, 0, []]
-        for f in up:
-            p = config.INBOX / f.name; p.write_bytes(f.getvalue())
-            n, k, e = ingest.import_path(p, "upload"); tot[0] += n; tot[1] += k; tot[2] += e
-        st.write(f"{tot[0]} neu, {tot[1]} Duplikate"); [st.error(e) for e in tot[2]]
-    if len(wk):
-        st.subheader("Workouts")
-        view = wk[["uid", "start_time", "sport", "name", "source", "duration_s", "np", "tss", "tss_method"]].copy()
-        st.dataframe(view[::-1], hide_index=True, width="stretch")
-        d = st.selectbox("Workout löschen", [""] + list(wk.uid))
-        if d and st.button("Löschen"): db.delete_workout(d); st.rerun()
+                    db.add_threshold(str(d), ftp or None, lthr or None, kg, rp, lthr_run or None); st.toast("Gespeichert"); st.rerun()
+        st.dataframe(thresholds(), hide_index=True, width="stretch")
+        if st.button("Alle Workouts mit Schwellenwert-Verlauf neu berechnen", icon=":material/refresh:"):
+            with st.spinner("Berechne neu …"):
+                n = ingest.recompute_all()
+            st.toast(f"{n} Workouts neu berechnet"); st.rerun()
+    with tabs[2]:
+        s = settings()
+        c = st.columns(3)
+        sex = c[0].segmented_control("Profilreferenz", ["m", "f"], default=s["sex"], required=True, format_func={"m": "männlich", "f": "weiblich"}.get)
+        rest = c[1].number_input("Ruhepuls", 30, 100, int(s["rest_hr"]))
+        crank = c[2].number_input("Kurbellänge (mm)", 150.0, 185.0, float(s["crank_mm"]))
+        if st.button("Einstellungen speichern", icon=":material/save:"):
+            for k, v in dict(sex=sex, rest_hr=rest, crank_mm=crank).items():
+                db.set_setting(k, v)
+            st.toast("Gespeichert")
+        st.caption("Hell/Dunkel: Menü ⋮ oben rechts → Settings.")
+    with tabs[3]:
+        if len(wk):
+            view = wk[["start_time", "sport", "name", "source", "duration_s", "np", "tss", "tss_method", "uid"]].copy()
+            view["duration_s"] = (view.duration_s / 60).round()
+            st.dataframe(view[::-1], hide_index=True, width="stretch", column_config={
+                "duration_s": st.column_config.NumberColumn("min"), "tss": st.column_config.ProgressColumn("TSS", min_value=0, max_value=300, format="%.0f"),
+                "np": st.column_config.NumberColumn("NP", format="%.0f")})
+            a, b = st.columns([3, 1])
+            dsel = a.selectbox("Workout löschen", [""] + list(wk.uid[::-1]))
+            if b.button("Löschen", icon=":material/delete:", disabled=not dsel):
+                db.delete_workout(dsel); st.rerun()
+    explain("Athlet & Daten")
 
 
-POWER_PAGES = {"Power-Duration-Kurve", "Zeit in Zonen", "Profil & Phänotyp", "Fatigue Resistance"}
+# =============================================================== Navigation & Filter
+POWER_PAGES = {"pd", "zones", "profile", "fatigue"}
 
 
-def main():
-    page, wk, rng = sidebar_filters()
-    if rng is None:
-        st.title("WKO Lokal")
-        st.info("Noch keine Daten. Terminal: `python sync.py garmin`, Dateien nach `data/inbox/` + `python sync.py folder`, "
-                "oder `python sync.py demo` für Beispieldaten – oder hier direkt hochladen:")
-        page_athlete(wk, rng); return
-    if wk.empty and page != "Athlet & Daten":
-        st.warning("Keine Workouts im gewählten Zeitraum/Sport."); return
-    if page in POWER_PAGES and not wk.empty and not (wk.tss_method == "power").any():
-        st.info("Im gewählten Zeitraum/Sport gibt es keine Rad-Workouts mit Leistungsdaten. Für Läufe siehe 'Lauf: Pace & Critical Speed'.")
-        return
-    dict(zip(PAGES, [page_dashboard, page_workout, page_pd, page_run, page_pmc, page_recovery, page_zones, page_profile, page_fatigue,
-                     page_progress, page_plan, page_athlete, page_sources]))[page](wk, rng)
+def guarded(key: str, fn):
+    def run():
+        if RNG is None and key not in ("athlete", "sources"):
+            ui.page_header("Willkommen bei WKO Lokal", "Noch keine Trainingsdaten vorhanden")
+            st.info("Daten laden: unter „Athlet & Daten“ Garmin verbinden oder Dateien hochladen. Zum Ausprobieren im Terminal: `python sync.py demo`.",
+                    icon=":material/rocket_launch:")
+            if st.button("Zu „Athlet & Daten“", icon=":material/arrow_forward:", type="primary"):
+                st.switch_page(PAGE["athlete"])
+            return
+        if RNG is not None and WK.empty and key not in ("athlete", "sources", "pmc", "recovery", "plan", "dashboard"):
+            st.warning("Keine Workouts im gewählten Zeitraum/Sport.", icon=":material/filter_alt_off:"); return
+        if key in POWER_PAGES and RNG is not None and not (WK.tss_method == "power").any():
+            st.info("Im gewählten Zeitraum/Sport gibt es keine Rad-Einheiten mit Leistung. Für Läufe: Ansicht „Laufen“.", icon=":material/directions_run:"); return
+        fn()
+    run.__name__ = f"page_{key}"
+    return run
 
 
-main()
+SPEC = [("Übersicht", [("dashboard", "Dashboard", ":material/space_dashboard:", page_dashboard),
+                       ("pmc", "Fitness & Form", ":material/monitoring:", page_pmc),
+                       ("recovery", "Erholung", ":material/bedtime:", page_recovery)]),
+        ("Analyse", [("workout", "Workout-Analyse", ":material/directions_bike:", page_workout),
+                     ("pd", "Power-Duration", ":material/show_chart:", page_pd),
+                     ("run", "Laufen", ":material/directions_run:", page_run),
+                     ("zones", "Zeit in Zonen", ":material/stacked_bar_chart:", page_zones),
+                     ("profile", "Profil & Phänotyp", ":material/fingerprint:", page_profile),
+                     ("fatigue", "Fatigue Resistance", ":material/battery_charging_full:", page_fatigue),
+                     ("progress", "Fortschritt", ":material/trending_up:", page_progress)]),
+        ("Planung", [("plan", "Planung & Prognose", ":material/event:", page_plan)]),
+        ("Daten", [("athlete", "Athlet & Daten", ":material/person:", page_athlete),
+                   ("sources", "Quellen & Evidenz", ":material/menu_book:", page_sources)])]
+PAGE = {key: st.Page(guarded(key, fn), title=title, icon=icon, url_path=key, default=key == "dashboard")
+        for _, items in SPEC for key, title, icon, fn in items}
+nav = st.navigation({sec: [PAGE[k] for k, *_ in items] for sec, items in SPEC}, expanded=True)
+
+with st.sidebar:
+    all_w = W()
+    if all_w.empty:
+        WK, RNG = all_w, None
+    else:
+        st.markdown("**Filter**")
+        sport_map = {"Alle": "Alle", "Rad": "Cycling", "Lauf": "Running"}
+        sp = st.segmented_control("Sportart", list(sport_map), default="Alle", required=True, key="f_sport", label_visibility="collapsed")
+        presets = {"4 W": 28, "3 M": 90, "6 M": 180, "1 J": 365, "Alle": 99999, "…": None}
+        pr = st.segmented_control("Zeitraum", list(presets), default="3 M", required=True, key="f_range", label_visibility="collapsed",
+                                  help="… = eigener Zeitraum")
+        if presets[pr] is None:
+            sel = st.date_input("Von – Bis", (TODAY - timedelta(days=90), TODAY), key="f_dates")
+            a_, b_ = (sel if isinstance(sel, (tuple, list)) and len(sel) == 2 else (TODAY - timedelta(days=90), TODAY))
+        else:
+            b_, a_ = TODAY, TODAY - timedelta(days=presets[pr])
+        WK, RNG = W(a_, b_, sport_map[sp]), (a_, b_, sport_map[sp])
+        st.caption(f"{len(WK)} Einheiten · {WK.duration_s.sum() / 3600:.0f} h · {WK.tss.sum():.0f} TSS")
+
+nav.run()

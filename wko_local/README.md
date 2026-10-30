@@ -50,6 +50,12 @@ Jede Ansicht zeigt oben eine **automatische Einordnung** (farbige Kernaussage + 
 Beispiele: War die Einheit gut für ihr Ziel (Erholung/Grundlage/Tempo/Schwelle/VO2max – automatisch erkannt oder oben wählbar)? Neue Bestwerte oder höhere Effizienz gegenüber den 90 Tagen davor?
 Ist die Form (TSB) passend, die Rampe tragbar, der FTP-Wert noch aktuell? Die Regeln stehen in `wkolocal/insights.py` und sind Richtwerte, keine individuelle Diagnose; Schwellen dort anpassbar.
 
+## Oberfläche
+- Navigation in Bereichen (Übersicht · Analyse · Planung · Daten) mit Icons; Filter für Sportart und Zeitraum in der Seitenleiste.
+- Dashboard mit Empfehlungskarte, Form-Kacheln mit Mini-Verläufen, klickbaren „Letzten Einheiten“ (Klick öffnet die Workout-Analyse).
+- Hell/Dunkel folgt der Systemeinstellung (umschaltbar: Menü ⋮ → Settings). Design: `.streamlit/config.toml`, `wkolocal/ui.py` (validierte Farbpalette, keine Doppel-Y-Achsen – mehrere Messgrößen als gestapelte Teilgrafiken mit gemeinsamer Zeitachse).
+- Geschwindigkeit: alle teuren Berechnungen (PMC, Modelle, Zonen, Fortschritt, Empfehlung) werden zwischengespeichert und nur nach Datenänderung neu berechnet; Interaktionen ca. 0,2–0,5 s. Der allererste Aufruf nach dem Start dauert einige Sekunden.
+
 ## Trainingsempfehlung & Wettkämpfe
 - **Dashboard → „Trainingsempfehlung für morgen“:** regelbasiert aus Form (TSB), harten Einheiten der letzten Tage, Trainingsserie, Rampe, Wettkämpfen und Plan – mit konkreter Einheit (Dauer, Watt- bzw. Pace-Bereiche, geschätzte TSS) und Begründung. Dein Befinden (Gut/Normal/Müde/Krank) stellst Du direkt darüber ein. Schlaf/HRV/Termine kennt das Programm nicht. Regeln: `wkolocal/recommend.py`.
 - **PMC → „Wettkämpfe anlegen & verwalten“:** Datum, Name, Sportart, Priorität A/B/C, erwartete Dauer/Intensität (→ TSS-Schätzung). Wettkämpfe erscheinen als Markierung im PMC, die Prognose (gepunktet) zeigt Fitness/Form am Renntag; Tapering, Aktivierung und Erholung nach dem Rennen fließen in die Empfehlung ein.
