@@ -29,8 +29,8 @@ def _to_1hz(rows: list[dict]) -> pd.DataFrame:
     df = df.drop_duplicates("t").set_index("t")
     full = df.reindex(range(0, int(df.index.max()) + 1))
     for c in COLS:
-        if c not in full: full[c] = np.nan
-    gap = full["power"].isna()
+        # Spalten ohne Werte (z. B. kein Leistungsmesser) sind sonst object-Typ und lassen sich nicht interpolieren
+        full[c] = pd.to_numeric(full[c], errors="coerce").astype(float) if c in full else np.nan
     # Lücken <= 10 s interpolieren, größere Lücken (Pausen) -> Power 0, HR bleibt NaN
     for c in COLS:
         full[c] = full[c].interpolate(limit=10, limit_area="inside")

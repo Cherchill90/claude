@@ -249,3 +249,17 @@ def test_recommend_evidence_rules():
     recent2.loc[recent2.index[-2], "duration_s"] = 9000
     r2 = recommend.recommend(today2, daily2, recent2, races2, pd.DataFrame(), 250, None)
     assert not any("Seit 14 Tagen keine lange Einheit" in x for x in r2.reasons)
+
+
+def test_parse_without_power_or_speed_columns():
+    """Rad nur mit HF / Wandern: leere Spalten dürfen den Import nicht abbrechen (Fehler 'cannot interpolate with object dtype')."""
+    import pandas as pd
+    from wkolocal.parsers import _to_1hz
+    t0 = pd.Timestamp("2026-10-01 07:00", tz="UTC")
+    rows = [dict(time=t0 + pd.Timedelta(seconds=i * (1 if i < 50 else 5)), power=None, hr=120 + i % 5, cadence=None,
+                 speed=None, altitude=None, distance=None) for i in range(100)]
+    df, start = _to_1hz(rows)
+    assert len(df) > 100 and (df.power == 0).all() and df.hr.notna().mean() > .5
+    rows2 = [dict(time=t0 + pd.Timedelta(seconds=i), hr=110) for i in range(60)]          # Spalten fehlen ganz
+    df2, _ = _to_1hz(rows2)
+    assert set(["power", "speed", "altitude"]) <= set(df2.columns)

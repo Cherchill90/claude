@@ -54,7 +54,9 @@ def import_path(path: Path, source="file") -> tuple[int, int, list[str]]:
                 if add_activity(act, source): new += 1
                 else: skipped += 1
         except Exception as e:  # defekte Datei darf den Rest nicht stoppen
-            errors.append(f"{f.name}: {e}")
+            import traceback
+            tb = traceback.extract_tb(e.__traceback__)
+            errors.append(f"{f.name}: {type(e).__name__}: {e}" + (f" [{Path(tb[-1].filename).name}:{tb[-1].lineno}]" if tb else ""))
     return new, skipped, errors
 
 

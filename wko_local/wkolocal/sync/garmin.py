@@ -17,6 +17,14 @@ from ..parsers import parse_file
 from pathlib import Path
 
 
+def _describe(e: Exception) -> str:
+    """Fehlertext mit Typ und Fundstelle, damit knappe Meldungen (z. B. 'size') nachvollziehbar sind."""
+    import traceback
+    tb = traceback.extract_tb(e.__traceback__)
+    where = f" [{Path(tb[-1].filename).name}:{tb[-1].lineno} {tb[-1].name}]" if tb else ""
+    return f"{type(e).__name__}: {e}{where}"
+
+
 def _prompt_mfa() -> str:
     """2FA-Code: im Terminal per Eingabe, in der App per Datei (GARMIN_MFA_FILE), sonst klarer Fehler."""
     f = os.environ.get("GARMIN_MFA_FILE")
@@ -105,7 +113,7 @@ def sync(days: int = 30, since: date | None = None, log=print, wellness: bool = 
                 if ingest.add_activity(act, "garmin"): new += 1
                 else: skipped += 1
         except Exception as e:
-            errors.append(f"{aid} ({a.get('activityName')}): {e}")
+            errors.append(f"{aid} ({a.get('activityName')}): {_describe(e)}")
     if wellness:
         try:
             _, werrs = sync_wellness(g, (date.today() - start).days if since else days, log)
