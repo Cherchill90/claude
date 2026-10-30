@@ -95,3 +95,65 @@ def test_insights_progress_noise():
     df = pd.DataFrame(dict(Datum=pd.to_datetime(["2024-01-01", "2024-03-01"]), mFTP=[250.0, 251.0], FRC=[15.0, 18.0]))
     txt = {i.text.split(":")[0]: i.level for i in insights.assess_progress(df) if ":" in i.text}
     assert txt["mFTP"] == "info" and txt["FRC"] == "good"
+
+
+# ------------------------------------------------------------------ Empfehlung / Wettkämpfe
+def _scenario(loads: list[float], hard_idx=(), sport="Cycling", races=None):
+    """loads: TSS der letzten Tage (letzter Eintrag = heute). hard_idx: Positionen harter Einheiten."""
+    import pandas as pd
+    from datetime import date, timedelta
+    today = date(2026, 10, 28)
+    n = len(loads)
+    days = [today - timedelta(days=n - 1 - i) for i in range(n)]
+    daily = pd.Series(loads, index=pd.to_datetime(days))
+    rows = [dict(uid=str(i), start_time=f"{d} 07:00:00", date=str(d), sport=sport, tss=t, tss_method="power",
+                 if_=.95 if i in hard_idx else .65, duration_s=5400, mmp={"300": 250.0}, ftp_used=250.0)
+            for i, (d, t) in enumerate(zip(days, loads)) if t > 0]
+    races = races if races is not None else pd.DataFrame(columns=["id", "date", "name", "sport", "priority", "duration_h", "tss", "notes"])
+    return today, daily, pd.DataFrame(rows), races
+
+
+def test_recommend_rest_when_overreached():
+    from wkolocal import recommend
+    today, daily, recent, races = _scenario([200.0] * 40 + [300.0] * 8, hard_idx=(44, 45, 46, 47))
+    import pandas as pd
+    r = recommend.recommend(today, daily, recent, races, pd.DataFrame(), 250, None)
+    assert r.kind in ("Ruhetag", "Regeneration") and r.sport in ("–", "Cycling")
+
+
+def test_recommend_key_session_when_fresh():
+    from wkolocal import recommend
+    import pandas as pd
+    today, daily, recent, races = _scenario([55.0] * 45 + [80.0, 0, 70, 0, 80, 0, 0, 60, 0, 0, 80, 0, 70, 50], hard_idx=())
+    r = recommend.recommend(today, daily, recent, races, pd.DataFrame(), 250, None)
+    assert r.kind in ("Schwelle", "VO2max", "Sweetspot", "Lange Grundlage") and r.details and r.tss[1] > 0
+
+
+def test_recommend_quota_full_and_feeling():
+    from wkolocal import recommend
+    import pandas as pd
+    today, daily, recent, races = _scenario([60.0, 0, 70, 0, 60, 0, 50, 0, 60, 110, 0, 120, 0, 40], hard_idx=(9, 11))
+    r = recommend.recommend(today, daily, recent, races, pd.DataFrame(), 250, None)
+    assert r.kind in ("Grundlage", "Lange Grundlage")
+    assert recommend.recommend(today, daily, recent, races, pd.DataFrame(), 250, None, "Krank").kind == "Ruhetag"
+    assert recommend.recommend(today, daily, recent, races, pd.DataFrame(), 250, None, "Müde").kind in ("Regeneration", "Grundlage")
+
+
+def test_recommend_races():
+    from wkolocal import recommend
+    import pandas as pd
+    today, daily, recent, _ = _scenario([60.0, 0, 70, 0, 60, 0, 40, 0, 50, 0, 60, 0, 40, 30])
+    mk = lambda days, pr="A": pd.DataFrame([dict(id=1, date=str(today + pd.Timedelta(days=days)), name="Test", sport="Cycling", priority=pr, duration_h=2, tss=150.0, notes="")])
+    assert recommend.recommend(today, daily, recent, mk(1), pd.DataFrame(), 250, None).kind == "Wettkampf"
+    assert recommend.recommend(today, daily, recent, mk(2), pd.DataFrame(), 250, None).kind == "Aktivierung"
+    assert recommend.recommend(today, daily, recent, mk(6), pd.DataFrame(), 250, None).kind in ("Taper", "Grundlage")
+    after = mk(0).assign(date=str(today))
+    assert recommend.recommend(today, daily, recent, after, pd.DataFrame(), 250, None).kind in ("Regeneration", "Ruhetag")
+
+
+def test_forecast_uses_today_boundary():
+    import pandas as pd
+    act = pd.Series([50.0, 60.0], index=pd.to_datetime(["2026-10-20", "2026-10-21"]))
+    pl = pd.Series([100.0, 100.0], index=pd.to_datetime(["2026-10-25", "2026-10-30"]))
+    fc = pmc.forecast(act, pl, "2026-11-02", today="2026-10-27")
+    assert fc.loc["2026-10-25", "tss"] == 0 and fc.loc["2026-10-30", "tss"] == 100 and bool(fc.loc["2026-10-30", "geplant"]) and not bool(fc.loc["2026-10-27", "geplant"])

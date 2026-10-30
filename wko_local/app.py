@@ -13,7 +13,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from wkolocal import config, db, ingest, insights, metrics, model, pmc, profile
+from wkolocal import config, db, ingest, insights, metrics, model, pmc, profile, recommend
 
 st.set_page_config(page_title="WKO Lokal", layout="wide")
 ROOT = Path(__file__).parent
@@ -95,6 +95,61 @@ def cur_weight() -> float:
     return db.threshold_on(str(date.today()), "weight", 70.0)
 
 
+def full_pmc() -> pd.DataFrame:
+    """PMC bis einschließlich heute (Tage ohne Training zählen als 0 TSS)."""
+    s = db.get_settings()
+    a = daily_tss()
+    if a.empty:
+        return pmc.pmc(a)
+    a = a.copy(); a.index = pd.to_datetime(a.index)
+    t = pd.Timestamp(date.today())
+    if a.index.max() < t:
+        a.loc[t] = 0.0
+    return pmc.pmc(a, float(s["ctl_tau"]), float(s["atl_tau"]))
+
+
+def planned_load() -> pd.Series:
+    """Geplante TSS je Tag: Planeinträge + Wettkampf-TSS (nur wo kein Planeintrag am selben Tag liegt)."""
+    pl = db.planned_df()
+    ser = pl.groupby("date").tss.sum() if len(pl) else pd.Series(dtype=float)
+    rc = db.races_df()
+    for r in rc.itertuples():
+        if r.tss and pd.notna(r.tss) and r.date not in ser.index:
+            ser.loc[r.date] = float(r.tss)
+    return ser
+
+
+def forecast_all() -> pd.DataFrame | None:
+    """Prognose-PMC über Plan und Wettkämpfe hinaus; None, wenn nichts Zukünftiges vorliegt."""
+    ser, rc = planned_load(), db.races_df()
+    future = [d for d in list(ser.index) + list(rc.date) if d > str(date.today())]
+    if not future:
+        return None
+    s = db.get_settings()
+    return pmc.forecast(daily_tss(), ser, max(future), ctl_tau=float(s["ctl_tau"]), atl_tau=float(s["atl_tau"]))
+
+
+def recommendation_card() -> None:
+    st.subheader("Trainingsempfehlung für morgen")
+    feeling = st.radio("Wie fühlst Du Dich heute?", recommend.FEELINGS, index=1, horizontal=True, key="feeling",
+                       help="Schlaf, HRV und Gesundheit kennt das Programm nicht – Dein Befinden fließt deshalb direkt ein.")
+    today, s = date.today(), db.get_settings()
+    recent = db.workouts_df(str(today - timedelta(days=28)), str(today))
+    r = recommend.recommend(today, daily_tss(), recent, db.races_df(), db.planned_df(), cur_ftp(), run_threshold_pace(),
+                            feeling, float(s["ctl_tau"]), float(s["atl_tau"]))
+    with st.container(border=True):
+        {"good": st.success, "info": st.info, "warn": st.warning}[r.level](f"**{r.headline}**")
+        c = st.columns(3)
+        if r.duration_min: c[0].metric("Dauer", f"{r.duration_min[0]}–{r.duration_min[1]} min")
+        if r.tss is not None: c[1].metric("Geschätzte TSS", f"{r.tss[0]}–{r.tss[1]}" if r.tss[1] else "0")
+        if r.details: st.markdown("\n".join(f"- {x}" for x in r.details))
+        if r.plan_note: {"good": st.success, "info": st.info, "warn": st.warning}[r.plan_note[0]](r.plan_note[1], icon=insights.ICON[r.plan_note[0]])
+        with st.expander("Warum diese Empfehlung?"):
+            st.markdown("\n".join(f"- {x}" for x in r.reasons))
+            st.caption("Regelbasiert aus Belastungshistorie (Form, harte Einheiten, Wettkämpfe, Plan) und Deinem Befinden. "
+                       "Keine Kenntnis von Schlaf, HRV, Stress oder Terminen – im Zweifel auf den Körper hören. Keine medizinische Beratung.")
+
+
 def show(items: list) -> None:
     """Kernaussage farbig, Details als Liste (siehe wkolocal/insights.py)."""
     if not items:
@@ -120,7 +175,12 @@ def daily_tss(sport="Alle") -> pd.Series:
 def page_dashboard(wk, rng):
     st.header("Dashboard")
     s = db.get_settings()
-    d = pmc.pmc(daily_tss(), float(s["ctl_tau"]), float(s["atl_tau"]))
+    d = full_pmc()
+    recommendation_card()
+    fc = forecast_all()
+    rc = db.races_df()
+    if fc is not None and len(rc):
+        show(insights.assess_races(fc, rc, date.today()))
     explain("Dashboard")
     sport = rng[2]
     recent = db.workouts_df(str(date.today() - timedelta(days=28)), str(date.today()), sport)
@@ -404,21 +464,73 @@ def page_pd(wk, rng):
              f"({float(mdl.power(dmin * 60)) / mdl.mftp * 100:.0f} % mFTP). Typisch trainierbar: 90–100 % davon bei Wiederholungen.")
 
 
+PRIO_COLOR = {"A": "#d62728", "B": "#ff7f0e", "C": "#7f7f7f"}
+
+
+def races_manager() -> None:
+    with st.expander("Wettkämpfe anlegen & verwalten", expanded=db.races_df().empty):
+        with st.form("race"):
+            c = st.columns(4)
+            d = c[0].date_input("Datum", date.today() + timedelta(days=28))
+            name = c[1].text_input("Name", "")
+            sport = c[2].selectbox("Sportart", ["Cycling", "Running", "Other"], format_func={"Cycling": "Rad", "Running": "Lauf", "Other": "Sonstige"}.get)
+            prio = c[3].selectbox("Priorität", ["A", "B", "C"], index=1, help="A = Hauptziel, B = wichtig, C = Training/Test")
+            c = st.columns(3)
+            dur = c[0].number_input("Erwartete Dauer (h)", 0.0, 24.0, 2.0, 0.25)
+            iff = c[1].number_input("Erwartete Intensität (IF)", 0.5, 1.2, 0.85, 0.01, help="Rennen: ca. 0,85–1,0 je nach Dauer; je kürzer, desto höher.")
+            c[2].metric("Geschätzte TSS", f"{dur * iff * iff * 100:.0f}")
+            if st.form_submit_button("Wettkampf speichern"):
+                if not name.strip():
+                    st.error("Bitte einen Namen eingeben.")
+                else:
+                    db.add_race(str(d), name.strip(), sport, prio, dur, round(dur * iff * iff * 100), "")
+                    st.rerun()
+        rc = db.races_df()
+        if len(rc):
+            st.dataframe(rc[["id", "date", "name", "sport", "priority", "duration_h", "tss"]].rename(columns={
+                "date": "Datum", "name": "Name", "sport": "Sportart", "priority": "Prio", "duration_h": "Dauer h", "tss": "TSS (Schätzung)"}),
+                hide_index=True, width="stretch")
+            rid = st.selectbox("Wettkampf löschen", [0, *rc.id], format_func=lambda i: "–" if i == 0 else f"{rc[rc.id == i].date.iloc[0]}  {rc[rc.id == i].name.iloc[0]}")
+            if rid and st.button("Löschen"):
+                db.delete_race(int(rid)); st.rerun()
+        st.caption("Die TSS-Schätzung fließt in die Prognose ein (Dauer × IF² × 100). Wettkämpfe in der Vergangenheit erscheinen als Markierung im Verlauf; ihre echte Belastung kommt aus dem importierten Workout.")
+
+
 def page_pmc(wk, rng):
     st.header("Performance Management Chart")
     st.caption("Alle Sportarten kombiniert (Rad-TSS aus Leistung, Lauf-rTSS aus Pace, sonst HR-Näherung).")
-    s = db.get_settings()
-    d = pmc.pmc(daily_tss(), float(s["ctl_tau"]), float(s["atl_tau"]))
     explain("Performance Management (PMC)")
+    with st.expander("Wettkämpfe – Hinweise"):
+        st.markdown(insights.EXPLAIN["Wettkämpfe"])
+    d = full_pmc()
     show(insights.assess_pmc(d))
-    d = d.loc[str(rng[0]):str(rng[1])]
+    races_manager()
+    rc = db.races_df()
+    fc = forecast_all()
+    if fc is not None and len(rc):
+        show(insights.assess_races(fc, rc, date.today()))
+    v = fc if fc is not None else d.assign(geplant=False)
+    start, end = pd.Timestamp(rng[0]), max(pd.Timestamp(rng[1]), v.index.max() if fc is not None else pd.Timestamp(rng[1]))
+    v = v.loc[start:end]
+    act, fut = v[~v.geplant], v[v.geplant]
+    if len(fut) and len(act):
+        fut = pd.concat([act.iloc[[-1]], fut])           # nahtloser Übergang
     f = go.Figure()
-    f.add_bar(x=d.index, y=d.tss, name="TSS", marker_color="rgba(150,150,150,.4)")
-    f.add_scatter(x=d.index, y=d.ctl, name="CTL (Fitness)", line=dict(color="#1f77b4"))
-    f.add_scatter(x=d.index, y=d.atl, name="ATL (Ermüdung)", line=dict(color="#d62728"))
-    f.add_scatter(x=d.index, y=d.tsb, name="TSB (Form)", line=dict(color="#e6b800"), fill="tozeroy", opacity=.5)
-    f.update_layout(height=520, hovermode="x unified")
+    f.add_bar(x=act.index, y=act.tss, name="TSS", marker_color="rgba(150,150,150,.4)")
+    if len(fut): f.add_bar(x=fut.index[1:], y=fut.tss.iloc[1:], name="geplante TSS", marker_color="rgba(255,165,0,.45)")
+    for col, name, color, kw in (("ctl", "CTL (Fitness)", "#1f77b4", {}), ("atl", "ATL (Ermüdung)", "#d62728", {}), ("tsb", "TSB (Form)", "#e6b800", dict(fill="tozeroy", opacity=.5))):
+        f.add_scatter(x=act.index, y=act[col], name=name, line=dict(color=color), **kw)
+        if len(fut): f.add_scatter(x=fut.index, y=fut[col], name=f"{name} – Prognose", line=dict(color=color, dash="dot"), showlegend=False)
+    for r in rc.itertuples():
+        x = pd.Timestamp(r.date)
+        if start <= x <= end:
+            col = PRIO_COLOR.get(r.priority, "#7f7f7f")
+            f.add_shape(type="line", x0=x, x1=x, y0=0, y1=1, yref="paper", line=dict(color=col, width=2, dash="dash"))
+            f.add_annotation(x=x, y=1, yref="paper", text=f"{r.priority}: {r.name}", showarrow=False, yanchor="bottom", font=dict(color=col))
+    f.update_layout(height=540, hovermode="x unified", margin=dict(t=40))
     st.plotly_chart(f, width="stretch")
+    if len(fut):
+        st.caption("Gepunktet = Prognose aus Plan und Wettkampf-TSS (ab morgen). Ohne Planeinträge wird 0 TSS angenommen.")
     st.caption("TSB-Richtwerte: > +25 Detraining, +5…+25 Frische/Peaking, −10…+5 neutral, −30…−10 produktives Training, < −30 Überlastungsrisiko. Rampe: > 7 CTL/Woche gilt als aggressiv.")
     st.dataframe(d.tail(14).round(1)[::-1])
 
@@ -505,7 +617,7 @@ def page_plan(wk, rng):
     explain("Planung")
     s = db.get_settings()
     act = daily_tss()
-    base = pmc.pmc(act, float(s["ctl_tau"]), float(s["atl_tau"]))
+    base = full_pmc()
     ctl0 = base.ctl.iloc[-1] if len(base) else 0
     with st.expander("Aufbauplan generieren (CTL-Ziel)", expanded=True):
         c = st.columns(5)
@@ -532,8 +644,8 @@ def page_plan(wk, rng):
     pl = db.planned_df()
     if len(pl):
         until = st.date_input("Prognose bis", pd.to_datetime(pl.date).max().date())
-        planned = pl.groupby("date").tss.sum()
-        fc = pmc.forecast(act, planned, str(until), ctl_tau=float(s["ctl_tau"]), atl_tau=float(s["atl_tau"]))
+        planned = planned_load()
+        fc = pmc.forecast(act, planned, str(max(until, pd.to_datetime(planned.index).max().date())), ctl_tau=float(s["ctl_tau"]), atl_tau=float(s["atl_tau"]))
         fc = fc.loc[str(date.today() - timedelta(days=60)):]
         show(insights.assess_plan(fc))
         f = go.Figure()

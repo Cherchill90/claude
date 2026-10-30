@@ -343,6 +343,28 @@ def assess_fatigue(table: dict) -> list[Insight]:
     return [head, I("info", "Richtwerte (eigene Heuristik). Fehlende Zellen = nie so hart nach so viel Arbeit gefahren, nicht schlechte Werte.")]
 
 
+def assess_races(fc: pd.DataFrame, races: pd.DataFrame, today) -> list[Insight]:
+    """Prognose der Form am Wettkampftag (fc: Prognose-PMC; tsb = Form am Morgen des Tages)."""
+    today = pd.Timestamp(today).normalize()
+    out = []
+    up = races[pd.to_datetime(races.date) >= today].sort_values("date") if len(races) else races
+    for r in up.head(3).itertuples():
+        d = pd.Timestamp(r.date)
+        if d not in fc.index: continue
+        row, days = fc.loc[d], (d - today).days
+        txt = f"{r.priority}-Wettkampf „{r.name}“ in {days} Tag(en): CTL {row.ctl:.0f}, Form am Renntag {row.tsb:+.0f}"
+        if r.priority == "A":
+            if 5 <= row.tsb <= 25: out.append(I("good", txt + " – im Zielbereich (+5…+25)."))
+            elif row.tsb < 5: out.append(I("warn" if row.tsb < -5 else "info", txt + " – zu müde für ein A-Ziel: Tapering früher beginnen/Umfang in den Tagen davor reduzieren (Plan anpassen)."))
+            else: out.append(I("info", txt + " – sehr frisch; bei längerer Pause verlierst Du Fitness, die Entlastung kann kürzer sein."))
+        else:
+            out.append(I("good" if row.tsb >= -10 else "info", txt + (" – okay für ein B/C-Rennen." if row.tsb >= -10 else " – Ermüdung ist bei einem B/C-Rennen im Block akzeptabel.")))
+    if not out:
+        return []
+    out.append(I("info", "Prognose basiert auf Plan und eingetragenen Wettkampf-TSS; ohne Planeinträge wird ab morgen Nicht-Training (0 TSS) angenommen."))
+    return out
+
+
 # ===================================================================== Lauf-Seite, Planung, Daten
 def assess_run_page(cs, run_pace: float | None, rw: pd.DataFrame) -> list[Insight]:
     out = []
@@ -449,6 +471,9 @@ Referenzen und Phänotyp-Regeln sind Näherungen. Aussagekräftig nur, wenn im Z
 Wie viel Deiner frischen Bestleistung bleibt nach 1000/2000/3000 kJ Vorarbeit? Hohe Werte (≥ 90 %) bedeuten, dass Du auch spät im Rennen noch Leistung bringst. Training: lange Einheiten mit harten Efforts am Ende.""",
 "Fortschritt": """
 Jeder Punkt ist ein Modell über das davorliegende Fenster (z. B. 90 Tage). Änderungen unter ±3 % liegen im Schwankungsbereich. Ein Rückgang kann nur heißen, dass im Fenster keine Maximaltests/Rennen waren.""",
+"Wettkämpfe": """
+Trag Wettkämpfe mit Priorität ein: **A** = Hauptziel (Tapering, Form +5…+25), **B** = wichtig (kurze Entlastung), **C** = Training/Test.
+Die PMC-Prognose zeigt Fitness (CTL) und Form (TSB) am Renntag – abhängig von Deinem Plan und der geschätzten Wettkampf-TSS (Dauer × IF² × 100). Die Dashboard-Empfehlung berücksichtigt Tapering, Aktivierung und Erholung nach dem Rennen.""",
 "Planung": """
 Der Plan wird in die PMC projiziert. Prüfe: Rampe ≤ 5–8 CTL/Woche, alle 3–4 Wochen eine Entlastungswoche, Form (TSB) am Zieltag +5…+25 bei Wettkämpfen.""",
 "Athlet & Daten": """

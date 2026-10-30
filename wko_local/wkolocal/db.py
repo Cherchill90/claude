@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS workouts(
 CREATE INDEX IF NOT EXISTS ix_w_date ON workouts(date);
 CREATE TABLE IF NOT EXISTS thresholds(date TEXT PRIMARY KEY, ftp REAL, lthr REAL, weight REAL);
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS races(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, name TEXT, sport TEXT, priority TEXT,
+  duration_h REAL, tss REAL, notes TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS planned(
   id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, name TEXT, sport TEXT,
   tss REAL, duration_min REAL, notes TEXT DEFAULT '');
@@ -168,3 +171,20 @@ def delete_planned(pid: int) -> None:
 def clear_planned_from(day: str) -> None:
     with connect() as c:
         c.execute("DELETE FROM planned WHERE date>=?", (day,))
+
+
+# ---- Wettkämpfe ------------------------------------------------------------
+def races_df() -> pd.DataFrame:
+    with connect() as c:
+        return pd.read_sql("SELECT * FROM races ORDER BY date", c)
+
+
+def add_race(day: str, name: str, sport="Cycling", priority="B", duration_h=None, tss=None, notes="") -> None:
+    with connect() as c:
+        c.execute("INSERT INTO races(date,name,sport,priority,duration_h,tss,notes) VALUES(?,?,?,?,?,?,?)",
+                  (day, name, sport, priority, duration_h, tss, notes))
+
+
+def delete_race(rid: int) -> None:
+    with connect() as c:
+        c.execute("DELETE FROM races WHERE id=?", (rid,))
