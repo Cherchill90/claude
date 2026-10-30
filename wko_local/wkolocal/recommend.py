@@ -13,6 +13,7 @@ import pandas as pd
 
 from . import pmc as pmc_mod
 from .wellness import form_adjustment
+from .evidence import refs
 
 WEEKDAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
 FEELINGS = ["Gut", "Normal", "Müde", "Krank"]
@@ -55,6 +56,16 @@ def _range(tss: float, spread=.12) -> tuple[int, int]:
     return round(tss * (1 - spread)), round(tss * (1 + spread))
 
 
+def fuel_line(minutes: float, hard: bool = False) -> str | None:
+    """Verpflegungshinweis nach Dauer/Intensität (Faustwerte aus Übersichtsarbeiten; individuell verträglich testen)."""
+    if minutes < 60:
+        return None
+    if minutes > 150 or (hard and minutes > 90):
+        return ("Verpflegung: ca. 60–90 g Kohlenhydrate/h (Glukose:Fruktose ≈ 2:1), in Trainingseinheiten Magen schrittweise daran gewöhnen; "
+                "über 90 g/h nur mit Erfahrung – Magen-Darm-Beschwerden sind häufig. " + refs("Q18", "Q16"))
+    return "Verpflegung: ca. 30–60 g Kohlenhydrate/h ab der ersten Stunde (je nach Intensität) – bei harten Einheiten eher 60 g/h. " + refs("Q18")
+
+
 def build_session(kind: str, sport: str, ftp: float, run_pace: float | None, c: dict) -> tuple[list[str], tuple, tuple]:
     """(Beschreibung, Dauer-Bereich min, TSS-Bereich). c: end_min, long_min (typische Dauern der letzten Wochen)."""
     run = sport == "Running"
@@ -73,10 +84,16 @@ def build_session(kind: str, sport: str, ftp: float, run_pace: float | None, c: 
         segs = [(m, .82 if run else .68)]
         L = [f"{m} min gleichmäßig im Grundlagenbereich ({zone(.78, .88) if run else zone(.56, .75)}).",
              "Herzfrequenz stabil halten; wenn sie bei gleicher Leistung/Pace steigt, Tempo zurücknehmen."]
+        if run and c.get("strides"):
+            L.append("Optional am Ende: 4–6×20–30 s Steigerungen (bergauf oder flach, zügig aber nicht Sprint, volle Pause) – 2–3×/Woche; kleine Studien zeigen bessere Laufökonomie/Kurzzeitleistung. " + refs("Q2", "Q3"))
     elif kind == "Lange Grundlage":
         m = int(np.clip(round(c["long_min"] * 1.1 / 10) * 10, 70 if run else 120, 130 if run else 240))
         segs = [(m, .80 if run else .65)]
-        L = [f"{m} min locker ({zone(.75, .86) if run else zone(.56, .72)}).", "Alle 20–30 min trinken/essen (ca. 40–60 g Kohlenhydrate pro Stunde bei > 2 h)."]
+        L = [f"{m} min locker ({zone(.75, .86) if run else zone(.56, .72)})."]
+        if c.get("finisher"):
+            L.append("Optional (Ermüdungsresistenz): in den letzten 20–30 min gut verpflegt " +
+                     ("4×30 s bergauf zügig (volle Pause)" if run else f"3×3 min bei {zone(1.0, 1.05)} (je 3 min locker)") +
+                     ". Hypothese-Niveau: Übersichtsarbeit sieht lange Einheiten mit späten intensiven Abschnitten als plausibel, aber kaum Interventionsdaten. " + refs("Q7"))
     elif kind == "Sweetspot":
         segs = [(15, .6), (15, .90), (5, .5), (15, .90), (5, .5), (15, .90), (10, .5)] if not run else \
                [(15, .75), (15, .94), (3, .6), (15, .94), (10, .7)]
@@ -104,12 +121,16 @@ def build_session(kind: str, sport: str, ftp: float, run_pace: float | None, c: 
     else:
         return [], (0, 0), (0, 0)
     dur = sum(m for m, _ in segs)
+    fl = fuel_line(dur, hard=kind in ("Schwelle", "VO2max", "Sweetspot", "Taper"))
+    if fl and kind not in ("Regeneration", "Aktivierung"):
+        L.append(fl)
     return L, (round(dur * .9), round(dur * 1.1)), _range(_tss(segs))
 
 
 # ------------------------------------------------------------------ Zustand aus der Historie
 def _hard(r) -> bool:
-    return bool((r.if_ or 0) >= (.9 if r.sport == "Running" else .85) and r.duration_s >= 1200) or (r.tss or 0) >= 120
+    long_run = r.sport == "Running" and r.duration_s >= 5400        # Trainerpraxis: langer Lauf = harte Einheit (Verletzungs-/Ermüdungsrisiko)
+    return bool((r.if_ or 0) >= (.9 if r.sport == "Running" else .85) and r.duration_s >= 1200) or (r.tss or 0) >= 120 or long_run
 
 
 def _key_type(r, ftp: float) -> str:
@@ -248,6 +269,8 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
             kind = down[kind]
             c["end_min"] = min(c["end_min"], 60)
 
+    c["strides"] = eff not in ("Müde", "Reduziert") and hard7 <= 2
+    c["finisher"] = kind == "Lange Grundlage" and eff not in ("Müde", "Reduziert") and tsb >= -10 and hard7 <= 1
     # ---- Sportart
     sport = "–"
     if kind != "Ruhetag":

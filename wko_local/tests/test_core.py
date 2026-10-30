@@ -217,3 +217,18 @@ def test_adjusted_form_and_recommend_reasons():
     today, daily, recent, races = _scenario([55.0] * 45 + [80.0, 0, 70, 0, 80, 0, 0, 60, 0, 0, 80, 0, 70, 50])
     r = recommend.recommend(today, daily, recent, races, pd.DataFrame(), 250, None, "Normal", readiness=wellness.readiness(low, t))
     assert any("Mit Erholungsdaten angepasst" in x for x in r.reasons)
+
+
+def test_evidence_and_guidance():
+    from wkolocal import evidence, recommend
+    assert len({e["id"] for e in evidence.EVIDENCE}) == len(evidence.EVIDENCE) and all(e["level"] in evidence.LEVELS for e in evidence.EVIDENCE)
+    assert "Q6" in evidence.refs("Q6") and evidence.by_id("Q7")["level"] == "Review"
+    assert recommend.fuel_line(45) is None and "30–60" in recommend.fuel_line(90) and "60–90" in recommend.fuel_line(200)
+    import pandas as pd
+    from types import SimpleNamespace as NS
+    assert recommend._hard(NS(if_=.7, sport="Running", duration_s=6000, tss=70))          # langer Lauf zählt als hart
+    assert not recommend._hard(NS(if_=.7, sport="Cycling", duration_s=6000, tss=70))
+    lines, _, _ = recommend.build_session("Lange Grundlage", "Cycling", 250, None, dict(end_min=75, long_min=180, finisher=True))
+    assert any("Optional (Ermüdungsresistenz)" in x for x in lines) and any("Verpflegung" in x for x in lines)
+    lines, _, _ = recommend.build_session("Grundlage", "Running", 250, 285, dict(end_min=60, long_min=90, strides=True))
+    assert any("Steigerungen" in x for x in lines)

@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from . import metrics
+from .evidence import refs
 
 
 @dataclass
@@ -300,14 +301,17 @@ def assess_zones(tot_s: np.ndarray) -> list[Insight]:
     if tot < 3600 * 3: return [I("info", "Zu wenig Zeit in Zonen (< 3 h) für eine Verteilungsanalyse.")]
     p = tot_s / tot * 100
     low, mid, high = p[:2].sum(), p[2:4].sum(), p[4:].sum()
-    if low >= 75 and mid <= 15 and high >= 5: head = I("good", f"Polarisierte Verteilung (Z1–2 {low:.0f} %, Z3–4 {mid:.0f} %, Z5+ {high:.0f} %): bewährt für Ausdauerentwicklung.")
-    elif low >= 70: head = I("good", f"Pyramidale/Grundlagen-betonte Verteilung (Z1–2 {low:.0f} %, Z3–4 {mid:.0f} %, Z5+ {high:.0f} %) – solide Basis.")
+    if low >= 75 and mid <= 15 and high >= 5: head = I("good", f"Polarisierte Verteilung (Z1–2 {low:.0f} %, Z3–4 {mid:.0f} %, Z5+ {high:.0f} %): wenig Mittelbereich, klare harte Reize.")
+    elif low >= 70: head = I("good", f"Pyramidale/Grundlagen-betonte Verteilung (Z1–2 {low:.0f} %, Z3–4 {mid:.0f} %, Z5+ {high:.0f} %) – solide Basis; so trainieren auch die meisten schnellen Marathonläufer.")
     elif mid >= 35: head = I("warn", f"Viel „Grauzone“: {mid:.0f} % in Z3–4, nur {low:.0f} % locker – oft zu hart für leichte und zu leicht für harte Tage.")
     elif low < 55: head = I("warn", f"Nur {low:.0f} % locker (Z1–2): intensitätslastig – Erholung und Grundlage prüfen.")
     else: head = I("info", f"Z1–2 {low:.0f} %, Z3–4 {mid:.0f} %, Z5+ {high:.0f} %.")
     out = [head]
     if high < 3 and tot > 3600 * 10: out.append(I("info", "Kaum Z5+: Spitzenleistung (VO2max/Anaerob) wird kaum trainiert."))
-    out.append(I("info", "Richtwert für viele Ausdauersportler: ca. 75–80 % locker, wenig Z3–4, Rest hart. Zeit-in-Zone ignoriert die Intervallstruktur."))
+    out.append(I("info", "Was die Studien sagen: Bei Marathonläufern (151.813 Marathons, Beobachtung) trainierten die Schnellsten vor allem deutlich MEHR im lockeren Bereich "
+                         "– bei ähnlich viel Intensität – und überwiegend pyramidal; bei 85 Eliteläufern korrelierten lockerer Umfang und Gesamtumfang am stärksten mit der Leistung. "
+                         "Das sind Zusammenhänge, keine Ursachen; „90/10“ oder „Intensität schadet“ lässt sich daraus nicht ableiten. " + refs("Q4", "Q6")))
+    out.append(I("info", "Hinweis: Die Zonen dieser App sind % FTP, die Studien nutzen laktatbasierte Zonen (unter/über LT1/LT2) – grob vergleichbar (Z1–2 ≈ unter LT1), aber nicht identisch."))
     return out
 
 
@@ -339,30 +343,17 @@ def assess_fatigue(table: dict) -> list[Insight]:
     if pct >= 95: head = I("good", f"Sehr hohe Ermüdungsresistenz: {lbl}-Bestleistung nach {kj} kJ noch bei {pct:.0f} % des frischen Werts.")
     elif pct >= 90: head = I("good", f"Gute Ermüdungsresistenz: {pct:.0f} % nach {kj} kJ ({lbl}).")
     elif pct >= 85: head = I("info", f"Durchschnittlich: {pct:.0f} % nach {kj} kJ ({lbl}).")
-    else: head = I("warn", f"Schwäche unter Ermüdung: nur {pct:.0f} % nach {kj} kJ ({lbl}) – lange Einheiten mit Intensität am Ende, Fueling prüfen.")
-    return [head, I("info", "Richtwerte (eigene Heuristik). Fehlende Zellen = nie so hart nach so viel Arbeit gefahren, nicht schlechte Werte.")]
-
-
-def assess_races(fc: pd.DataFrame, races: pd.DataFrame, today) -> list[Insight]:
-    """Prognose der Form am Wettkampftag (fc: Prognose-PMC; tsb = Form am Morgen des Tages)."""
-    today = pd.Timestamp(today).normalize()
-    out = []
-    up = races[pd.to_datetime(races.date) >= today].sort_values("date") if len(races) else races
-    for r in up.head(3).itertuples():
-        d = pd.Timestamp(r.date)
-        if d not in fc.index: continue
-        row, days = fc.loc[d], (d - today).days
-        txt = f"{r.priority}-Wettkampf „{r.name}“ in {days} Tag(en): CTL {row.ctl:.0f}, Form am Renntag {row.tsb:+.0f}"
-        if r.priority == "A":
-            if 5 <= row.tsb <= 25: out.append(I("good", txt + " – im Zielbereich (+5…+25)."))
-            elif row.tsb < 5: out.append(I("warn" if row.tsb < -5 else "info", txt + " – zu müde für ein A-Ziel: Tapering früher beginnen/Umfang in den Tagen davor reduzieren (Plan anpassen)."))
-            else: out.append(I("info", txt + " – sehr frisch; bei längerer Pause verlierst Du Fitness, die Entlastung kann kürzer sein."))
-        else:
-            out.append(I("good" if row.tsb >= -10 else "info", txt + (" – okay für ein B/C-Rennen." if row.tsb >= -10 else " – Ermüdung ist bei einem B/C-Rennen im Block akzeptabel.")))
-    if not out:
-        return []
-    out.append(I("info", "Prognose basiert auf Plan und eingetragenen Wettkampf-TSS; ohne Planeinträge wird ab morgen Nicht-Training (0 TSS) angenommen."))
-    return out
+    else: head = I("warn", f"Schwäche unter Ermüdung: nur {pct:.0f} % nach {kj} kJ ({lbl}) – siehe Hebel unten.")
+    return [head,
+            I("info", "Einordnung: Bei 12 Elite-Radfahrern fielen nach 4 h intermittierender Belastung (mit 100 g/h Kohlenhydraten) die 6-min-Leistung um ca. 10 % und die Spitzenleistung um ca. 6 %; "
+                      "der Abfall ließ sich nicht aus frischen Werten vorhersagen. Deine Schwellen (≥ 95 / 90 / 85 %) sind eigene Faustwerte. " + refs("Q9")),
+            I("info", "Was nach heutiger Studienlage helfen kann (überwiegend Hypothesen/kleine Studien): "
+                      "① regelmäßig lange Einheiten (≥ 90–120 min; bei Läufern hing der längste Wochenlauf mit geringerem Abfall zusammen), "
+                      "② darin intensive Abschnitte spät, gut verpflegt, "
+                      "③ Kraft-/Plyometrietraining 2×/Woche (kleiner RCT: bessere Laufökonomie und Zeit bis Erschöpfung nach 90 min), "
+                      "④ Kontinuität über Jahre. " + refs("Q7", "Q11", "Q12")),
+            I("info", "Vorsicht bei Trainerbehauptungen: Dass Kohlenhydrate allein die Ermüdungsresistenz im Peloton gehoben hätten, ist nicht belegt (viele Störfaktoren). Zeitpunkt, Dauer und Intensität des Ermüdungsprotokolls beeinflussen jedes Ergebnis. " + refs("Q8")),
+            I("info", "Fehlende Zellen = nie so hart nach so viel Arbeit gefahren, nicht schlechte Werte.")]
 
 
 # ===================================================================== Lauf-Seite, Planung, Daten
@@ -462,13 +453,13 @@ Liegt die Kurve höher als im Vergleichszeitraum, hast Du Dich verbessert – ab
 **Blau = CTL (Fitness)**, **rot = ATL (Ermüdung)**, **gelb = TSB (Form)**. Aufbau: CTL steigt, TSB meist negativ. Wettkampf: ATL durch Tapering senken → TSB +5…+25.
 TSB-Zonen (Richtwerte): > +25 Detraining, +5…+25 frisch, −10…+5 neutral, −30…−10 produktiv, < −30 Überlastungsrisiko. Rampe > 8 CTL/Woche gilt als aggressiv.""",
 "Zeit in Zonen": """
-Zeigt, wie sich Deine Trainingszeit auf Intensitätszonen (% FTP) verteilt. Viele Ausdauersportler fahren am besten mit ca. 75–80 % locker (Z1–2) und dem Rest hart (Z5+), wenig im Mittelbereich (Z3–4, „Grauzone“).
+Zeigt, wie sich Deine Trainingszeit auf Intensitätszonen (% FTP) verteilt. Erfolgreiche Ausdauersportler trainieren laut Beobachtungsstudien überwiegend locker (oft ca. 75–80 % und mehr in Z1–2) bei hohem Gesamtumfang, mit wenig Mittelbereich (Z3–4, „Grauzone“). Das sind Zusammenhänge, keine bewiesenen Ursachen; ob polarisiert oder pyramidal besser ist, ist offen.
 Zeit in Zone sagt nichts über die Qualität der Intervalle – dafür die Workout-Analyse.""",
 "Profil & Phänotyp": """
 Vergleicht Deine Bestwerte (5 s, 1, 5, 20 min) in W/kg mit Referenzstufen von „Untrainiert“ bis „Weltklasse“. Das **Limiter**-Profil zeigt, wo der größte Hebel liegt.
 Referenzen und Phänotyp-Regeln sind Näherungen. Aussagekräftig nur, wenn im Zeitraum auch maximal gefahren wurde.""",
 "Fatigue Resistance": """
-Wie viel Deiner frischen Bestleistung bleibt nach 1000/2000/3000 kJ Vorarbeit? Hohe Werte (≥ 90 %) bedeuten, dass Du auch spät im Rennen noch Leistung bringst. Training: lange Einheiten mit harten Efforts am Ende.""",
+Wie viel Deiner frischen Bestleistung bleibt nach 1000/2000/3000 kJ Vorarbeit? Hohe Werte (≥ 90 %) bedeuten, dass Du auch spät im Rennen noch Leistung bringst. Training (Hypothesen/kleine Studien): lange Einheiten, späte intensive Abschnitte gut verpflegt, 2×/Woche Kraft. Alle Studien dazu: Ansicht „Quellen & Evidenz“.""",
 "Fortschritt": """
 Jeder Punkt ist ein Modell über das davorliegende Fenster (z. B. 90 Tage). Änderungen unter ±3 % liegen im Schwankungsbereich. Ein Rückgang kann nur heißen, dass im Fenster keine Maximaltests/Rennen waren.""",
 "Erholung (HRV & Schlaf)": """

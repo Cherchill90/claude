@@ -13,12 +13,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from wkolocal import config, db, ingest, insights, metrics, model, pmc, profile, recommend, wellness
+from wkolocal import config, db, evidence, ingest, insights, metrics, model, pmc, profile, recommend, wellness
 
 st.set_page_config(page_title="WKO Lokal", layout="wide")
 ROOT = Path(__file__).parent
 PAGES = ["Dashboard", "Workout-Analyse", "Power-Duration-Kurve", "Lauf: Pace & Critical Speed", "Performance Management (PMC)",
-         "Erholung (HRV & Schlaf)", "Zeit in Zonen", "Profil & Phänotyp", "Fatigue Resistance", "Fortschritt", "Planung", "Athlet & Daten"]
+         "Erholung (HRV & Schlaf)", "Zeit in Zonen", "Profil & Phänotyp", "Fatigue Resistance", "Fortschritt", "Planung", "Athlet & Daten", "Quellen & Evidenz"]
 
 
 # ---------------------------------------------------------------- Helfer
@@ -173,7 +173,7 @@ def show(items: list) -> None:
     {"good": st.success, "info": st.info, "warn": st.warning, "bad": st.error}[head.level](head.text, icon=insights.ICON[head.level])
     if rest:
         st.markdown("\n".join(f"- {insights.ICON[i.level]} {i.text}" for i in rest))
-    st.caption("Automatische Einordnung nach Faustregeln – ersetzt keine Trainingsberatung; individuell kann es abweichen.")
+    st.caption("Automatische Einordnung nach Faustregeln und Studienlage (Quellen & Evidenz) – ersetzt keine Trainingsberatung; Studien sind oft klein und schwer replizierbar, individuell kann es abweichen.")
 
 
 def explain(key: str) -> None:
@@ -655,7 +655,8 @@ def page_fatigue(wk, rng):
         f.add_scatter(x=kjs, y=[v[k][1] for k in kjs], name=f"{d // 60} min" if d >= 60 else f"{d} s", mode="lines+markers")
     f.update_layout(xaxis_title="Vorab geleistete Arbeit (kJ)", yaxis_title="% des frischen Bestwerts", height=420)
     st.plotly_chart(f, width="stretch")
-    rows = [dict(Dauer=d, **{f"{k} kJ": f"{v[k][0]:.0f} W ({v[k][1]:.0f} %)" for k in sorted(v)}) for d, v in tbl.items()]
+    wtk = cur_weight()
+    rows = [dict(Dauer=d, **{f"{k} kJ ({k / wtk:.0f} kJ/kg)": f"{v[k][0]:.0f} W ({v[k][1]:.0f} %)" for k in sorted(v)}) for d, v in tbl.items()]
     st.dataframe(pd.DataFrame(rows), hide_index=True)
     st.caption("Bestleistung nach X kJ Vorbelastung im gewählten Zeitraum. Fehlende Werte = keine so langen Workouts.")
 
@@ -766,6 +767,25 @@ def garmin_status() -> None:
         (st.success if p.returncode == 0 else st.error)(shown or "Fertig.")
 
 
+def page_sources(wk, rng):
+    st.header("Quellen & Evidenz")
+    st.markdown("Studien, auf die sich Hinweise und Empfehlungen stützen – mit Einordnung, **was das Video sagt**, **was die Studie (laut Abstract) zeigt** und **wo die Grenzen liegen**. "
+                "Grundlage: drei Trainings-Videos und eine Websuche nach den genannten Studien; Volltexte wurden nicht gelesen. Autorennamen sind weggelassen (Titel + Jahr + Link).")
+    lv = st.multiselect("Evidenzstufe", evidence.LEVELS, default=evidence.LEVELS)
+    q = st.text_input("Suche (Titel, Thema, Verwendung)")
+    for e in evidence.EVIDENCE:
+        if e["level"] not in lv or (q and q.lower() not in (e["title"] + e["finding"] + e["used_in"] + e["video"]).lower()):
+            continue
+        icon = {"Review": "📚", "RCT": "🧪", "Beobachtung": "📈", "Hypothese": "💭", "Nicht verifiziert": "❓"}[e["level"]]
+        with st.expander(f"{icon} {e['id']} · {e['level']} · {e['year'] or '—'} · {e['title'][:110]}"):
+            st.markdown(f"**Titel:** {e['title']}  \n**Journal:** {e['journal']}" + (f"  \n**Link:** {e['url']}" if e["url"] else "  \n**Link:** nicht eindeutig gefunden – Titel suchen"))
+            st.markdown(f"**Video-Aussage:** {e['video']}")
+            st.markdown(f"**Befund (laut Zusammenfassung):** {e['finding']}")
+            st.warning(f"**Grenzen:** {e['caveat']}", icon="⚠️")
+            st.caption(f"Verwendet in der App: {e['used_in']}")
+    st.info("Reihenfolge der Aussagekraft grob: Übersicht/RCT > Beobachtung > Hypothese/Fallstudie. Kleine, kurze Studien und Trainer-Erfahrung sind Hinweise, keine Belege.")
+
+
 def page_athlete(wk, rng):
     st.header("Athlet & Daten")
     s = db.get_settings()
@@ -852,7 +872,7 @@ def main():
         st.info("Im gewählten Zeitraum/Sport gibt es keine Rad-Workouts mit Leistungsdaten. Für Läufe siehe 'Lauf: Pace & Critical Speed'.")
         return
     dict(zip(PAGES, [page_dashboard, page_workout, page_pd, page_run, page_pmc, page_recovery, page_zones, page_profile, page_fatigue,
-                     page_progress, page_plan, page_athlete]))[page](wk, rng)
+                     page_progress, page_plan, page_athlete, page_sources]))[page](wk, rng)
 
 
 main()

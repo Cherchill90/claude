@@ -60,6 +60,9 @@ Ist die Form (TSB) passend, die Rampe tragbar, der FTP-Wert noch aktuell? Die Re
 - **Form:** CTL/ATL/TSB bleiben reine Trainingslast. Zusätzlich gibt es **„Form inkl. Erholung“** = TSB − 5 je Warnsignal (max. 25), im Dashboard und als gestrichelte Linie im PMC. Diese angepasste Form steuert die Trainingsempfehlung; bei stark eingeschränkter Erholung wird zusätzlich eine Stufe herabgestuft. Der Abzug ist eine Heuristik, nicht wissenschaftlich kalibriert.
 - Die Felder der Garmin-Antworten sind aus der Bibliotheksdokumentation übernommen; gegen echte Konten wurde nicht getestet.
 
+## Quellen & Evidenz
+Ansicht **„Quellen & Evidenz“** listet die Studien hinter den Hinweisen (aus drei Trainings-Videos und einer Websuche), je mit Video-Aussage, Befund laut Abstract und Grenzen; Datei: `wkolocal/evidence.py`. Einordnung statt Übernahme: Mehrere Trainerbehauptungen (z. B. „90/10 optimal“, Kohlenhydrate hätten die Peloton-FTP gehoben) sind durch die zitierten Studien nicht gedeckt und wurden nicht als Regel übernommen. Supplement-Empfehlungen sind bewusst nicht Teil der App. Übernommen wurden: Verpflegungsrichtwerte nach Dauer/Intensität, optionale Steigerungen für Läufer, optionaler später intensiver Block in langen Einheiten, langer Lauf (≥ 90 min) zählt zum Intensitätskontingent, differenziertere Texte zu Zonenverteilung und Ermüdungsresistenz (kJ/kg-Anzeige).
+
 ## Funktionen (WKO5-Entsprechungen)
 | Ansicht | Inhalt |
 |---|---|
