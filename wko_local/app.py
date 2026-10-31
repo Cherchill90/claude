@@ -12,7 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from wkolocal import config, db, evidence, ingest, insights, metrics, model, pmc, profile, recommend, ui, wellness
+from wkolocal import config, db, evidence, ingest, insights, metrics, model, pmc, profile, recommend, strength, ui, wellness
 
 st.set_page_config(page_title="WKO Lokal", page_icon=":material/monitoring:", layout="wide", initial_sidebar_state="expanded")
 ui.apply_theme()
@@ -49,13 +49,15 @@ def stream(uid: str) -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False, max_entries=8)
 def _small(kind: str, v):
-    return {"thr": db.thresholds_df, "races": db.races_df, "planned": db.planned_df, "settings": db.get_settings}[kind]()
+    return {"thr": db.thresholds_df, "races": db.races_df, "planned": db.planned_df, "settings": db.get_settings,
+            "strength": db.strength_log_df}[kind]()
 
 
 def thresholds(): return _small("thr", ver())
 def races(): return _small("races", ver())
 def planned(): return _small("planned", ver())
 def settings(): return _small("settings", ver())
+def strength_log(): return _small("strength", ver())
 
 
 def thr_on(day, field, default=None):
@@ -184,12 +186,53 @@ def _readiness(today, v):
 def readiness(): return _readiness(str(TODAY), ver())
 
 
-@st.cache_data(show_spinner=False, max_entries=16)
-def _recommendation(today, feeling, v):
+@st.cache_data(show_spinner=False, max_entries=32)
+def _recommendation(today, feeling, sport, v):
     s = settings()
     recent = db.workouts_df(str(TODAY - timedelta(days=28)), today)
     return recommend.recommend(TODAY, daily_tss(), recent, races(), planned(), cur_ftp(), run_threshold_pace(),
-                               feeling, float(s["ctl_tau"]), float(s["atl_tau"]), readiness())
+                               feeling, float(s["ctl_tau"]), float(s["atl_tau"]), readiness(), sport)
+
+
+def strength_for(r) -> strength.StrengthRec:
+    days = strength.strength_dates(W(TODAY - timedelta(days=21), TODAY), strength_log())
+    feeling = st.session_state.get("feeling", "Normal")
+    ready = readiness()
+    if ready and ready.get("state") == "low" and feeling in ("Gut", "Normal"):
+        feeling = "Müde"            # Schlaf/HRV/Ruhepuls deutlich eingeschränkt: keine schwere Kraft
+    return strength.recommend_strength(r.day, r.kind, days, r.next_day_key, r.days_to_race, r.race_priority,
+                                       settings().get("strength_experience", "Einsteiger"), feeling)
+
+
+def strength_card(sr: strength.StrengthRec) -> None:
+    if not sr.available:
+        show([insights.Insight("info", f"Kraft: {sr.title}"), *[insights.Insight("info", x) for x in sr.reasons]])
+        if sr.blocks:
+            with st.expander("Stattdessen: kurze Mobilität (10–15 min)", icon=":material/self_improvement:"):
+                st.dataframe(pd.DataFrame(sr.blocks), hide_index=True, width="stretch")
+        return
+    chips = ["🏋️ Kraft"] + ([f"⏱ {sr.duration_min[0]}–{sr.duration_min[1]} min"] if sr.duration_min else [])
+    ui.hero("Ergänzung zur Laufeinheit", sr.title, chips, [f"Wann: {sr.timing}"], "good", accent=ui.c(3))
+    lines = []
+    for blk in dict.fromkeys(b["Block"] for b in sr.blocks):
+        lines.append(f"**{blk}**")
+        lines += [f"- {b['Übung']}: **{b['Umfang']}** · {b['Intensität']}" + (f" · Pause {b['Pause']}" if b["Pause"] != "–" else "")
+                  for b in sr.blocks if b["Block"] == blk]
+    st.markdown("\n".join(lines))
+    st.caption(" · ".join(sr.notes))
+    a, b, c3 = st.columns(3)
+    with a.popover("Warum so?", icon=":material/psychology:", width="stretch"):
+        st.markdown("\n".join(f"- {x}" for x in sr.reasons))
+        st.markdown(insights.EXPLAIN["Kraft"])
+    ids = sorted(set(__import__("re").findall(r"Q\d+", " ".join(sr.reasons))), key=lambda s: int(s[1:]))
+    with b.popover(f"Quellen ({len(ids)})", icon=":material/menu_book:", width="stretch", disabled=not ids):
+        for qid in ids:
+            e = evidence.by_id(qid)
+            st.markdown(f"**{qid} · {e['level']}** – {e['title']}" + (f"  \n{e['url']}" if e["url"] else "") + f"  \n_Grenzen:_ {e['caveat']}")
+    if c3.button("Heute Kraft gemacht", icon=":material/check_circle:", width="stretch",
+                 help="Erfasst eine Krafteinheit für heute (Garmin-Krafteinheiten werden automatisch erkannt)."):
+        db.add_strength(str(TODAY), sr.title, sr.duration_min[1] if sr.duration_min else 40)
+        st.toast("Krafteinheit eingetragen"); st.rerun()
 
 
 # =============================================================== Helfer
@@ -262,7 +305,16 @@ def page_dashboard():
     with left:
         feeling = st.segmented_control("Wie fühlst Du Dich heute?", recommend.FEELINGS, default="Normal", required=True, key="feeling",
                                        help="Schlaf, HRV und Ruhepuls fließen automatisch ein, wenn Garmin-Daten vorliegen; Krankheit oder Stress kennt das Programm nicht.")
-        r = _recommendation(str(TODAY), feeling, ver())
+        auto = _recommendation(str(TODAY), feeling, None, ver())
+        r = auto
+        if auto.kind not in ("Ruhetag", "Wettkampf"):
+            star = {"Cycling": "Rad", "Running": "Lauf"}
+            pick = st.segmented_control("Einheit wählen", ["Cycling", "Running"], default=auto.auto_sport if auto.auto_sport in star else "Cycling",
+                                        required=True, key=f"pick_{auto.auto_sport}",
+                                        format_func=lambda s: ("🚴 " if s == "Cycling" else "🏃 ") + star[s] + (" · empfohlen" if s == auto.auto_sport else ""),
+                                        help="Die Empfehlung passt Einheit und Intensität an die gewählte Sportart an.")
+            if pick != auto.auto_sport:
+                r = _recommendation(str(TODAY), feeling, pick, ver())
         chips = []
         if r.sport != "–": chips.append(("🚴 " if r.sport == "Cycling" else "🏃 ") + ui.sport_label(r.sport))
         if r.duration_min: chips.append(f"⏱ {r.duration_min[0]}–{r.duration_min[1]} min")
@@ -280,6 +332,9 @@ def page_dashboard():
             for qid in cited:
                 e = evidence.by_id(qid)
                 st.markdown(f"**{qid} · {e['level']}** – {e['title']}" + (f"  \n{e['url']}" if e["url"] else "") + f"  \n_Grenzen:_ {e['caveat']}")
+        if r.sport == "Running" and r.kind not in ("Wettkampf",):
+            if st.toggle("Krafteinheit dazu planen", value=True, key="with_strength"):
+                strength_card(strength_for(r))
     with right:
         tsb30 = d.tsb.iloc[-30:]
         has_adj = bool(d.readiness_pts.iloc[-3:].any())
@@ -1071,13 +1126,23 @@ def page_athlete():
         c = st.columns(3)
         sex = c[0].segmented_control("Profilreferenz", ["m", "f"], default=s["sex"], required=True, format_func={"m": "männlich", "f": "weiblich"}.get)
         rest = c[1].number_input("Ruhepuls", 30, 100, int(s["rest_hr"]))
+        exp = st.segmented_control("Krafttraining-Erfahrung", ["Einsteiger", "Geübt"], default=s.get("strength_experience", "Einsteiger"), required=True,
+                                   help="Geübt = sichere Technik bei schweren Kniebeugen/Kreuzheben (3–5 Wdh.). Einsteiger beginnen mit mittleren Lasten.")
         crank = c[2].number_input("Kurbellänge (mm)", 150.0, 185.0, float(s["crank_mm"]))
         if st.button("Einstellungen speichern", icon=":material/save:"):
-            for k, v in dict(sex=sex, rest_hr=rest, crank_mm=crank).items():
+            for k, v in dict(sex=sex, rest_hr=rest, crank_mm=crank, strength_experience=exp).items():
                 db.set_setting(k, v)
             st.toast("Gespeichert")
         st.caption("Hell/Dunkel: Menü ⋮ oben rechts → Settings.")
     with tabs[3]:
+        sl = strength_log()
+        if len(sl):
+            st.markdown("**Erfasste Krafteinheiten**")
+            st.dataframe(sl[::-1], hide_index=True, width="stretch")
+            a_, b_ = st.columns([3, 1])
+            sid = a_.selectbox("Krafteinheit löschen", [0, *sl.id], format_func=lambda i: "–" if i == 0 else f"{sl[sl.id == i].date.iloc[0]} · {sl[sl.id == i].kind.iloc[0]}")
+            if b_.button("Löschen", key="del_strength", icon=":material/delete:", disabled=not sid):
+                db.delete_strength(int(sid)); st.rerun()
         if len(wk):
             view = wk[["start_time", "sport", "name", "source", "duration_s", "np", "tss", "tss_method", "uid"]].copy()
             view["duration_s"] = (view.duration_s / 60).round()

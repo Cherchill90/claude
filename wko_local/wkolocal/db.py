@@ -28,13 +28,15 @@ CREATE TABLE IF NOT EXISTS wellness(
   date TEXT PRIMARY KEY, sleep_s INTEGER, deep_s INTEGER, light_s INTEGER, rem_s INTEGER, awake_s INTEGER,
   sleep_score REAL, hrv_night REAL, hrv_week REAL, hrv_status TEXT, hrv_low REAL, hrv_high REAL,
   resting_hr REAL, source TEXT);
+CREATE TABLE IF NOT EXISTS strength_log(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, kind TEXT, minutes REAL, notes TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS planned(
   id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, name TEXT, sport TEXT,
   tss REAL, duration_min REAL, notes TEXT DEFAULT '');
 """
 
 DEFAULT_SETTINGS = {"sex": "m", "max_hr": "190", "rest_hr": "50", "crank_mm": "172.5",
-                    "ctl_tau": "42", "atl_tau": "7"}
+                    "ctl_tau": "42", "atl_tau": "7", "strength_experience": "Einsteiger"}
 
 
 MIGRATIONS = {"workouts": [("ngp", "REAL"), ("avg_speed", "REAL"), ("smm", "TEXT")],
@@ -216,3 +218,19 @@ def wellness_df(start: str | None = None, end: str | None = None) -> pd.DataFram
 def has_wellness(day: str) -> bool:
     with connect() as c:
         return c.execute("SELECT 1 FROM wellness WHERE date=?", (day,)).fetchone() is not None
+
+
+# ---- Krafttraining (manuell erfasst; Garmin-Krafteinheiten kommen als Workouts) -------------------
+def strength_log_df() -> pd.DataFrame:
+    with connect() as c:
+        return pd.read_sql("SELECT * FROM strength_log ORDER BY date", c)
+
+
+def add_strength(day: str, kind: str, minutes: float = 40, notes: str = "") -> None:
+    with connect() as c:
+        c.execute("INSERT INTO strength_log(date,kind,minutes,notes) VALUES(?,?,?,?)", (day, kind, minutes, notes))
+
+
+def delete_strength(sid: int) -> None:
+    with connect() as c:
+        c.execute("DELETE FROM strength_log WHERE id=?", (sid,))

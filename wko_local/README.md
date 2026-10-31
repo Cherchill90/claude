@@ -56,6 +56,10 @@ Ist die Form (TSB) passend, die Rampe tragbar, der FTP-Wert noch aktuell? Die Re
 - Hell/Dunkel folgt der Systemeinstellung (umschaltbar: Menü ⋮ → Settings). Design: `.streamlit/config.toml`, `wkolocal/ui.py` (validierte Farbpalette, keine Doppel-Y-Achsen – mehrere Messgrößen als gestapelte Teilgrafiken mit gemeinsamer Zeitachse).
 - Geschwindigkeit: alle teuren Berechnungen (PMC, Modelle, Zonen, Fortschritt, Empfehlung) werden zwischengespeichert und nur nach Datenänderung neu berechnet; Interaktionen ca. 0,2–0,5 s. Der allererste Aufruf nach dem Start dauert einige Sekunden.
 
+## Rad oder Lauf wählen, Kraft dazu
+- Dashboard: Unter der Empfehlung wählst Du **Rad** oder **Lauf** („empfohlen“ markiert die Regel-Wahl). Die Einheit wird für die gewählte Sportart neu zusammengestellt; nach einem harten/langen Lauf wird ein gewählter Lauf locker statt hart (Stoßbelastung).
+- Bei **Lauf** kann eine **Krafteinheit** dazu geplant werden (`wkolocal/strength.py`): Programm je nach Erfahrung (Einsteiger/Geübt, unter „Athlet & Daten → Einstellungen“), Zeitpunkt (am Tag harter Läufe, nach dem Lauf, mit Abstand), keine schwere Beinkraft vor Schlüsseleinheiten/Wettkampf, ≥ 48 h zwischen Krafteinheiten, 2×/Woche bzw. 1× Erhalt im Wettkampfblock. Erledigte Einheiten per Knopf erfassen; Garmin-Krafteinheiten werden erkannt. Quellen: Q24–Q32.
+
 ## Trainingsempfehlung & Wettkämpfe
 - **Dashboard → „Trainingsempfehlung für morgen“:** regelbasiert aus Form (TSB), harten Einheiten der letzten Tage, Trainingsserie, Rampe, Wettkämpfen und Plan – mit konkreter Einheit (Dauer, Watt- bzw. Pace-Bereiche, geschätzte TSS) und Begründung. Dein Befinden (Gut/Normal/Müde/Krank) stellst Du direkt darüber ein. Schlaf/HRV/Termine kennt das Programm nicht. Regeln: `wkolocal/recommend.py`.
 - **PMC → „Wettkämpfe anlegen & verwalten“:** Datum, Name, Sportart, Priorität A/B/C, erwartete Dauer/Intensität (→ TSS-Schätzung). Wettkämpfe erscheinen als Markierung im PMC, die Prognose (gepunktet) zeigt Fitness/Form am Renntag; Tapering, Aktivierung und Erholung nach dem Rennen fließen in die Empfehlung ein.

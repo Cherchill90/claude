@@ -31,6 +31,10 @@ class Rec:
     tss: tuple[int, int] | None = None
     reasons: list[str] = field(default_factory=list)
     plan_note: tuple[str, str] | None = None
+    auto_sport: str = "–"                       # Sportart, die die Regeln selbst wählen würden
+    days_to_race: int | None = None             # Tage vom Empfehlungstag bis zum nächsten Wettkampf
+    race_priority: str | None = None
+    next_day_key: bool = False                  # Tag danach: Schlüsseleinheit (Plan ≥ 80 TSS) oder Wettkampf
 
 
 # ------------------------------------------------------------------ Formatierung / Sitzungsbausteine
@@ -149,7 +153,7 @@ def _key_type(r, ftp: float) -> str:
 
 def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd.DataFrame, planned: pd.DataFrame,
               ftp: float, run_pace: float | None, feeling: str = "Normal", ctl_tau=42, atl_tau=7,
-              readiness: dict | None = None) -> Rec:
+              readiness: dict | None = None, sport_override: str | None = None) -> Rec:
     """Empfehlung für today+1. recent: Workouts der letzten ~28 Tage (alle Sportarten)."""
     D = today + timedelta(days=1)
     reasons: list[str] = []
@@ -295,7 +299,7 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
     c["strides"] = eff not in ("Müde", "Reduziert") and hard7 <= 2
     c["finisher"] = kind == "Lange Grundlage" and eff not in ("Müde", "Reduziert") and tsb >= -10 and hard7 <= 1
     # ---- Sportart
-    sport = "–"
+    sport = auto_sport = "–"
     if kind != "Ruhetag":
         cnt = rec.groupby("sport").size()
         cands = [x for x in ("Cycling", "Running") if cnt.get(x, 0) >= 2] or [x for x in ("Cycling", "Running") if cnt.get(x, 0) >= 1] or ["Cycling"]
@@ -316,8 +320,19 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
                 sport = max(cands, key=lambda x: (days_since(x), x == "Cycling"))
             if sport == "Running" and kind == "Lange Grundlage" and "Cycling" not in cands:
                 sport = "Running"
-        reasons.append(f"Sportart {sport}: " + ("schonender für Gelenke/Muskulatur – aerober Reiz ohne Laufstoßbelastung (Trainerpraxis, keine Studie)." if sport == "Cycling" and kind in ("Regeneration", "Lange Grundlage", "Grundlage") and len(runs) else
-                                          "schonender für Gelenke/Muskulatur" if sport == "Cycling" and kind in ("Regeneration", "Lange Grundlage") else "ergibt sich aus Abstand zur letzten (harten) Einheit."))
+        auto_sport = sport
+        if sport_override in ("Cycling", "Running") and sport_override != sport and kind != "Wettkampf":
+            sport = sport_override
+            last_run = runs.sort_values("start_time").iloc[-1] if len(runs) else None
+            run_hard_recent = last_run is not None and (today - last_run.d).days <= 1 and _hard(last_run)
+            if sport == "Running" and kind in ("Schwelle", "VO2max", "Sweetspot") and run_hard_recent:
+                reasons.append(f"Als Lauf gewählt: Die letzte Laufeinheit (vor {(today - last_run.d).days + 1} Tag(en)) war hart/lang – "
+                               "zwei harte Läufe kurz hintereinander erhöhen die Stoßbelastung. Daher locker statt " + kind + " (Trainerpraxis).")
+                kind = "Grundlage"
+            reasons.append(f"Sportart von Dir gewählt: {'Lauf' if sport == 'Running' else 'Rad'} (Regel-Vorschlag wäre {'Lauf' if auto_sport == 'Running' else 'Rad'}).")
+        else:
+            reasons.append(f"Sportart {sport}: " + ("schonender für Gelenke/Muskulatur – aerober Reiz ohne Laufstoßbelastung (Trainerpraxis, keine Studie)." if sport == "Cycling" and kind in ("Regeneration", "Lange Grundlage", "Grundlage") and len(runs) else
+                                                    "schonender für Gelenke/Muskulatur" if sport == "Cycling" and kind in ("Regeneration", "Lange Grundlage") else "ergibt sich aus Abstand zur letzten (harten) Einheit."))
 
     if kind == "Ruhetag":
         details, dur, tss = ["Kein Training. Optional: 20–30 min Spaziergang, Mobilisation, ausreichend Schlaf und Essen."], None, (0, 0)
@@ -330,7 +345,7 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
         if sport == "Running" and not run_pace and kind not in ("Regeneration", "Grundlage", "Lange Grundlage", "Aktivierung"):
             details.insert(0, "Hinweis: keine Schwellenpace hinterlegt – Tempo nach Gefühl (Schwelle ≈ Tempo, das Du ca. 45–60 min halten könntest).")
 
-    if kind in ("Grundlage", "Lange Grundlage") and strength7 < 2 and eff not in ("Müde", "Reduziert"):
+    if kind in ("Grundlage", "Lange Grundlage") and strength7 < 2 and eff not in ("Müde", "Reduziert") and sport != "Running":
         details.append(f"Zusatz Kraft: {strength7} Krafteinheit(en) in den letzten 7 Tagen erfasst. 2×/Woche Maximalkraft/Plyometrie (z. B. Kniebeugen, Step-ups, Nordic Curls, Pogo-Sprünge; 20–40 min) "
                        "verbesserte in einem kleinen RCT die Laufökonomie und Leistung nach 90 min Belastung. Ob direkt nach der Ausdauereinheit besser ist, wurde nicht geprüft. " + refs("Q12"))
     level = {"Ruhetag": "info", "Regeneration": "info", "Wettkampf": "good", "Aktivierung": "good"}.get(kind, "good")
@@ -350,4 +365,10 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
                 plan_note = ("info", f"Dein Plan sieht nur {pl:.0f} TSS vor – Du wärst für eine Schlüsseleinheit frisch genug.")
             else:
                 plan_note = ("good", f"Dein Plan ({pl:.0f} TSS) passt grundsätzlich zur Empfehlung.")
-    return Rec(D, kind, sport, level, headline, details, dur, tss, reasons, plan_note)
+    nd_plan = 0.0
+    if len(planned):
+        nd = planned[pd.to_datetime(planned.date).dt.date == D + timedelta(days=1)]
+        nd_plan = float(nd.tss.sum()) if len(nd) else 0.0
+    next_day_key = nd_plan >= 80 or (days_to is not None and days_to == 1)
+    return Rec(D, kind, sport, level, headline, details, dur, tss, reasons, plan_note, auto_sport,
+               days_to, next_race.priority if next_race is not None else None, next_day_key)

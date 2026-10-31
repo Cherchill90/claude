@@ -282,3 +282,38 @@ def test_garmin_fallback_to_tcx():
             return bad.getvalue() if dl_fmt.name == "ORIGINAL" else tcx
     acts = garmin.download_and_parse(Fake(), "1", log=lambda *_: None)
     assert acts[0]["sport"] == "Cycling" and acts[0]["df"].power.max() >= 180 and acts[0]["df"].hr.notna().any()
+
+
+# ------------------------------------------------------------------ Kraft & Sportwahl
+def test_strength_rules():
+    from datetime import date, timedelta
+    from wkolocal import strength
+    d = date(2026, 11, 3)
+    key = strength.recommend_strength(d, "Schwelle", [d - timedelta(days=4)], False, None, None, "Geübt")
+    assert key.available and "NACH dem Lauf" in key.timing and any(b["Block"] == "Plyometrie" for b in key.blocks)
+    assert "85–90" in " ".join(b["Intensität"] for b in key.blocks)
+    beg = strength.recommend_strength(d, "Schwelle", [], False, None, None, "Einsteiger")
+    assert beg.available and "Einstieg" in beg.title
+    assert not strength.recommend_strength(d, "Schwelle", [d - timedelta(days=1)], False, None, None).available          # < 48 h
+    assert not strength.recommend_strength(d, "Grundlage", [], True, None, None).available                                # morgen hart
+    assert not strength.recommend_strength(d, "Schwelle", [], False, 3, "A").available                                    # Rennen nah
+    m = strength.recommend_strength(d, "Schwelle", [], False, 12, "A", "Geübt")
+    assert m.available and "Erhalt" in m.title
+    full = strength.recommend_strength(d, "Schwelle", [d - timedelta(days=2), d - timedelta(days=5)], False, None, None)
+    assert not full.available and "Wochenziel" in full.title
+
+
+def test_sport_override_running_after_hard_run():
+    from wkolocal import recommend
+    import pandas as pd
+    today, daily, recent, races = _scenario([55.0] * 45 + [80.0, 0, 70, 0, 80, 0, 0, 60, 0, 0, 80, 0, 70, 50])
+    auto = recommend.recommend(today, daily, recent, races, pd.DataFrame(), 250, 285)
+    other = "Running" if auto.auto_sport == "Cycling" else "Cycling"
+    r = recommend.recommend(today, daily, recent, races, pd.DataFrame(), 250, 285, sport_override=other)
+    assert r.sport == other and r.auto_sport == auto.auto_sport and any("von Dir gewählt" in x for x in r.reasons)
+    # harter Lauf gestern -> gewählter Lauf wird locker statt Schlüsseleinheit
+    recent2 = recent.copy()
+    recent2.loc[recent2.index[-1], ["sport", "if_", "duration_s"]] = ["Running", 1.0, 3600]
+    r2 = recommend.recommend(today, daily, recent2, races, pd.DataFrame(), 250, 285, sport_override="Running")
+    assert r2.sport == "Running" and r2.kind not in ("Schwelle", "VO2max", "Sweetspot")
+    assert not any("Zusatz Kraft" in x for x in r2.details)

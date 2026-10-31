@@ -126,10 +126,8 @@ def insight_block(items: list, foot: str | None = None) -> None:
                 unsafe_allow_html=True)
 
 
-def hero(kicker: str, title: str, chips: list[str], bullets: list[str], level: str = "good") -> None:
-    accent = STATUS.get(level) or c(1)
-    if level == "good":
-        accent = c(1)
+def hero(kicker: str, title: str, chips: list[str], bullets: list[str], level: str = "good", accent: str | None = None) -> None:
+    accent = accent or (c(1) if level == "good" else STATUS.get(level) or c(1))
     ch = "".join(f"<span class='wk-chip'>{esc(x)}</span>" for x in chips)
     ul = "".join(f"<li>{esc(b)}</li>" for b in bullets)
     st.markdown(f"<div class='wk-hero' style='--wk-accent:{accent}'><div class='wk-kicker'>{esc(kicker)}</div>"
