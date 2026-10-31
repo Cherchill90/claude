@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS planned(
 """
 
 DEFAULT_SETTINGS = {"sex": "m", "max_hr": "190", "rest_hr": "50", "crank_mm": "172.5",
-                    "ctl_tau": "42", "atl_tau": "7", "strength_experience": "Einsteiger"}
+                    "ctl_tau": "42", "atl_tau": "7", "strength_experience": "Einsteiger", "hf_max": "", "lt1_hr": "", "lt2_hr": ""}
 
 
 MIGRATIONS = {"workouts": [("ngp", "REAL"), ("avg_speed", "REAL"), ("smm", "TEXT")],

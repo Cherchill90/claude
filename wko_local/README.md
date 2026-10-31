@@ -60,6 +60,13 @@ Ist die Form (TSB) passend, die Rampe tragbar, der FTP-Wert noch aktuell? Die Re
 - Dashboard: Unter der Empfehlung wählst Du **Rad** oder **Lauf** („empfohlen“ markiert die Regel-Wahl). Die Einheit wird für die gewählte Sportart neu zusammengestellt; nach einem harten/langen Lauf wird ein gewählter Lauf locker statt hart (Stoßbelastung).
 - Bei **Lauf** kann eine **Krafteinheit** dazu geplant werden (`wkolocal/strength.py`): Programm je nach Erfahrung (Einsteiger/Geübt, unter „Athlet & Daten → Einstellungen“), Zeitpunkt (am Tag harter Läufe, nach dem Lauf, mit Abstand), keine schwere Beinkraft vor Schlüsseleinheiten/Wettkampf, ≥ 48 h zwischen Krafteinheiten, 2×/Woche bzw. 1× Erhalt im Wettkampfblock. Erledigte Einheiten per Knopf erfassen; Garmin-Krafteinheiten werden erkannt. Quellen: Q24–Q32.
 
+## Laufauswertung (nur studienbelegte Regeln)
+Ansicht **Analyse → Laufauswertung** (`wkolocal/runplan.py`), abgeleitet aus dem Regelwerk „Evidenzbasierte Trainingsplanung für Ausdauerlauf“ v1.0, beschränkt auf belastbare Studien:
+- Wochenumfang, Intensitätsverteilung (3 Zonen nach HF; Methode wird angezeigt), Läufe/Woche – beschreibend, ohne Sollwerte [Q6, Q4].
+- **Einzel-Lauf-Steigerung:** Warnung bei Läufen > 10 % über dem längsten Lauf der letzten 30 Tage; die Tagesempfehlung begrenzt Läufe entsprechend [Q37].
+- **Taper:** 2 Wochen, Umfang exponentiell −41–60 %, Intensität und Häufigkeit unverändert – in Auswertung und Tagesempfehlung (A-Rennen) [Q36].
+- Nicht übernommen: 10-%-Wochenregel [Q38], Phasenanteile, Entlastungsrhythmus, 32-km-Deckel [Q35], feste Zonen-Sollwerte [Q33, Q34]. JSON-Export der Auswertung.
+
 ## Trainingsempfehlung & Wettkämpfe
 - **Dashboard → „Trainingsempfehlung für morgen“:** regelbasiert aus Form (TSB), harten Einheiten der letzten Tage, Trainingsserie, Rampe, Wettkämpfen und Plan – mit konkreter Einheit (Dauer, Watt- bzw. Pace-Bereiche, geschätzte TSS) und Begründung. Dein Befinden (Gut/Normal/Müde/Krank) stellst Du direkt darüber ein. Schlaf/HRV/Termine kennt das Programm nicht. Regeln: `wkolocal/recommend.py`.
 - **PMC → „Wettkämpfe anlegen & verwalten“:** Datum, Name, Sportart, Priorität A/B/C, erwartete Dauer/Intensität (→ TSS-Schätzung). Wettkämpfe erscheinen als Markierung im PMC, die Prognose (gepunktet) zeigt Fitness/Form am Renntag; Tapering, Aktivierung und Erholung nach dem Rennen fließen in die Empfehlung ein.

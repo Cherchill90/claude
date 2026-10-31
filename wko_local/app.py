@@ -12,7 +12,9 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from wkolocal import config, db, evidence, ingest, insights, metrics, model, pmc, profile, recommend, strength, ui, wellness
+import json
+
+from wkolocal import config, db, evidence, ingest, insights, metrics, model, pmc, profile, recommend, runplan, strength, ui, wellness
 
 st.set_page_config(page_title="WKO Lokal", page_icon=":material/monitoring:", layout="wide", initial_sidebar_state="expanded")
 ui.apply_theme()
@@ -190,8 +192,10 @@ def readiness(): return _readiness(str(TODAY), ver())
 def _recommendation(today, feeling, sport, v):
     s = settings()
     recent = db.workouts_df(str(TODAY - timedelta(days=28)), today)
+    runs = db.workouts_df(str(TODAY - timedelta(days=45)), today, "Running")
+    cap = runplan.next_long_run_cap(runs, TODAY + timedelta(days=1))
     return recommend.recommend(TODAY, daily_tss(), recent, races(), planned(), cur_ftp(), run_threshold_pace(),
-                               feeling, float(s["ctl_tau"]), float(s["atl_tau"]), readiness(), sport)
+                               feeling, float(s["ctl_tau"]), float(s["atl_tau"]), readiness(), sport, cap)
 
 
 def strength_for(r) -> strength.StrengthRec:
@@ -764,6 +768,95 @@ def page_recovery():
     explain("Erholung (HRV & Schlaf)")
 
 
+@st.cache_data(show_spinner=False, max_entries=8)
+def _run_weeks(start, end, zkey, v):
+    z = runplan.Zones(*zkey)
+    return runplan.weekly_stats(db.workouts_df(start, end), db.load_stream, z)
+
+
+def current_zones() -> runplan.Zones:
+    runs = W(TODAY - timedelta(days=180), TODAY, "Running")
+    mx = float(runs.max_hr.max()) if len(runs) and runs.max_hr.notna().any() else None
+    return runplan.run_zones(settings(), thr_on(TODAY, "lthr_run", None), mx, run_threshold_pace())
+
+
+def page_runcheck():
+    ui.page_header("Laufauswertung", "Wochenkennzahlen, Intensitätsverteilung, Steigerung und Taper – nur studienbelegte Regeln")
+    s = settings()
+    with st.expander("Zonen festlegen (Herzfrequenz)", icon=":material/favorite:"):
+        st.caption("Am genauesten mit gemessenen Schwellen (Laktat- oder Feldtest). Ohne Messung: HFmax-Prozente (Näherung aus kleinen Elite-Studien) "
+                   "oder Lauf-LTHR. Die Zonen beschreiben Dein Training – sie sind keine belegten Sollwerte.")
+        with st.form("zones"):
+            c = st.columns(3)
+            hfmax = c[0].number_input("HFmax (gemessen)", 0, 230, int(float(s.get("hf_max") or 0)))
+            lt1 = c[1].number_input("LT1-HF (aerobe Schwelle)", 0, 220, int(float(s.get("lt1_hr") or 0)))
+            lt2 = c[2].number_input("LT2-HF (anaerobe Schwelle)", 0, 220, int(float(s.get("lt2_hr") or 0)))
+            if st.form_submit_button("Speichern", icon=":material/save:"):
+                for k, v in dict(hf_max=hfmax or "", lt1_hr=lt1 or "", lt2_hr=lt2 or "").items():
+                    db.set_setting(k, v)
+                st.toast("Zonen gespeichert"); st.rerun()
+    z = current_zones()
+    with st.spinner("Werte Läufe aus …"):
+        stats = _run_weeks(str(TODAY - timedelta(days=7 * 16)), str(TODAY), (z.z1_hi, z.z2_hi, z.method, z.grade, z.pace_thr), ver())
+    runs = W(TODAY - timedelta(days=120), TODAY, "Running")
+    if stats.empty or stats.volumen_h.sum() == 0:
+        st.info("Keine Läufe in den letzten 16 Wochen."); return
+    cur = pd.Timestamp(TODAY).to_period("W-SUN").start_time.date()
+    done = stats[stats.woche < cur]
+    l4 = done.tail(4)
+    wz = l4.volumen_h
+    z1 = float(np.nansum(l4.anteil_z1 * wz) / wz[l4.anteil_z1.notna()].sum()) if l4.anteil_z1.notna().any() and wz.sum() else np.nan
+    cap = runplan.next_long_run_cap(runs, TODAY + timedelta(days=1))
+    ui.stats([("Umfang Ø 4 Wochen", f"{l4.volumen_h.mean():.1f} h", f"{l4.volumen_km.mean():.0f} km/Woche"),
+              ("Locker (Z1) 4 Wochen", f"{z1 * 100:.0f} %" if np.isfinite(z1) else "–", f"Zonen: {z.grade}"),
+              ("Läufe/Woche", f"{l4.laeufe.mean():.1f}"),
+              ("Längster Lauf 30 Tage", f"{runplan.longest_30d(runs, TODAY + timedelta(days=1)):.1f} km"),
+              ("Nächster Lauf höchstens", f"{cap:.1f} km" if cap else "–", "+10 % (Kohorte)")])
+    st.caption(f"Zonen-Methode: {z.method}. Zuordnung je Lauf: " + ", ".join(f"{k} {v}×" for k, v in stats.attrs.get("methods", {}).items()))
+    checks = runplan.rule_check(stats, runs)
+    lvl = {"ok": "good", "warnung": "warn", "info": "info"}
+    order = sorted(checks, key=lambda c: {"warnung": 0, "ok": 1, "info": 2}[c.status])
+    show([insights.Insight(lvl[c.status], f"{c.regel}: {c.begruendung} [{c.quelle}]") for c in order])
+    f = go.Figure()
+    for i, (col, name) in enumerate((("anteil_z1", "Z1 locker"), ("anteil_z2", "Z2 Schwellenbereich"), ("anteil_z3", "Z3 hart"))):
+        f.add_bar(x=pd.to_datetime(stats.woche), y=stats.volumen_h * stats[col].fillna(0), name=name, marker_color=ui.BLUE_RAMP[[0, 3, 6][i]],
+                  hovertemplate="%{y:.1f} h<extra>" + name + "</extra>")
+    f.update_layout(barmode="stack"); f.update_yaxes(title="Stunden Laufen")
+    ui.chart(ui.style(f, 340, title="Laufumfang je Woche nach Zone"))
+    sp = runplan.spikes(runs)
+    if len(sp):
+        st.markdown("**Läufe mit > 10 % Steigerung gegenüber dem längsten Lauf der 30 Tage davor**")
+        st.dataframe(sp, hide_index=True, width="stretch")
+    rc = races()
+    up = rc[(rc.date > str(TODAY)) & (rc.priority.isin(["A", "B"]))] if len(rc) else rc
+    taper = []
+    if len(up):
+        nr = up.iloc[0]
+        rd = date.fromisoformat(nr.date)
+        peak = float(done.tail(4).volumen_h.max()) if len(done) else 0
+        taper = runplan.taper_plan(peak, rd)
+        st.markdown(f"**Taper für „{ui.esc(nr['name'])}“ ({nr.priority}, {rd:%d.%m.%Y})**")
+        if (rd - TODAY).days > 14:
+            st.caption(f"Beginnt am {rd - timedelta(days=14):%d.%m.} – bis dahin wie gewohnt trainieren.")
+        st.dataframe(pd.DataFrame(taper), hide_index=True, width="stretch")
+        st.caption("Meta-Analyse (27 Studien): 2 Wochen, Umfang exponentiell um 41–60 % senken, Intensität und Häufigkeit unverändert [Q36]. "
+                   "Ausgangswert = umfangreichste Woche der letzten 4 Wochen.")
+    with st.expander("Wochentabelle", icon=":material/table:"):
+        t = stats.copy()
+        for col in ("anteil_z1", "anteil_z2", "anteil_z3"):
+            t[col] = (t[col] * 100).round(0)
+        st.dataframe(t.round(1), hide_index=True, width="stretch")
+    with st.expander("Was aus dem Regelwerk bewusst nicht übernommen wurde", icon=":material/block:"):
+        st.markdown("- **10-%-Wochenregel:** Im RCT mit 532 Einsteigern kein Schutz vor Verletzungen [Q38]; stattdessen die Einzel-Lauf-Steigerung [Q37].\n"
+                    "- **Phasenanteile, Entlastung nach 3 Wochen, Wochen-Wachstumsfaktor:** keine belastbare Studie.\n"
+                    "- **32-km-Deckel für den langen Lauf:** Konvention aus Trainingsplänen, deren Wirksamkeit nicht belegt ist [Q35].\n"
+                    "- **Feste Sollwerte (Z1 ≥ 75 %, 1–2 Qualitätseinheiten):** nur aus sehr kleinen Elite-Stichproben (6 bzw. 13 Läufer) [Q33, Q34]; "
+                    "der Großdatensatz zeigt nur Zusammenhänge [Q6].")
+    doc = runplan.to_json(stats, checks, z, taper, ["Nur studienbelegte Regeln; Zonen beschreibend."])
+    st.download_button("Auswertung als JSON", json.dumps(doc, ensure_ascii=False, indent=2, default=str), "laufauswertung.json",
+                       "application/json", icon=":material/download:")
+
+
 PRIO_DASH = {"A": "solid", "B": "dash", "C": "dot"}
 
 
@@ -1184,6 +1277,7 @@ SPEC = [("Übersicht", [("dashboard", "Dashboard", ":material/space_dashboard:",
         ("Analyse", [("workout", "Workout-Analyse", ":material/directions_bike:", page_workout),
                      ("pd", "Power-Duration", ":material/show_chart:", page_pd),
                      ("run", "Laufen", ":material/directions_run:", page_run),
+                     ("runcheck", "Laufauswertung", ":material/fact_check:", page_runcheck),
                      ("zones", "Zeit in Zonen", ":material/stacked_bar_chart:", page_zones),
                      ("profile", "Profil & Phänotyp", ":material/fingerprint:", page_profile),
                      ("fatigue", "Fatigue Resistance", ":material/battery_charging_full:", page_fatigue),

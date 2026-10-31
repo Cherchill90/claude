@@ -317,3 +317,51 @@ def test_sport_override_running_after_hard_run():
     r2 = recommend.recommend(today, daily, recent2, races, pd.DataFrame(), 250, 285, sport_override="Running")
     assert r2.sport == "Running" and r2.kind not in ("Schwelle", "VO2max", "Sweetspot")
     assert not any("Zusatz Kraft" in x for x in r2.details)
+
+
+# ------------------------------------------------------------------ Laufauswertung (nur belegte Regeln)
+def test_spike_and_cap():
+    import pandas as pd
+    from datetime import date, timedelta
+    from wkolocal import runplan
+    t = date.today()
+    runs = pd.DataFrame([dict(date=str(t - timedelta(days=d)), name=f"L{d}", distance_m=km * 1000, uid=str(d))
+                         for d, km in ((25, 11.5), (18, 12.0), (10, 12.5), (3, 16.0))])
+    sp = runplan.spikes(runs)
+    assert len(sp) == 1 and sp.iloc[0].km == 16.0 and "klein" in sp.iloc[0].Klasse      # 16 vs 12.5 = +28 %
+    assert runplan.next_long_run_cap(runs, t) == round(16.0 * 1.1, 1)
+
+
+def test_taper_meta_analysis():
+    from datetime import date, timedelta
+    from wkolocal import runplan
+    race = date.today() + timedelta(days=14)
+    tp = runplan.taper_plan(8.0, race)
+    assert len(tp) == 2 and tp[0]["Umfang_h"] > tp[1]["Umfang_h"]
+    assert 0.40 <= tp[1]["Umfang_h"] / 8.0 <= 0.65 and "unverändert" in tp[0]["Intensität"]
+
+
+def test_run_cap_in_recommendation():
+    from wkolocal import recommend
+    import pandas as pd
+    today, daily, recent, races = _scenario([55.0] * 45 + [80.0, 0, 70, 0, 80, 0, 0, 60, 0, 0, 80, 0, 70, 50])
+    r = recommend.recommend(today, daily, recent, races, pd.DataFrame(), 250, 300, sport_override="Running", run_cap_km=8.0)
+    assert any("höchstens ca. 8 km" in x for x in r.details)
+    assert r.duration_min is None or r.kind in ("Schwelle", "VO2max", "Sweetspot", "Taper") or r.duration_min[1] <= 8.0 * 375 / 60 * 1.15
+
+
+def test_weekly_stats_and_checks():
+    import numpy as np, pandas as pd
+    from datetime import date, timedelta
+    from wkolocal import runplan
+    t = date.today()
+    rows = [dict(uid=str(i), date=str(t - timedelta(days=i)), sport="Running", duration_s=3600, distance_m=10000, avg_speed=2.8, ascent_m=50, name="L")
+            for i in range(1, 60, 2)]
+    w = pd.DataFrame(rows)
+    stream = pd.DataFrame(dict(hr=np.r_[np.full(3000, 140.0), np.full(600, 175.0)], speed=np.full(3600, 2.8)))
+    z = runplan.run_zones({"hf_max": "190"}, None, None, None)
+    st = runplan.weekly_stats(w, lambda uid: stream, z)
+    assert len(st) >= 8 and abs(st.anteil_z1.dropna().iloc[-2] - 3000 / 3600) < .02
+    checks = runplan.rule_check(st, w)
+    assert {c.regel for c in checks} >= {"Umfang", "Verteilung", "Steigerung", "10-%-Regel"}
+    assert all(c.status in ("ok", "warnung", "info") for c in checks)

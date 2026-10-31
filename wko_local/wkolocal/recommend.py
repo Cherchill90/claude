@@ -86,12 +86,16 @@ def build_session(kind: str, sport: str, ftp: float, run_pace: float | None, c: 
         if run: return _p(run_pace, lo, hi) if run_pace else "nach Gefühl (Gespräch möglich)"
         return _w(ftp, lo, hi)
     L: list[str] = []
+    if run and c.get("cap_min"):
+        c = dict(c, end_min=min(c["end_min"], c["cap_min"]), long_min=min(c["long_min"], c["cap_min"] / 1.1))
     if kind == "Regeneration":
         m = 30 if run else 45
         segs = [(m, .62 if run else .50)]
         L = [f"{m} min sehr locker ({zone(.60, .72) if run else zone(.40, .55)}), Tempo bewusst bremsen – Ziel ist Durchblutung, kein Reiz."]
     elif kind == "Grundlage":
         m = int(np.clip(round(c["end_min"] / 5) * 5, 40 if run else 60, 75 if run else 150))
+        if run and c.get("cap_min"):
+            m = max(int(min(m, c["cap_min"]) // 5 * 5), 20)
         segs = [(m, .82 if run else .68)]
         L = [f"{m} min gleichmäßig im Grundlagenbereich ({zone(.78, .88) if run else zone(.56, .75)}).",
              "Herzfrequenz stabil halten; wenn sie bei gleicher Leistung/Pace steigt, Tempo zurücknehmen."]
@@ -99,6 +103,8 @@ def build_session(kind: str, sport: str, ftp: float, run_pace: float | None, c: 
             L.append("Optional am Ende: 4–6×20–30 s Steigerungen (bergauf oder flach, zügig aber nicht Sprint, volle Pause) – 2–3×/Woche; kleine Studien zeigen bessere Laufökonomie/Kurzzeitleistung. " + refs("Q2", "Q3"))
     elif kind == "Lange Grundlage":
         m = int(np.clip(round(c["long_min"] * 1.1 / 10) * 10, 70 if run else 120, 130 if run else 240))
+        if run and c.get("cap_min"):
+            m = max(int(min(m, c["cap_min"]) // 5 * 5), 20)
         segs = [(m, .80 if run else .65)]
         L = [f"{m} min locker ({zone(.75, .86) if run else zone(.56, .72)})."]
         if c.get("finisher"):
@@ -132,6 +138,9 @@ def build_session(kind: str, sport: str, ftp: float, run_pace: float | None, c: 
     else:
         return [], (0, 0), (0, 0)
     dur = sum(m for m, _ in segs)
+    if run and c.get("cap_km"):
+        L.append(f"Distanz höchstens ca. {c['cap_km']:.0f} km: Läufe > 10 % länger als der längste Lauf der letzten 30 Tage gingen in einer Kohorte "
+                 "mit 5205 Läufern mit höherem Verletzungsrisiko einher. " + refs("Q37"))
     fl = fuel_line(dur, hard=kind in ("Schwelle", "VO2max", "Sweetspot", "Taper"))
     if fl and kind not in ("Regeneration", "Aktivierung"):
         L.append(fl)
@@ -153,7 +162,7 @@ def _key_type(r, ftp: float) -> str:
 
 def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd.DataFrame, planned: pd.DataFrame,
               ftp: float, run_pace: float | None, feeling: str = "Normal", ctl_tau=42, atl_tau=7,
-              readiness: dict | None = None, sport_override: str | None = None) -> Rec:
+              readiness: dict | None = None, sport_override: str | None = None, run_cap_km: float | None = None) -> Rec:
     """Empfehlung für today+1. recent: Workouts der letzten ~28 Tage (alle Sportarten)."""
     D = today + timedelta(days=1)
     reasons: list[str] = []
@@ -238,11 +247,18 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
         reasons.append(f"Wettkampf „{race_today_or_yday['name']}“ war vor ≤ 1 Tag – Erholung hat Vorrang.")
     elif next_race is not None and days_to == 1:
         kind = "Aktivierung"; reasons.append(f"Wettkampf „{next_race['name']}“ übermorgen: kurze Aktivierungseinheit statt Belastung.")
-    elif next_race is not None and next_race.priority in ("A", "B") and 2 <= days_to <= (9 if next_race.priority == "A" else 4):
-        kind = "Taper" if (days_to >= 3 and tsb >= -12 and feeling != "Müde") else "Grundlage"
-        reasons.append(f"{next_race.priority}-Wettkampf „{next_race['name']}“ in {days_to + 1} Tagen: Tapering (Volumen runter, Intensität kurz beibehalten).")
-        if kind == "Grundlage":
-            c["end_min"] = min(c["end_min"], 60)
+    elif next_race is not None and next_race.priority in ("A", "B") and 2 <= days_to <= (13 if next_race.priority == "A" else 4):
+        # A: 2-Wochen-Taper laut Meta-Analyse – Umfang exponentiell −41…60 %, Intensität und Häufigkeit halten [Q36]
+        frac = float(np.exp(np.log(0.5) * (14 - days_to) / 14)) if next_race.priority == "A" else 0.6
+        quality_day = since_hard is None or since_hard >= 2
+        kind = "Taper" if (quality_day and days_to >= 3 and tsb >= -12 and feeling != "Müde") else "Grundlage"
+        c["end_min"] = c["end_min"] * frac
+        c["taper_frac"] = frac
+        if next_race.priority == "A":
+            reasons.append(f"A-Wettkampf „{next_race['name']}“ in {days_to + 1} Tagen: Taper – Umfang auf ca. {frac * 100:.0f} % (Meta-Analyse: 2 Wochen, Umfang −41–60 %, "
+                           "Intensität und Häufigkeit unverändert). " + refs("Q36"))
+        else:
+            reasons.append(f"B-Wettkampf „{next_race['name']}“ in {days_to + 1} Tagen: kurze Entlastung (Praxis, für B-Rennen nicht eigens belegt).")
     # ---- Ermüdung
     if kind is None:
         fatigued_hard = tsb < -30 or (ctl > 15 and atl / ctl > 1.5)
@@ -334,6 +350,10 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
             reasons.append(f"Sportart {sport}: " + ("schonender für Gelenke/Muskulatur – aerober Reiz ohne Laufstoßbelastung (Trainerpraxis, keine Studie)." if sport == "Cycling" and kind in ("Regeneration", "Lange Grundlage", "Grundlage") and len(runs) else
                                                     "schonender für Gelenke/Muskulatur" if sport == "Cycling" and kind in ("Regeneration", "Lange Grundlage") else "ergibt sich aus Abstand zur letzten (harten) Einheit."))
 
+    if sport == "Running" and run_cap_km:
+        easy = (run_pace / .80) if run_pace else 390.0          # lockeres Tempo ≈ 80 % der Schwellengeschwindigkeit
+        c["cap_km"] = run_cap_km
+        c["cap_min"] = run_cap_km * easy / 60
     if kind == "Ruhetag":
         details, dur, tss = ["Kein Training. Optional: 20–30 min Spaziergang, Mobilisation, ausreichend Schlaf und Essen."], None, (0, 0)
     elif kind == "Wettkampf":
