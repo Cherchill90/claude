@@ -67,6 +67,10 @@ Ansicht **Analyse → Laufauswertung** (`wkolocal/runplan.py`), abgeleitet aus d
 - **Taper:** 2 Wochen, Umfang exponentiell −41–60 %, Intensität und Häufigkeit unverändert – in Auswertung und Tagesempfehlung (A-Rennen) [Q36].
 - Nicht übernommen: 10-%-Wochenregel [Q38], Phasenanteile, Entlastungsrhythmus, 32-km-Deckel [Q35], feste Zonen-Sollwerte [Q33, Q34]. JSON-Export der Auswertung.
 
+## Fortschritt Laufen: Tempo bei gleicher Herzfrequenz
+Ansicht **Fortschritt** mit Filter „Lauf“ (bei „Alle“ als Reiter): steigungskorrigiertes Tempo bei einer Referenz-HF je Lauf (gleichmäßige 30-s-Abschnitte nach 10 min, Regression ohne Extrapolation), 4-Wochen-Median und Vergleich mit 6–10 Wochen davor, dazu Effizienz (m/min je Herzschlag). Grundlage: HF bei submaximaler Belastung als Trainingszustands-Maß [Q39]; Alltagsläufe sind verrauschter als standardisierte Tests.
+Rad-Fortschritt blendet Wochenfenster ohne belastbares Leistungsmodell aus (FRC an der Modellgrenze, großer Modellfehler, kein 20-min-Wert).
+
 ## Trainingsempfehlung & Wettkämpfe
 - **Dashboard → „Trainingsempfehlung für morgen“:** regelbasiert aus Form (TSB), harten Einheiten der letzten Tage, Trainingsserie, Rampe, Wettkämpfen und Plan – mit konkreter Einheit (Dauer, Watt- bzw. Pace-Bereiche, geschätzte TSS) und Begründung. Dein Befinden (Gut/Normal/Müde/Krank) stellst Du direkt darüber ein. Schlaf/HRV/Termine kennt das Programm nicht. Regeln: `wkolocal/recommend.py`.
 - **PMC → „Wettkämpfe anlegen & verwalten“:** Datum, Name, Sportart, Priorität A/B/C, erwartete Dauer/Intensität (→ TSS-Schätzung). Wettkämpfe erscheinen als Markierung im PMC, die Prognose (gepunktet) zeigt Fitness/Form am Renntag; Tapering, Aktivierung und Erholung nach dem Rennen fließen in die Empfehlung ein.

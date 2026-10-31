@@ -173,8 +173,10 @@ def _progress(sport, win, v):
         mm = agg_mmp(sub)
         m = model.fit_pd(mm)
         row = dict(Datum=d, **{f"{k}s": mm.get(k) for k in (5, 60, 300, 1200, 3600)})
-        if m:
+        ok = m is not None and 2100 < m.frc < 79000 and m.rmse / max(m.mftp, 1) <= .15 and mm.get(1200, 0) > 0
+        if ok:                      # FRC an der Modellgrenze oder großer Fehler = Anpassung gescheitert -> nicht anzeigen
             row.update(mFTP=m.mftp, FRC=m.frc / 1000, Pmax=m.pmax)
+        row["model_ok"] = ok
         pts.append(row); d += timedelta(days=7)
     return pd.DataFrame(pts)
 
@@ -262,6 +264,19 @@ def parse_pace(txt: str):
 def fmt_dur(sec) -> str:
     sec = int(sec or 0)
     return f"{sec // 3600}:{sec % 3600 // 60:02d} h"
+
+
+def pace_axis(fig, sec_values, row=None, title="min/km (oben = schneller)") -> None:
+    """Pace-Achse in Sekunden/km mit Beschriftung m:ss (schneller oben)."""
+    v = np.asarray([x for x in sec_values if x is not None and np.isfinite(x)], float)
+    if not len(v):
+        return
+    lo, hi = float(v.min()), float(v.max())
+    span = max(hi - lo, 10)
+    step = next(s for s in (5, 10, 15, 20, 30, 60, 120) if span / s <= 6)
+    ticks = np.arange(np.floor(lo / step) * step, np.ceil(hi / step) * step + step, step)
+    kw = dict(row=row, col=1) if row else {}
+    fig.update_yaxes(tickvals=ticks, ticktext=[fmt_pace(t) for t in ticks], autorange="reversed", title_text=title, **kw)
 
 
 def show(items, foot: bool = False) -> None:
@@ -568,10 +583,12 @@ def run_view(w, df):
     f = ui.stacked(len(rows), {1: [1], 2: [.62, .38], 3: [.5, .3, .2]}[len(rows)])
     for i, (lbl, k) in enumerate(rows, start=1):
         if k == "pace":
-            f.add_scatter(x=t, y=np.clip(pace, 2.5, 10), name=lbl, line=dict(color=ui.c(2), width=1.3), row=i, col=1,
-                          text=[fmt_pace(x * 60) if np.isfinite(x) else "" for x in pace], hovertemplate="%{text} /km<extra></extra>")
-            f.update_yaxes(autorange="reversed", title_text=lbl, row=i, col=1, title_font=dict(size=11))
-            if rp: f.add_hline(y=rp / 60, line_dash="dot", line_color=ui.text2(), annotation_text=f"Schwelle {fmt_pace(rp)}", annotation_font_size=11, row=i, col=1)
+            ps = np.clip(pace * 60, 150, 600)
+            f.add_scatter(x=t, y=ps, name=lbl, line=dict(color=ui.c(2), width=1.3), row=i, col=1,
+                          text=[fmt_pace(x) if np.isfinite(x) else "" for x in ps], hovertemplate="%{text} /km<extra></extra>")
+            pace_axis(f, ps, row=i, title="min/km")
+            f.update_yaxes(title_font=dict(size=11), row=i, col=1)
+            if rp: f.add_hline(y=rp, line_dash="dot", line_color=ui.text2(), annotation_text=f"Schwelle {fmt_pace(rp)}", annotation_font_size=11, row=i, col=1)
         elif k == "hr":
             f.add_scatter(x=t, y=df.hr.rolling(smooth, min_periods=1).mean(), name=lbl, line=dict(color=ui.c(1), width=1.3), row=i, col=1,
                           hovertemplate="%{y:.0f} bpm<extra></extra>")
@@ -633,14 +650,14 @@ def page_run():
     kpi(c[3], "km / Woche (Ø)", f"{km_w.mean():.0f}", None, km_w, chart_type="bar", height=178)
     fig = go.Figure()
     t = sorted(best)
-    fig.add_scatter(x=t, y=[pace_of(best[x]) / 60 for x in t], name="Bestwerte", line=dict(color=ui.c(2), width=2),
+    fig.add_scatter(x=t, y=[pace_of(best[x]) for x in t], name="Bestwerte", line=dict(color=ui.c(2), width=2),
                     text=[fmt_pace(pace_of(best[x])) for x in t], hovertemplate="%{text} /km<extra>Bestwert</extra>")
     if cs:
         tt = np.logspace(np.log10(60), np.log10(7200), 100)
-        fig.add_scatter(x=tt, y=1000 / cs.speed(tt) / 60, name="CS-Modell", line=dict(dash="dash", color=ui.text2(), width=1.5),
+        fig.add_scatter(x=tt, y=1000 / cs.speed(tt), name="CS-Modell", line=dict(dash="dash", color=ui.text2(), width=1.5),
                         text=[fmt_pace(1000 / cs.speed(x)) for x in tt], hovertemplate="%{text} /km<extra>Modell</extra>")
     fig.update_xaxes(type="log", tickvals=[60, 300, 600, 1200, 1800, 3600, 7200], ticktext=["1m", "5m", "10m", "20m", "30m", "1h", "2h"])
-    fig.update_yaxes(title="min/km", autorange="reversed")
+    pace_axis(fig, [pace_of(best[x]) for x in t])
     ui.chart(ui.style(fig, 400, title="Pace-Duration-Kurve"))
     if cs:
         a, b = st.columns([1, 1], gap="large")
@@ -1091,14 +1108,91 @@ def page_fatigue():
     explain("Fatigue Resistance")
 
 
-def page_progress():
-    rng = RNG
-    ui.page_header("Fortschritt", "Modellparameter und Bestwerte im gleitenden Fenster")
+@st.cache_data(show_spinner=False, max_entries=8)
+def _run_hr_progress(ref_hr, v):
+    rows = []
+    for w in db.workouts_df(str(TODAY - timedelta(days=365)), str(TODAY), "Running").itertuples():
+        try:
+            r = runplan.hr_speed_relation(db.load_stream(w.uid), ref_hr)
+        except Exception:
+            r = None
+        if r:
+            rows.append(dict(date=pd.Timestamp(w.date), name=w.name, speed=r["speed"], eff=r["eff"], n=r["n"], method=r["method"], hr=r["hr_mean"]))
+    return pd.DataFrame(rows)
+
+
+def progress_run_view() -> None:
+    lthr = thr_on(TODAY, "lthr_run", None)
+    runs = W(TODAY - timedelta(days=120), TODAY, "Running")
+    typ = _run_hr_progress(0, ver())                     # nur typische HF der gleichmäßigen Abschnitte je Lauf
+    if len(typ):
+        default = int(round(typ.hr.median()))
+    else:
+        default = int(round(.85 * lthr)) if lthr else 140
+    default = min(max(default, 100), 190)
+    ref = st.slider("Referenz-Herzfrequenz (bpm)", 100, 190, default, key=f"ref_hr_{default}",
+                    help="Verglichen wird das Tempo bei genau dieser HF. Voreinstellung: Deine typische HF in gleichmäßigen Laufabschnitten (Median), damit möglichst viele Läufe einen Wert haben.")
+    with st.spinner("Werte Läufe aus …"):
+        df = _run_hr_progress(ref, ver())
+    if df.empty:
+        st.info("Keine auswertbaren Läufe mit Herzfrequenz (mind. ca. 20 min, gleichmäßige Abschnitte).", icon=":material/favorite:"); return
+    sp = df.dropna(subset=["speed"]).sort_values("date")
+    ef = df.sort_values("date")
+    def window(x, a, b):
+        return x[(x.date > pd.Timestamp(TODAY - timedelta(days=a))) & (x.date <= pd.Timestamp(TODAY - timedelta(days=b)))]
+    now, before = window(sp, 28, 0), window(sp, 70, 42)
+    e_now, e_before = window(ef, 28, 0), window(ef, 70, 42)
+    c = st.columns(4)
+    v_now = now.speed.median() if len(now) >= 3 else np.nan
+    v_bef = before.speed.median() if len(before) >= 3 else np.nan
+    ch = (v_now / v_bef - 1) * 100 if np.isfinite(v_now) and np.isfinite(v_bef) else np.nan
+    kpi(c[0], f"Pace bei {ref} bpm", f"{fmt_pace(1000 / v_now)} /km" if np.isfinite(v_now) else "–",
+        f"{ch:+.1f} % Tempo vs. vor 6–10 Wochen" if np.isfinite(ch) else None, sp.speed.iloc[-20:] if len(sp) > 1 else None)
+    en, eb = (e_now.eff.median() if len(e_now) >= 3 else np.nan), (e_before.eff.median() if len(e_before) >= 3 else np.nan)
+    kpi(c[1], "Effizienz (m/min je Schlag)", f"{en:.2f}" if np.isfinite(en) else "–",
+        f"{(en / eb - 1) * 100:+.1f} %" if np.isfinite(en) and np.isfinite(eb) else None, ef.eff.iloc[-20:] if len(ef) > 1 else None)
+    kpi(c[2], "Läufe mit Wert", f"{len(sp)} / {len(df)}", "Referenz-HF erreicht", delta_color="off")
+    kpi(c[3], "Zeitraum", "12 Monate", f"{len(now)} Läufe in 4 Wochen", delta_color="off")
+    items = []
+    if np.isfinite(ch):
+        lvl = "good" if ch >= 2 else "warn" if ch <= -2 else "info"
+        items.append(insights.Insight(lvl, f"Bei {ref} bpm läufst Du aktuell {fmt_pace(1000 / v_now)} /km gegenüber {fmt_pace(1000 / v_bef)} /km vor 6–10 Wochen ({ch:+.1f} % Tempo) – "
+                                      + ("schneller bei gleicher Herzfrequenz spricht für eine bessere aerobe Fitness." if ch >= 2 else
+                                         "langsamer bei gleicher Herzfrequenz: mögliche Ursachen sind Ermüdung, Hitze, Krankheit oder Formverlust." if ch <= -2 else
+                                         "praktisch unverändert (unter ±2 % – bei Alltagsläufen im Bereich der normalen Schwankung).")))
+    else:
+        items.append(insights.Insight("info", "Für einen Vergleich braucht es je mind. 3 Läufe mit Referenz-HF in den letzten 4 Wochen und vor 6–10 Wochen."))
+    items.append(insights.Insight("info", "Die HF bei standardisierter submaximaler Belastung gilt in Übersichtsarbeiten als nützliches Maß für den Trainingszustand. "
+                                  "Belegt ist das für standardisierte Tests – Alltagsläufe sind durch Gelände, Hitze, Ermüdung und HF-Drift verrauschter. "
+                                  "Am aussagekräftigsten: regelmäßig dieselbe flache Strecke im gleichen Tempo laufen und die HF vergleichen. [Q39]"))
+    items.append(insights.Insight("info", "Berechnung: steigungskorrigiertes Tempo, nur gleichmäßige 30-s-Abschnitte nach den ersten 10 Minuten; Regression Tempo ~ HF ohne Extrapolation."))
+    show(items)
+    if len(sp):
+        f = go.Figure()
+        f.add_scatter(x=sp.date, y=1000 / sp.speed, mode="markers", name="Lauf", marker=dict(size=8, color=ui.c(2), opacity=.55),
+                      text=[f"{fmt_pace(1000 / v)} /km · {nm} · {m}" for v, nm, m in zip(sp.speed, sp.name, sp.method)], hovertemplate="%{text}<extra></extra>")
+        roll = sp.set_index("date").speed.rolling("28D", min_periods=3).median()
+        f.add_scatter(x=roll.index, y=1000 / roll.values, name="Median 4 Wochen", line=dict(color=ui.c(1), width=2.5),
+                      text=[fmt_pace(1000 / v) if np.isfinite(v) else "" for v in roll.values], hovertemplate="%{text} /km<extra>Median</extra>")
+        pace_axis(f, 1000 / sp.speed)
+        ui.chart(ui.style(f, 380, title=f"Tempo bei {ref} bpm"))
+    g = go.Figure()
+    g.add_scatter(x=ef.date, y=ef.eff, mode="markers", name="Lauf", marker=dict(size=7, color=ui.c(2), opacity=.5), hovertemplate="%{y:.2f}<extra></extra>")
+    re_ = ef.set_index("date").eff.rolling("28D", min_periods=3).median()
+    g.add_scatter(x=re_.index, y=re_.values, name="Median 4 Wochen", line=dict(color=ui.c(1), width=2.5), hovertemplate="%{y:.2f}<extra>Median</extra>")
+    g.update_yaxes(title="m/min je Herzschlag")
+    ui.chart(ui.style(g, 320, title="Effizienz gleichmäßiger Abschnitte (steigend = mehr Tempo je Herzschlag)"))
+
+
+def progress_ride_view(rng) -> None:
     win = st.select_slider("Fensterlänge", [42, 60, 90, 120, 180], value=90, format_func=lambda d: f"{d} Tage")
     with st.spinner("Berechne Verlauf …"):
-        df = _progress(rng[2] if rng else None, win, ver())
+        df = _progress("Cycling" if rng[2] == "Alle" else rng[2], win, ver())
     if df.empty or "mFTP" not in df:
-        st.info("Zu wenige Daten für Modelltrends."); return
+        st.info("Zu wenige Rad-Einheiten mit Leistung und Maximalbelastungen für ein belastbares Modell.", icon=":material/directions_bike:"); return
+    bad = int((~df.model_ok).sum())
+    if bad:
+        st.caption(f"{bad} von {len(df)} Wochenfenstern ohne belastbares Leistungsmodell ausgeblendet (zu wenige Maximalbelastungen oder Anpassung an der Modellgrenze).")
     show(insights.assess_progress(df))
     c = st.columns(3, gap="large")
     for col, (k, title, unit) in zip(c, (("mFTP", "mFTP", "W"), ("FRC", "FRC", "kJ"), ("Pmax", "Pmax", "W"))):
@@ -1106,7 +1200,6 @@ def page_progress():
             s = df.dropna(subset=[k])
             f = go.Figure(go.Scatter(x=s.Datum, y=s[k], line=dict(color=ui.c(1), width=2.5), fill="tozeroy", fillcolor=ui.NEUTRAL_FILL[ui.mode()],
                                      hovertemplate="%{y:.1f} " + unit + "<extra></extra>"))
-            f.update_yaxes(rangemode="normal")
             ui.chart(ui.style(f, 240, legend=False, title=f"{title} ({unit})"))
     best = go.Figure()
     for i, (k, lbl) in enumerate((("5s", "5 s"), ("60s", "1 min"), ("300s", "5 min"), ("1200s", "20 min"), ("3600s", "60 min"))):
@@ -1114,6 +1207,21 @@ def page_progress():
             best.add_scatter(x=df.Datum, y=df[k], name=lbl, line=dict(color=ui.c(i + 1), width=2), hovertemplate="%{y:.0f} W<extra>" + lbl + "</extra>")
     best.update_yaxes(title="Watt", type="log")
     ui.chart(ui.style(best, 380, title=f"Bestwerte (gleitendes {win}-Tage-Fenster, log. Skala)"))
+
+
+def page_progress():
+    rng = RNG
+    ui.page_header("Fortschritt", "Rad: Leistungsmodell und Bestwerte · Lauf: Tempo bei gleicher Herzfrequenz")
+    if rng[2] == "Running":
+        progress_run_view()
+    elif rng[2] == "Cycling":
+        progress_ride_view(rng)
+    else:
+        t1, t2 = st.tabs([":material/directions_run: Lauf", ":material/directions_bike: Rad"])
+        with t1:
+            progress_run_view()
+        with t2:
+            progress_ride_view(rng)
     explain("Fortschritt")
 
 

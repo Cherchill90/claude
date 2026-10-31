@@ -230,3 +230,42 @@ def to_json(stats: pd.DataFrame, checks: list[Check], z: Zones, taper: list[dict
                            "regelstatus": [dict(regel=c.regel, status=c.status, wert=c.wert, begruendung=c.begruendung, quelle=c.quelle) for c in checks]},
             "taper": taper, "hinweise": notes,
             "annahmen": [f"Zonen: {z.method}", "Wochen Mo–So", "Qualitätseinheit = Z2+Z3 > 20 % der Einheit (nur beschreibend)"]}
+
+
+# =================================================================== Fortschritt: Pace ↔ Herzfrequenz
+def hr_speed_relation(df: pd.DataFrame, ref_hr: float, skip_s: int = 600) -> dict | None:
+    """Steigungskorrigierte Geschwindigkeit bei Referenz-HF für einen Lauf.
+
+    30-s-Abschnitte nach dem Aufwärmen (HF reagiert verzögert), nur gleichmäßige Abschnitte (Tempo-Schwankung < 10 %).
+    Liegt die Referenz-HF im gemessenen Bereich: lineare Regression Geschwindigkeit ~ HF (keine Extrapolation);
+    sonst Median der Abschnitte mit HF ± 4 bpm. Zusätzlich Effizienz (m/min je Herzschlag) der gleichmäßigen Abschnitte.
+    """
+    from .metrics import get_speed, grade_adjusted_speed
+    if "hr" not in df or df["hr"].notna().mean() < .5 or len(df) < skip_s + 600:
+        return None
+    sp = get_speed(df)
+    alt = df["altitude"].to_numpy(float) if "altitude" in df else None
+    gap = grade_adjusted_speed(sp, alt)
+    hr = df["hr"].to_numpy(float)
+    n = (len(df) - skip_s) // 30
+    rows = []
+    for i in range(n):
+        a, b = skip_s + i * 30, skip_s + (i + 1) * 30
+        v, h = gap[a:b], hr[a:b]
+        if np.isnan(h).mean() > .3 or v.mean() < 1.5 or v.mean() > 7:
+            continue
+        if v.std() / v.mean() > .10:
+            continue
+        rows.append((float(np.nanmean(h)), float(v.mean())))
+    if len(rows) < 10:
+        return None
+    H, V = np.array(rows).T
+    eff = float(np.median(V * 60 / H))
+    if H.max() - H.min() >= 8 and H.min() - 3 <= ref_hr <= H.max() + 3:
+        k, d = np.polyfit(H, V, 1)
+        if k > 0:
+            return dict(speed=float(k * ref_hr + d), n=len(rows), method="Regression", eff=eff, hr_mean=float(H.mean()))
+    near = V[np.abs(H - ref_hr) <= 4]
+    if len(near) >= 6:
+        return dict(speed=float(np.median(near)), n=int(len(near)), method="Abschnitte ± 4 bpm", eff=eff, hr_mean=float(H.mean()))
+    return dict(speed=None, n=len(rows), method="Referenz-HF nicht erreicht", eff=eff, hr_mean=float(H.mean()))

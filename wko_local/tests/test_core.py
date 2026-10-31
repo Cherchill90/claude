@@ -365,3 +365,16 @@ def test_weekly_stats_and_checks():
     checks = runplan.rule_check(st, w)
     assert {c.regel for c in checks} >= {"Umfang", "Verteilung", "Steigerung", "10-%-Regel"}
     assert all(c.status in ("ok", "warnung", "info") for c in checks)
+
+
+def test_hr_speed_relation():
+    import numpy as np, pandas as pd
+    from wkolocal import runplan
+    n = 3600
+    hr = np.r_[np.linspace(110, 140, 600), np.repeat([135.0, 145.0, 155.0], 1000)]
+    speed = 2.0 + (hr - 120) * 0.03                     # bei 145 bpm: 2,75 m/s
+    df = pd.DataFrame(dict(hr=hr, speed=speed, altitude=np.full(n, 100.0)))
+    r = runplan.hr_speed_relation(df, 145)
+    assert r and abs(r["speed"] - 2.75) < .05 and r["method"] == "Regression"
+    assert runplan.hr_speed_relation(df, 185)["speed"] is None                    # keine Extrapolation
+    assert runplan.hr_speed_relation(df.assign(hr=np.nan), 145) is None
