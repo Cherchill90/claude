@@ -452,7 +452,7 @@ def zones_bar(z: pd.DataFrame, title: str) -> go.Figure:
     f = go.Figure(go.Bar(x=z["Sekunden"] / 60, y=z["Zone"], orientation="h", marker_color=ui.BLUE_RAMP[:len(z)],
                          text=[f"{p:.0f} %" for p in z["Anteil %"]], textposition="outside",
                          hovertemplate="%{y}: %{x:.0f} min<extra></extra>"))
-    f.update_yaxes(autorange="reversed"); f.update_xaxes(title="Minuten")
+    f.update_yaxes(autorange="reversed"); f.update_xaxes(title="Minuten", range=[0, max(max(f.data[0].x), 1e-9) * 1.22])
     return ui.style(f, 300, legend=False, hover="closest", title=title)
 
 
@@ -949,12 +949,21 @@ def page_pmc():
         st.markdown(insights.EXPLAIN["Wettkämpfe"])
 
 
-def page_zones():
-    rng = RNG
-    ui.page_header("Zeit in Zonen", "Intensitätsverteilung der Rad-Einheiten mit Leistung")
-    tot, rows = _zones(str(rng[0]), str(rng[1]), rng[2], cur_ftp(), ver())
+@st.cache_data(show_spinner=False, max_entries=8)
+def _run_pace_zones(start, end, thr_pace, v):
+    """Summe der Sekunden je Pace-Zone über alle Läufe im Zeitraum."""
+    tot = np.zeros(len(metrics.PACE_ZONES))
+    for w in db.workouts_df(start, end, "Running").itertuples():
+        sp = metrics.get_speed(db.load_stream(w.uid))
+        sp = sp[sp > .5]                                   # Stehzeiten nicht als „locker“ zählen
+        tot += metrics.time_in_zones(sp, 1000 / thr_pace, metrics.PACE_ZONES)["Sekunden"].to_numpy()
+    return tot
+
+
+def zones_ride_view(rng) -> None:
+    tot, rows = _zones(str(rng[0]), str(rng[1]), "Cycling" if rng[2] == "Alle" else rng[2], cur_ftp(), ver())
     if rows.empty:
-        st.info("Keine Leistungsdaten im Zeitraum."); return
+        st.info("Keine Rad-Einheiten mit Leistung im Zeitraum.", icon=":material/directions_bike:"); return
     pol = tot / max(tot.sum(), 1) * 100
     c = st.columns(4)
     kpi(c[0], "Locker (Z1–2)", f"{pol[:2].sum():.0f} %")
@@ -967,8 +976,8 @@ def page_zones():
     with a:
         f = go.Figure(go.Bar(x=tot / 3600, y=zn, orientation="h", marker_color=ui.BLUE_RAMP, text=[f"{p:.0f} %" for p in pol], textposition="outside",
                              hovertemplate="%{y}: %{x:.1f} h<extra></extra>"))
-        f.update_yaxes(autorange="reversed"); f.update_xaxes(title="Stunden")
-        ui.chart(ui.style(f, 360, legend=False, hover="closest", title="Gesamt"))
+        f.update_yaxes(autorange="reversed"); f.update_xaxes(title="Stunden", range=[0, max(max(f.data[0].x), 1e-9) * 1.22])
+        ui.chart(ui.style(f, 360, legend=False, hover="closest", title="Gesamt (% FTP)"))
     with b:
         wk_df = rows.groupby("Woche").sum()
         g = go.Figure()
@@ -976,6 +985,65 @@ def page_zones():
             g.add_bar(x=wk_df.index, y=wk_df[z], name=z, marker_color=ui.BLUE_RAMP[i], hovertemplate="%{y:.1f} h<extra>" + z + "</extra>")
         g.update_layout(barmode="stack"); g.update_yaxes(title="Stunden")
         ui.chart(ui.style(g, 360, title="Pro Woche"))
+
+
+def zones_run_view(rng) -> None:
+    z = current_zones()
+    stats = _run_weeks(str(rng[0]), str(rng[1]), (z.z1_hi, z.z2_hi, z.method, z.grade, z.pace_thr), ver())
+    if stats.empty or stats.volumen_h.sum() == 0:
+        st.info("Keine Läufe im Zeitraum.", icon=":material/directions_run:"); return
+    h = {k: float((stats.volumen_h * stats[f"anteil_{k}"].fillna(0)).sum()) for k in ("z1", "z2", "z3")}
+    tot = sum(h.values()) or 1
+    c = st.columns(4)
+    kpi(c[0], "Z1 locker", f"{h['z1'] / tot * 100:.0f} %")
+    kpi(c[1], "Z2 Schwellenbereich", f"{h['z2'] / tot * 100:.0f} %")
+    kpi(c[2], "Z3 hart", f"{h['z3'] / tot * 100:.0f} %")
+    kpi(c[3], "Stunden Laufen", f"{stats.volumen_h.sum():.0f} h")
+    st.caption(f"3-Zonen-Modell nach Herzfrequenz · Methode: {z.method}. Zonen festlegen unter Analyse → Laufauswertung.")
+    show([insights.Insight("info", f"Locker {h['z1'] / tot * 100:.0f} %, Schwellenbereich {h['z2'] / tot * 100:.0f} %, hart {h['z3'] / tot * 100:.0f} % der Laufzeit im Zeitraum."),
+          insights.Insight("info", "Im Großdatensatz (151.813 Marathons) hing ein höherer Anteil lockeren Laufens mit schnelleren Zeiten zusammen – ein Zusammenhang, kein belegter Sollwert. [Q6]")])
+    a, b = st.columns([1, 1.6], gap="large")
+    names = ["Z1 locker", "Z2 Schwellenbereich", "Z3 hart"]
+    ramp = [ui.BLUE_RAMP[0], ui.BLUE_RAMP[3], ui.BLUE_RAMP[6]]
+    with a:
+        vals = [h["z1"], h["z2"], h["z3"]]
+        f = go.Figure(go.Bar(x=vals, y=names, orientation="h", marker_color=ramp, text=[f"{v / tot * 100:.0f} %" for v in vals], textposition="outside",
+                             hovertemplate="%{y}: %{x:.1f} h<extra></extra>"))
+        f.update_yaxes(autorange="reversed"); f.update_xaxes(title="Stunden", range=[0, max(max(f.data[0].x), 1e-9) * 1.22])
+        ui.chart(ui.style(f, 300, legend=False, hover="closest", title="Gesamt (Herzfrequenz)"))
+    with b:
+        g = go.Figure()
+        for i, k in enumerate(("anteil_z1", "anteil_z2", "anteil_z3")):
+            g.add_bar(x=pd.to_datetime(stats.woche), y=stats.volumen_h * stats[k].fillna(0), name=names[i], marker_color=ramp[i],
+                      hovertemplate="%{y:.1f} h<extra>" + names[i] + "</extra>")
+        g.update_layout(barmode="stack"); g.update_yaxes(title="Stunden")
+        ui.chart(ui.style(g, 300, title="Pro Woche"))
+    rp = run_threshold_pace()
+    if rp:
+        pz = _run_pace_zones(str(rng[0]), str(rng[1]), rp, ver())
+        if pz.sum():
+            labels = [p[0] for p in metrics.PACE_ZONES]
+            f = go.Figure(go.Bar(x=pz / 3600, y=labels, orientation="h", marker_color=ui.BLUE_RAMP[:len(labels)],
+                                 text=[f"{v / pz.sum() * 100:.0f} %" for v in pz], textposition="outside", hovertemplate="%{y}: %{x:.1f} h<extra></extra>"))
+            f.update_yaxes(autorange="reversed"); f.update_xaxes(title="Stunden", range=[0, max(max(f.data[0].x), 1e-9) * 1.22])
+            ui.chart(ui.style(f, 320, legend=False, hover="closest", title=f"Pace-Zonen (Schwellenpace {fmt_pace(rp)} /km, ohne Stehzeiten)"))
+    else:
+        st.caption("Pace-Zonen erscheinen, sobald unter „Athlet & Daten“ eine Lauf-Schwellenpace hinterlegt ist.")
+
+
+def page_zones():
+    rng = RNG
+    ui.page_header("Zeit in Zonen", "Intensitätsverteilung – Rad nach Leistung, Laufen nach Herzfrequenz und Pace")
+    if rng[2] == "Running":
+        zones_run_view(rng)
+    elif rng[2] == "Cycling":
+        zones_ride_view(rng)
+    else:
+        t1, t2 = st.tabs([":material/directions_bike: Rad", ":material/directions_run: Lauf"])
+        with t1:
+            zones_ride_view(rng)
+        with t2:
+            zones_run_view(rng)
     explain("Zeit in Zonen")
 
 
@@ -1250,7 +1318,7 @@ def page_athlete():
 
 
 # =============================================================== Navigation & Filter
-POWER_PAGES = {"pd", "zones", "profile", "fatigue"}
+POWER_PAGES = {"pd", "profile", "fatigue"}
 
 
 def guarded(key: str, fn):
@@ -1265,7 +1333,10 @@ def guarded(key: str, fn):
         if RNG is not None and WK.empty and key not in ("athlete", "sources", "pmc", "recovery", "plan", "dashboard"):
             st.warning("Keine Workouts im gewählten Zeitraum/Sport.", icon=":material/filter_alt_off:"); return
         if key in POWER_PAGES and RNG is not None and not (WK.tss_method == "power").any():
-            st.info("Im gewählten Zeitraum/Sport gibt es keine Rad-Einheiten mit Leistung. Für Läufe: Ansicht „Laufen“.", icon=":material/directions_run:"); return
+            st.info("Diese Ansicht wertet Rad-Leistung (Watt) aus – im gewählten Zeitraum/Sport gibt es keine Rad-Einheiten mit Leistung.", icon=":material/directions_bike:")
+            if st.button("Zur Lauf-Entsprechung: „Laufen“ (Pace-Kurve, Critical Speed)", icon=":material/directions_run:"):
+                st.switch_page(PAGE["run"])
+            return
         fn()
     run.__name__ = f"page_{key}"
     return run
