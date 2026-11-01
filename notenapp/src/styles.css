@@ -270,3 +270,13 @@ table.names .photo-cell { width: 60px; }
 .ueb-fach { margin: 8px 0; }
 .save-state { font-size: 12px; color: var(--muted); align-self: center; margin-right: 6px; }
 .save-state.error { color: var(--danger); }
+
+/* CSV-Import */
+.import-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 16px; }
+.import-grid input:not(.num), .import-grid select { width: 100%; }
+.preview { max-height: 300px; overflow: auto; }
+.preview tr.head td { background: var(--panel); font-weight: 600; }
+.preview tr.skip td { color: var(--muted); text-decoration: line-through; }
+.preview td.namecol { background: color-mix(in srgb, var(--accent-soft) 70%, transparent); }
+.preview td.usecol { background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.modal footer .grow { flex: 1; }

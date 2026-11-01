@@ -6,7 +6,8 @@ import { SchuelerSide, SchuelerMain } from './views/Schueler.jsx';
 import { ListenSide, ListenMain, LISTEN } from './views/Listen.jsx';
 import { SitzplanSide, SitzplanMain } from './views/Sitzplan.jsx';
 import { KlassenVerwalten, Versetzen } from './views/Verwalten.jsx';
-import { LockScreen, Einstellungen, Hilfe, exportBackup, importBackup, importFachCsv } from './views/Global.jsx';
+import { LockScreen, Einstellungen, Hilfe, exportBackup, importBackup, pickCsv } from './views/Global.jsx';
+import { CsvImport } from './views/CsvImport.jsx';
 import { Empty } from './ui.jsx';
 
 function KlasseEntsperren({ klasse, store }) {
@@ -78,6 +79,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', h);
   });
 
+  const openCsv = (text, name) => setModal({ type: 'csv', text, name });
+
   // Menübefehle der Mac-App
   useEffect(() =>
     window.notenappDesktop?.onMenu?.((cmd) => {
@@ -85,8 +88,8 @@ export default function App() {
       else if (cmd === 'neu') addKlasse();
       else if (cmd === 'versetzen' && klasse && !klasse.sealed) setModal({ type: 'versetzen', kid: klasse.id });
       else if (cmd === 'export') exportBackup(data);
-      else if (cmd === 'import') importBackup(store);
-      else if (cmd === 'importFach' && klasse && !klasse.sealed) importFachCsv(ctx);
+      else if (cmd === 'import') importBackup(store, openCsv);
+      else if (cmd === 'importFach') pickCsv(openCsv);
       else if (cmd === 'einstellungen') setModal('einstellungen');
       else if (cmd === 'sperren') store.lock();
       else if (cmd === 'hilfe') setModal('hilfe');
@@ -151,8 +154,8 @@ export default function App() {
     ['Klasse versetzen', '', () => klasse && !sealed && setModal({ type: 'versetzen', kid: klasse.id })],
     'sep',
     ['Sicherheitskopie aller Klassen', '⌘S', () => exportBackup(data)],
-    ['Importieren (Sicherheitskopie)', '', () => importBackup(store)],
-    ['Import von Fächern mit Noten (CSV)', '', () => klasse && !sealed && importFachCsv(ctx)],
+    ['Importieren (Sicherheitskopie)', '', () => importBackup(store, openCsv)],
+    ['Import von Fächern mit Noten (CSV)', '', () => pickCsv(openCsv)],
     'sep',
     ['Einstellungen & Passwort', '', () => setModal('einstellungen')],
     (store.hasPassword() || store.anyKlassePassword()) && ['Jetzt sperren', '', () => store.lock()],
@@ -253,7 +256,8 @@ export default function App() {
               <p>
                 <button className="primary" onClick={addKlasse}>+ Neue Klasse anlegen</button>{' '}
                 <button onClick={addDemo}>Beispielklasse laden</button>{' '}
-                <button onClick={() => importBackup(store)}>Sicherheitskopie importieren</button>
+                <button onClick={() => pickCsv(openCsv)}>Noten aus CSV importieren</button>{' '}
+                <button onClick={() => importBackup(store, openCsv)}>Sicherheitskopie importieren</button>
               </p>
             </Empty>
           ) : sealed ? (
@@ -281,6 +285,7 @@ export default function App() {
       {modal?.type === 'versetzen' && (
         <Versetzen ctx={ctx} klasse={data.klassen.find((k) => k.id === modal.kid)} onClose={() => setModal(null)} />
       )}
+      {modal?.type === 'csv' && <CsvImport ctx={ctx} text={modal.text} fileName={modal.name} onClose={() => setModal(null)} />}
       {modal === 'einstellungen' && <Einstellungen ctx={ctx} store={store} onClose={() => setModal(null)} />}
       {modal === 'hilfe' && <Hilfe onClose={() => setModal(null)} />}
     </div>

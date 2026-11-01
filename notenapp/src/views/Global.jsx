@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { defaultSchluessel, uid } from '../grades.js';
-import { isDesktop, migrate, newFach } from '../store.js';
+import { uid } from '../grades.js';
+import { isDesktop, migrate } from '../store.js';
 import { download, Field, Modal, today } from '../ui.jsx';
 
 export function LockScreen({ onUnlock }) {
@@ -123,11 +123,19 @@ function pickFile(accept) {
   });
 }
 
-export async function importBackup(store) {
-  const f = await pickFile('.json,application/json');
+/** Sicherheitskopie (JSON) importieren. CSV-Dateien werden automatisch an den Noten-Import weitergereicht. */
+export async function importBackup(store, onCsv) {
+  const f = await pickFile('.json,.csv,.txt,application/json,text/csv');
   if (!f) return;
+  const text = await f.text();
+  let parsed;
   try {
-    const parsed = JSON.parse(await f.text());
+    parsed = JSON.parse(text);
+  } catch {
+    if (/[;\t,]/.test(text.split(/\r?\n/)[0] || '') && onCsv) return onCsv(text, f.name);
+    return alert(`„${f.name}“ ist keine Sicherheitskopie der Notenapp.\n\nNoten aus Excel/CSV bitte über „Import von Fächern mit Noten …“ einlesen.`);
+  }
+  try {
     const incoming = migrate(parsed.format === 'notenapp-backup' ? parsed.data : parsed);
     if (!incoming.klassen.length) return alert('Die Datei enthält keine Klassen.');
     const replace = store.data.klassen.length
@@ -144,35 +152,14 @@ export async function importBackup(store) {
   }
 }
 
-/** CSV-Import eines Fachs mit Noten: Kopfzeile „Nachname;Vorname;Arbeit 1;Arbeit 2…“. */
-export async function importFachCsv(ctx) {
-  const f = await pickFile('.csv,text/csv,text/plain');
+/** CSV/Excel-Datei wählen und den Import-Dialog mit Vorschau öffnen. */
+export async function pickCsv(onCsv) {
+  const f = await pickFile('.csv,.txt,text/csv,text/plain');
   if (!f) return;
-  const text = (await f.text()).replace(/^﻿/, '');
-  const sep = text.split('\n')[0].includes(';') ? ';' : text.split('\n')[0].includes('\t') ? '\t' : ',';
-  const rows = text.split(/\r?\n/).filter((l) => l.trim()).map((l) => l.split(sep).map((c) => c.replace(/^"|"$/g, '').trim()));
-  if (rows.length < 2 || rows[0].length < 3) return alert('Erwartet: Kopfzeile „Nachname;Vorname;Arbeit 1;…“ und eine Zeile pro Schüler.');
-  const [head, ...body] = rows;
-  // Fachname = Dateiname (prompt() gibt es in der Mac-App nicht; umbenennen unter „Klassen verwalten“)
-  const fachName = f.name.replace(/\.[^.]+$/, '') || 'Importiertes Fach';
-  ctx.updK((k) => {
-    const fach = newFach(fachName);
-    k.faecher.push(fach);
-    const bereich = fach.bereiche[0];
-    const arbeiten = head.slice(2).map((title) => ({
-      id: uid(), title, fachId: fach.id, bereichId: bereich.id, halbjahr: ctx.sel.hj || 1, date: today(), mitDatum: false,
-      individuell: false, weight: 1, locked: false, useSchluessel: false, maxPoints: 50, schluessel: defaultSchluessel(k.settings), notiz: '', results: {},
-    }));
-    for (const r of body) {
-      const [last, first] = r;
-      let st = k.schueler.find((s) => s.last.toLowerCase() === (last || '').toLowerCase() && s.first.toLowerCase() === (first || '').toLowerCase());
-      if (!st) {
-        st = { id: uid(), last: last || '', first: first || '', bemerkung: '', fachNotizen: {}, erinnerungen: {} };
-        k.schueler.push(st);
-      }
-      r.slice(2).forEach((g, i) => { if (g && arbeiten[i]) arbeiten[i].results[st.id] = { grade: g }; });
-    }
-    k.arbeiten.push(...arbeiten);
-  });
-  alert(`Fach „${fachName}“ mit ${head.length - 2} Arbeit(en) importiert.`);
+  const buf = await f.arrayBuffer();
+  // Excel speichert CSV auf dem Mac teils in Windows-1252 statt UTF-8
+  let text = new TextDecoder('utf-8').decode(buf);
+  if (text.includes('\ufffd')) text = new TextDecoder('windows-1252').decode(buf);
+  if (/^PK/.test(text)) return alert('Das ist eine Excel-Datei (.xlsx). Bitte in Excel/Numbers „Speichern unter → CSV (Trennzeichen-getrennt)“ wählen und die CSV importieren.');
+  onCsv(text, f.name);
 }
