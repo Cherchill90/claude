@@ -330,14 +330,12 @@ function Faecher({ klasse, updK }) {
                   );
                 })}
                 {f.bereiche.filter((b) => !b.gruppeId || !(f.gruppen || []).some((g) => g.id === b.gruppeId)).map((b, i) => bereichRow(f, b, i, 0, `bereiche|${f.id}|-`))}
-                <NewRow placeholder="Neue Gruppe" onCreate={(name) => setF(f.id, (x) => (x.gruppen ||= []).push({ id: uid(), name, kurz: '', weight: 1 }))} />
               </>
             ) : (
-              <>
-                {f.bereiche.map((b, i) => bereichRow(f, b, i, 0, `bereiche|${f.id}|-`))}
-                <NewRow placeholder="Neuer Bereich" onCreate={(name) => setF(f.id, (x) => x.bereiche.push(newBereich(x, name)))} />
-              </>
+              f.bereiche.map((b, i) => bereichRow(f, b, i, 0, `bereiche|${f.id}|-`))
             )}
+            <NewRow placeholder="Neuer Bereich" onCreate={(name) => setF(f.id, (x) => x.bereiche.push(newBereich(x, name)))} />
+            <NewRow placeholder="Neue Gruppe" onCreate={(name) => { const id = uid(); setF(f.id, (x) => { x.gruppierung = true; (x.gruppen ||= []).push({ id, name, kurz: '', weight: 1 }); }); setSelId({ type: 'gruppe', id, fachId: f.id }); }} />
           </div>
         ))}
         <NewRow placeholder="Neues Fach" onCreate={(name) => updK((k) => { const f = newFach(name); k.faecher.push(f); setSelId({ type: 'fach', id: f.id }); })} />
@@ -345,12 +343,32 @@ function Faecher({ klasse, updK }) {
 
       <aside className="detail">
         {sel && selId.type === 'fach' && <FachDetail klasse={klasse} f={sel} setF={setF} />}
-        {sel && selId.type === 'gruppe' && (
-          <>
-            <h2>{sel.gruppen.find((g) => g.id === selId.id)?.name}</h2>
-            <p className="muted">Bereichsgruppe in „{sel.name}“. Der Gruppenschnitt ist das gewichtete Mittel ihrer Bereiche.</p>
-          </>
-        )}
+        {sel && selId.type === 'gruppe' && (() => {
+          const g = (sel.gruppen || []).find((x) => x.id === selId.id);
+          if (!g) return null;
+          return (
+            <>
+              <h2>{g.name}</h2>
+              <p className="muted">Bereichsgruppe in „{sel.name}“. Der Gruppenschnitt ist das gewichtete Mittel der angehakten Bereiche; er geht mit Gewicht {g.weight} in den Fachschnitt ein.</p>
+              <h4>Bereiche in dieser Gruppe</h4>
+              {sel.bereiche.map((b) => {
+                const other = b.gruppeId && b.gruppeId !== g.id && sel.gruppen.find((x) => x.id === b.gruppeId);
+                return (
+                  <label key={b.id} className="check block">
+                    <input
+                      type="checkbox"
+                      checked={b.gruppeId === g.id}
+                      onChange={(e) => setF(sel.id, (x) => { const y = x.bereiche.find((z) => z.id === b.id); if (e.target.checked) y.gruppeId = g.id; else delete y.gruppeId; })}
+                    />
+                    <i className="dot" style={{ background: b.color }} /> {b.name}
+                    {other && <span className="muted small"> (bisher in „{other.name}“)</span>}
+                  </label>
+                );
+              })}
+              {!sel.bereiche.length && <p className="muted">Noch keine Bereiche – unten links „Neuer Bereich“ anlegen.</p>}
+            </>
+          );
+        })()}
         {sel && selId.type === 'bereich' && (() => {
           const b = sel.bereiche.find((x) => x.id === selId.id);
           if (!b) return null;
@@ -358,14 +376,24 @@ function Faecher({ klasse, updK }) {
             <>
               <h2>{b.name}</h2>
               <Field label="Farbe"><input type="color" value={b.color || COLORS[0]} onChange={(e) => setF(sel.id, (x) => (x.bereiche.find((y) => y.id === b.id).color = e.target.value))} /></Field>
-              {sel.gruppierung !== false && (
-                <Field label="Gruppe">
-                  <select value={b.gruppeId || ''} onChange={(e) => setF(sel.id, (x) => { const y = x.bereiche.find((z) => z.id === b.id); if (e.target.value) y.gruppeId = e.target.value; else delete y.gruppeId; })}>
-                    <option value="">– keine Gruppe –</option>
-                    {(sel.gruppen || []).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-                  </select>
-                </Field>
-              )}
+              <Field label="Gruppe" hint={sel.gruppierung === false && b.gruppeId ? 'Gruppierung ist für dieses Fach ausgeschaltet – die Gruppe zählt erst, wenn sie wieder eingeschaltet wird.' : ''}>
+                <select
+                  value={b.gruppeId || ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const id = v === 'neu' ? uid() : v;
+                    setF(sel.id, (x) => {
+                      const y = x.bereiche.find((z) => z.id === b.id);
+                      if (v === 'neu') { x.gruppen ||= []; x.gruppen.push({ id, name: `Gruppe ${x.gruppen.length + 1}`, kurz: '', weight: 1 }); }
+                      if (v) { y.gruppeId = id; x.gruppierung = true; } else delete y.gruppeId;
+                    });
+                  }}
+                >
+                  <option value="">– keine Gruppe –</option>
+                  {(sel.gruppen || []).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  <option value="neu">+ Neue Gruppe …</option>
+                </select>
+              </Field>
             </>
           );
         })()}

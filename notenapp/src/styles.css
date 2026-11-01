@@ -259,7 +259,7 @@ fieldset.card { border: 1px solid var(--line); }
 .tree-row input:not(.num):hover, .tree-row input:not(.num):focus { border-color: var(--line); background: var(--bg); }
 .tree-row.new input { color: var(--muted); }
 .tree-row .kurz { width: 90px; }
-.tree-row .dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.tree-row .dot, .detail .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; }
 .tree-row .caret { color: var(--muted); }
 .handle { cursor: grab; color: var(--muted); padding: 0 4px; user-select: none; }
 table.names { width: 100%; border-collapse: collapse; }

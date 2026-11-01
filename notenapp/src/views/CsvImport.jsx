@@ -64,7 +64,7 @@ export function CsvImport({ ctx, text, fileName, onClose }) {
       if (systemMismatch && umstellen) k.settings.system = layout.system;
       let f = k.faecher.find((x) => x.id === fachId);
       if (!f) {
-        f = { ...newFach(fachName || 'Importiertes Fach'), id: zielFachId, gruppen: [], bereiche: [], gruppierung: false };
+        f = { ...newFach(fachName || 'Importiertes Fach'), id: zielFachId, gruppen: [], bereiche: [], gruppierung: true };
         k.faecher.push(f);
       }
       const bereichId = (key) => {
