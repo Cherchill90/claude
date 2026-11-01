@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useStore, newKlasse } from './store.js';
+import { useStore, newKlasse, isDesktop } from './store.js';
 import { uid } from './grades.js';
 import { NotenSide, NotenMain } from './views/Noten.jsx';
 import { SchuelerSide, SchuelerMain } from './views/Schueler.jsx';
@@ -8,6 +8,22 @@ import { SitzplanSide, SitzplanMain } from './views/Sitzplan.jsx';
 import { KlassenVerwalten, Versetzen } from './views/Verwalten.jsx';
 import { LockScreen, Einstellungen, Hilfe, exportBackup, importBackup, importFachCsv } from './views/Global.jsx';
 import { Empty } from './ui.jsx';
+
+function KlasseEntsperren({ klasse, store }) {
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  return (
+    <div className="lock" style={{ height: 'auto', padding: 60, background: 'none' }}>
+      <form className="card" onSubmit={async (e) => { e.preventDefault(); try { await store.unlockKlasse(klasse.id, pw); } catch { setErr('Falsches Passwort.'); } }}>
+        <h2>🔒 {klasse.name}</h2>
+        <p className="muted">Diese Klasse ist mit einem eigenen Passwort geschützt.</p>
+        <input type="password" autoFocus placeholder="Passwort der Klasse" value={pw} onChange={(e) => { setPw(e.target.value); setErr(''); }} />
+        {err && <p className="error">{err}</p>}
+        <button className="primary" type="submit">Öffnen</button>
+      </form>
+    </div>
+  );
+}
 
 const TABS = [
   ['noten', 'Noten'],
@@ -38,7 +54,7 @@ export default function App() {
     evs.forEach((e) => window.addEventListener(e, bump));
     const t = setInterval(() => {
       const min = data.prefs.lockMinutes;
-      if (min > 0 && store.hasPassword() && Date.now() - last.current > min * 60000) store.lock();
+      if (min > 0 && (store.hasPassword() || store.anyKlassePassword()) && Date.now() - last.current > min * 60000) store.lock();
     }, 10000);
     return () => {
       evs.forEach((e) => window.removeEventListener(e, bump));
@@ -49,9 +65,9 @@ export default function App() {
   // Tastenkürzel wie in der Mac-App
   useEffect(() => {
     const h = (e) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
+      if (isDesktop || !(e.metaKey || e.ctrlKey)) return;
       const k = e.key.toLowerCase();
-      if (k === 'o') setModal('verwalten');
+      if (k === 'o') setModal({ type: 'verwalten' });
       else if (k === 'n') addKlasse();
       else if (k === 'p') window.print();
       else if (k === 's') exportBackup(data);
@@ -62,8 +78,24 @@ export default function App() {
     return () => window.removeEventListener('keydown', h);
   });
 
+  // Menübefehle der Mac-App
+  useEffect(() =>
+    window.notenappDesktop?.onMenu?.((cmd) => {
+      if (cmd === 'verwalten') setModal({ type: 'verwalten' });
+      else if (cmd === 'neu') addKlasse();
+      else if (cmd === 'versetzen' && klasse && !klasse.sealed) setModal({ type: 'versetzen', kid: klasse.id });
+      else if (cmd === 'export') exportBackup(data);
+      else if (cmd === 'import') importBackup(store);
+      else if (cmd === 'importFach' && klasse && !klasse.sealed) importFachCsv(ctx);
+      else if (cmd === 'einstellungen') setModal('einstellungen');
+      else if (cmd === 'sperren') store.lock();
+      else if (cmd === 'hilfe') setModal('hilfe');
+    }),
+  );
+
   const klasse = data.klassen.find((k) => k.id === data.activeKlasseId) || data.klassen[0];
-  const fach = klasse?.faecher.find((f) => f.id === sel.fachId) || klasse?.faecher[0];
+  const sealed = !!klasse?.sealed;
+  const fach = sealed ? null : klasse?.faecher.find((f) => f.id === sel.fachId) || klasse?.faecher[0];
 
   const ctx = useMemo(
     () => ({
@@ -92,7 +124,7 @@ export default function App() {
       d.klassen.push(k);
       d.activeKlasseId = k.id;
     });
-    setModal('verwalten');
+    setModal({ type: 'verwalten', edit: { id: k.id, step: 'allgemein' } });
   }
 
   function addDemo() {
@@ -114,16 +146,16 @@ export default function App() {
   }
 
   const menuItems = [
-    ['Klassen verwalten', '⌘O', () => setModal('verwalten')],
+    ['Klassen verwalten', '⌘O', () => setModal({ type: 'verwalten' })],
     ['+ Neue Klasse anlegen', '⌘N', addKlasse],
-    ['Klasse versetzen', '', () => klasse && setModal('versetzen')],
+    ['Klasse versetzen', '', () => klasse && !sealed && setModal({ type: 'versetzen', kid: klasse.id })],
     'sep',
     ['Sicherheitskopie aller Klassen', '⌘S', () => exportBackup(data)],
     ['Importieren (Sicherheitskopie)', '', () => importBackup(store)],
-    ['Import von Fächern mit Noten (CSV)', '', () => klasse && importFachCsv(ctx)],
+    ['Import von Fächern mit Noten (CSV)', '', () => klasse && !sealed && importFachCsv(ctx)],
     'sep',
     ['Einstellungen & Passwort', '', () => setModal('einstellungen')],
-    store.hasPassword() && ['Jetzt sperren', '', () => store.lock()],
+    (store.hasPassword() || store.anyKlassePassword()) && ['Jetzt sperren', '', () => store.lock()],
     ['Drucken …', '⌘P', () => window.print()],
   ].filter(Boolean);
 
@@ -151,12 +183,12 @@ export default function App() {
               </optgroup>
             ))}
           </select>
-          {klasse && tab !== 'sitzplan' && (
+          {klasse && !sealed && tab !== 'sitzplan' && (
             <select value={fach?.id || ''} onChange={(e) => setSel({ fachId: e.target.value, bereichId: null, arbeitId: null })} aria-label="Fach">
               {klasse.faecher.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           )}
-          {klasse && (
+          {klasse && !sealed && (
             <div className="seg">
               {[[1, '1. HJ'], [2, '2. HJ'], [0, 'Jahr']].map(([v, l]) => (
                 <button key={v} className={sel.hj === v ? 'on' : ''} onClick={() => setSel({ hj: v, arbeitId: null })}>{l}</button>
@@ -194,6 +226,9 @@ export default function App() {
             )}
           </nav>
           <div className="actions">
+            <span className={'save-state ' + (store.saveState.startsWith('error') ? 'error' : '')} title={isDesktop ? 'Daten werden automatisch in einer Datei auf diesem Mac gespeichert' : 'Daten werden automatisch im Browser gespeichert'}>
+              {store.saveState === 'saved' ? '✓ Gespeichert' : store.saveState === 'pending' ? 'Speichert …' : '⚠ Speicherfehler'}
+            </span>
             <button onClick={(e) => { e.stopPropagation(); setMenu(menu === 'klasse' ? null : 'klasse'); }}>☰ Klasse</button>
             <button onClick={() => window.print()}>🖨 Drucken</button>
             <button onClick={() => setModal('hilfe')}>? Hilfe</button>
@@ -221,9 +256,11 @@ export default function App() {
                 <button onClick={() => importBackup(store)}>Sicherheitskopie importieren</button>
               </p>
             </Empty>
+          ) : sealed ? (
+            <KlasseEntsperren klasse={klasse} store={store} />
           ) : !fach ? (
             <Empty>
-              Diese Klasse hat noch kein Fach. <button onClick={() => setModal('verwalten')}>Klasse verwalten</button>
+              Diese Klasse hat noch kein Fach. <button onClick={() => setModal({ type: 'verwalten' })}>Klasse verwalten</button>
             </Empty>
           ) : (
             <Main ctx={ctx} />
@@ -231,8 +268,19 @@ export default function App() {
         </main>
       </div>
 
-      {modal === 'verwalten' && <KlassenVerwalten ctx={ctx} onClose={() => setModal(null)} />}
-      {modal === 'versetzen' && <Versetzen ctx={ctx} onClose={() => setModal(null)} />}
+      {modal?.type === 'verwalten' && (
+        <KlassenVerwalten
+          ctx={ctx}
+          store={store}
+          startEdit={modal.edit}
+          onClose={() => setModal(null)}
+          onOpenSitzplan={(kid) => { update((d) => (d.activeKlasseId = kid)); setSel({ planId: null }); setTab('sitzplan'); setModal(null); }}
+          onVersetzen={(kid) => setModal({ type: 'versetzen', kid })}
+        />
+      )}
+      {modal?.type === 'versetzen' && (
+        <Versetzen ctx={ctx} klasse={data.klassen.find((k) => k.id === modal.kid)} onClose={() => setModal(null)} />
+      )}
       {modal === 'einstellungen' && <Einstellungen ctx={ctx} store={store} onClose={() => setModal(null)} />}
       {modal === 'hilfe' && <Hilfe onClose={() => setModal(null)} />}
     </div>

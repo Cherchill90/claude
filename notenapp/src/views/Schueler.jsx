@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  bereichAvg, fachAvg, fachTopLevel, fmt, gradeValue, gruppeAvg, roundToZeugnis, zeugnisNote,
+  bereichAvg, fachAvg, fachTopLevel, fmt, gradeValue, gruppeAvg, roundToZeugnis, zeugnisNote, nimmtTeil, roundAvg,
 } from '../grades.js';
 import { Verlauf } from '../charts.jsx';
 import { Avatar, Empty, fmtDate, readPhoto, sortSchueler } from '../ui.jsx';
@@ -18,7 +18,7 @@ export function SchuelerSide({ ctx }) {
               <b>{st.first || st.last}</b>
               <small>{st.first ? st.last : ''}</small>
             </div>
-            <span className="avg">Ø {fmt(fachAvg(klasse, st.id, fach.id, sel.hj), klasse.settings.decimals)}</span>
+            <span className="avg">{nimmtTeil(fach, st.id) ? `Ø ${fmt(fachAvg(klasse, st.id, fach.id, sel.hj), klasse.settings.decimals)}` : 'nimmt nicht teil'}</span>
           </li>
         ))}
         <li className="add" onClick={() => setModal('verwalten')}>Schüler bearbeiten</li>
@@ -133,7 +133,7 @@ export function SchuelerMain({ ctx }) {
                   <tr key={h}>
                     <td>{l}</td>
                     <td>{fmt(avg, d)}</td>
-                    <td>{roundToZeugnis(avg, s) ?? '–'}</td>
+                    <td>{roundToZeugnis(roundAvg(avg, d), s) ?? '–'}</td>
                     <td>
                       <input
                         className={'grade' + (z.manual ? ' manual' : '')}

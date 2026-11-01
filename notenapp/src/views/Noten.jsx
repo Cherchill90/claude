@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import {
-  arbeitStats, defaultSchluessel, fmt, gradeFromPoints, isValidGrade, schluesselRanges, uid, fachTopLevel,
+  arbeitStats, defaultSchluessel, fmt, gradeFromPoints, isValidGrade, nimmtTeil, schluesselRanges, uid, fachTopLevel,
 } from '../grades.js';
 import { Notenspiegel } from '../charts.jsx';
 import { Avatar, Field, fmtDate, sortSchueler, today, Empty } from '../ui.jsx';
@@ -101,7 +101,7 @@ export function NotenMain({ ctx }) {
   const s = klasse.settings;
   if (!arbeit) return <Empty>Noch keine Arbeit in diesem Bereich. Lege links eine „Neue Arbeit“ an.</Empty>;
 
-  const schueler = sortSchueler(klasse.schueler);
+  const schueler = sortSchueler(klasse.schueler).filter((st) => nimmtTeil(ctx.fach, st.id));
   const student = schueler.find((x) => x.id === sel.schuelerId) || schueler[0];
   const stats = arbeitStats(klasse, arbeit);
   const showFoto = data.prefs.fotoAnzeigen !== false;

@@ -90,3 +90,42 @@ test('Bereichsgruppen und individuelle Gewichtung', () => {
   // Gruppe: (1+3)/2 = 2 ; mündlich: (4*3+6)/4 = 4,5 ; Fach: (2+4,5)/2 = 3,25
   assert.equal(G.fachAvg(klasse, 's', 'f', 1), 3.25);
 });
+
+test('Jede Note einzeln gewichten, Gruppierung aus, Fachteilnahme, Gesamtschnitt', () => {
+  const fach = {
+    id: 'f', berechnung: 'einzeln', gruppierung: true,
+    gruppen: [{ id: 'g', weight: 1 }],
+    bereiche: [{ id: 'k', gruppeId: 'g', weight: 2 }, { id: 'm', weight: 1 }],
+  };
+  const klasse = {
+    settings: S,
+    schueler: [{ id: 's' }],
+    faecher: [fach, { id: 'f2', weight: 2, gruppierung: false, bereiche: [{ id: 'x', weight: 1 }], ohne: [] }],
+    arbeiten: [
+      { fachId: 'f', bereichId: 'k', halbjahr: 1, results: { s: { grade: '1' } } },
+      { fachId: 'f', bereichId: 'm', halbjahr: 1, results: { s: { grade: '4' } } },
+      { fachId: 'f', bereichId: 'm', halbjahr: 1, results: { s: { grade: '4' } } },
+      { fachId: 'f2', bereichId: 'x', halbjahr: 1, results: { s: { grade: '1' } } },
+    ],
+  };
+  // einzeln: (1*2 + 4 + 4) / 4 = 2,5 (Durchschnitte gewichtet wäre (1+4)/2 = 2,5 – anderer Fall:)
+  assert.equal(G.fachAvg(klasse, 's', 'f', 1), 2.5);
+  klasse.arbeiten.push({ fachId: 'f', bereichId: 'm', halbjahr: 1, results: { s: { grade: '4' } } });
+  // einzeln: (2 + 12) / 5 = 2,8 ; gewichtet: (1 + 4) / 2 = 2,5
+  assert.equal(G.fachAvg(klasse, 's', 'f', 1), 2.8);
+  fach.berechnung = 'durchschnitte';
+  assert.equal(G.fachAvg(klasse, 's', 'f', 1), 2.5);
+  // Gesamt: (2,5*1 + 1*2) / 3 = 1,5
+  assert.equal(G.gesamtAvg(klasse, 's', 1), 1.5);
+  klasse.faecher[1].ohne = ['s'];
+  assert.equal(G.gesamtAvg(klasse, 's', 1), 2.5);
+  // Gruppierung aus: Gruppe ignoriert, Bereiche direkt gewichtet: (1*2 + 4*1)/3 = 2
+  fach.gruppierung = false;
+  assert.equal(G.fachAvg(klasse, 's', 'f', 1), 2);
+});
+
+test('Zeugnisnote basiert auf gerundetem Schnitt', () => {
+  assert.equal(G.roundAvg(2.496, 2), 2.5);
+  assert.equal(G.fmt(2.376, 2), '2,38');
+  assert.equal(G.fmt(2.376, 0), '2');
+});

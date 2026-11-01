@@ -13,6 +13,16 @@ export const DEFAULT_SETTINGS = {
   hjWeights: null, // null = alle Noten des Jahres gemeinsam, sonst [g1, g2]
 };
 
+export const HJ_GEWICHTUNGEN = [
+  [null, 'Ø – Gesamt aus allen Noten'],
+  [[1, 1], 'Ø aus beiden Halbjahren (1 : 1)'],
+  [[1, 2], '2. Halbjahr doppelt (1 : 2)'],
+  [[2, 1], '1. Halbjahr doppelt (2 : 1)'],
+  [[0, 1], 'Nur 2. Halbjahr'],
+];
+
+export const RUNDUNGEN = [0, 1, 2, 3].map((d) => [d, `2,376 ≈ ${(2.376).toFixed(d).replace('.', ',')}`]);
+
 export const SCHLUESSEL_NOTEN = [
   { grade: '1', min: 92 },
   { grade: '2', min: 81 },
@@ -81,7 +91,7 @@ export function weightedMean(pairs) {
 
 export function fmt(v, decimals = 2) {
   if (v === null || v === undefined || Number.isNaN(v)) return '–';
-  return v.toFixed(decimals).replace('.', ',');
+  return roundAvg(v, decimals).toFixed(decimals).replace('.', ',');
 }
 
 /** Zeugnisnote aus Schnitt. Noten: ab Schwelle zur schlechteren Note. Punkte: ab ,5 aufrunden. */
@@ -143,6 +153,7 @@ export function bereichAvg(klasse, studentId, fachId, bereichId, hj) {
  * Gewichtet wird zuerst innerhalb der Gruppe (Bereichsgewichte), dann über die oberste Ebene.
  */
 export function fachTopLevel(fach) {
+  if (fach.gruppierung === false) return fach.bereiche.map((b) => ({ type: 'bereich', ...b }));
   const gruppen = (fach.gruppen || []).map((g) => ({
     type: 'gruppe',
     ...g,
@@ -152,6 +163,13 @@ export function fachTopLevel(fach) {
     .filter((b) => !b.gruppeId || !(fach.gruppen || []).some((g) => g.id === b.gruppeId))
     .map((b) => ({ type: 'bereich', ...b }));
   return [...gruppen, ...lose];
+}
+
+/** Gewicht der Gruppe eines Bereichs (1, wenn ohne Gruppe oder Gruppierung aus). */
+function gruppenGewicht(fach, b) {
+  if (fach.gruppierung === false || !b.gruppeId) return 1;
+  const g = (fach.gruppen || []).find((x) => x.id === b.gruppeId);
+  return g ? Number(g.weight) || 0 : 1;
 }
 
 export function gruppeAvg(klasse, studentId, fach, gruppe, hj) {
@@ -173,6 +191,17 @@ export function fachAvg(klasse, studentId, fachId, hj = 0) {
       [fachAvg(klasse, studentId, fachId, 2), s.hjWeights[1]],
     ]);
   }
+  if (fach.berechnung === 'einzeln') {
+    // Jede Note einzeln: Gewicht = Arbeit × Bereich × Gruppe, alle Noten in einem Topf
+    const st = klasse.settings;
+    const pairs = [];
+    for (const b of fach.bereiche) {
+      const wb = (Number(b.weight) || 0) * gruppenGewicht(fach, b);
+      for (const a of arbeitenFor(klasse, fachId, b.id, hj))
+        pairs.push([gradeValue(a.results?.[studentId]?.grade, st), ((a.individuell ? Number(a.weight) : 1) || 0) * wb]);
+    }
+    return weightedMean(pairs);
+  }
   return weightedMean(
     fachTopLevel(fach).map((t) => [
       t.type === 'gruppe'
@@ -181,6 +210,25 @@ export function fachAvg(klasse, studentId, fachId, hj = 0) {
       Number(t.weight) || 0,
     ]),
   );
+}
+
+/** Nimmt der Schüler am Fach teil? (fach.ohne = ausgeschlossene Schüler-IDs) */
+export const nimmtTeil = (fach, studentId) => !(fach.ohne || []).includes(studentId);
+
+/** Gesamtschnitt über alle Fächer (Fachgewichte). */
+export function gesamtAvg(klasse, studentId, hj = 0) {
+  return weightedMean(
+    klasse.faecher
+      .filter((f) => nimmtTeil(f, studentId))
+      .map((f) => [fachAvg(klasse, studentId, f.id, hj), f.weight === undefined ? 1 : Number(f.weight) || 0]),
+  );
+}
+
+/** Schnitt auf die eingestellte Nachkommazahl runden (Basis für Anzeige und Zeugnisnote). */
+export function roundAvg(v, decimals = 2) {
+  if (v === null || v === undefined) return null;
+  const f = 10 ** decimals;
+  return Math.round(v * f + 1e-9) / f;
 }
 
 export function arbeitStats(klasse, arbeit) {
@@ -205,7 +253,8 @@ export function arbeitStats(klasse, arbeit) {
 export function zeugnisNote(klasse, studentId, fachId, hj) {
   const manual = klasse.zeugnis?.[`${studentId}|${fachId}|${hj}`];
   if (manual !== undefined && manual !== '') return { value: manual, manual: true };
-  const r = roundToZeugnis(fachAvg(klasse, studentId, fachId, hj), klasse.settings);
+  const s = klasse.settings;
+  const r = roundToZeugnis(roundAvg(fachAvg(klasse, studentId, fachId, hj), s.decimals), s);
   return { value: r === null ? '' : String(r), manual: false };
 }
 

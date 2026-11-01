@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test src/grades.test.js"
+    "test": "node --test src/grades.test.js electron/backup.test.cjs",
+    "app": "vite build && electron .",
+    "dist:mac": "vite build && electron-builder --mac"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -15,6 +17,41 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0",
     "vite": "^5.4.11"
+  },
+  "main": "electron/main.cjs",
+  "description": "Notenverwaltung für Lehrkräfte",
+  "author": "Notenapp",
+  "build": {
+    "appId": "de.notenapp.desktop",
+    "productName": "Notenapp",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "!electron/*.test.cjs",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.education",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "identity": "-"
+    },
+    "dmg": {
+      "title": "Notenapp"
+    }
   }
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { defaultSchluessel, uid } from '../grades.js';
-import { migrate, newFach } from '../store.js';
+import { isDesktop, migrate, newFach } from '../store.js';
 import { download, Field, Modal, today } from '../ui.jsx';
 
 export function LockScreen({ onUnlock }) {
@@ -39,7 +39,7 @@ export function Einstellungen({ ctx, store, onClose }) {
     <Modal title="Einstellungen" onClose={onClose}>
       <h3>Passwortschutz</h3>
       <p className="muted">
-        Mit Passwort werden alle Daten im Browser mit AES-256 verschlüsselt gespeichert. Ohne das Passwort sind sie nicht wiederherstellbar – bitte merken
+        Mit Passwort werden alle Daten mit AES-256 verschlüsselt gespeichert (auch die Backups). Ohne das Passwort sind sie nicht wiederherstellbar – bitte merken
         und regelmäßig eine Sicherheitskopie erstellen.
       </p>
       <Field label={has ? 'Neues Passwort' : 'Passwort'}><input type="password" value={pw1} onChange={(e) => setPw1(e.target.value)} autoComplete="new-password" /></Field>
@@ -96,7 +96,14 @@ export function Hilfe({ onClose }) {
         <li>⌘/Strg + O: Klassen verwalten · ⌘/Strg + N: Neue Klasse · ⌘/Strg + S: Sicherheitskopie · ⌘/Strg + P: Drucken</li>
       </ul>
       <h3>Datenspeicherung</h3>
-      <p>Alle Daten bleiben lokal in diesem Browser. Bitte regelmäßig „Sicherheitskopie aller Klassen“ ausführen – beim Löschen der Browserdaten gehen sie sonst verloren.</p>
+      {isDesktop ? (
+        <>
+          <p>Jede Eingabe wird sofort automatisch gespeichert (Anzeige „✓ Gespeichert“ oben rechts). Speicherort: <code>~/Library/Application Support/Notenapp/notenapp-daten.json</code>.</p>
+          <p>Bei jedem Beenden legt die App ein Backup im Ordner <code>Backups</code> daneben an. Backups, die älter als 3 Monate sind, werden automatisch gelöscht. Wiederherstellen: Menü „Klasse → Backup wiederherstellen …“.</p>
+        </>
+      ) : (
+        <p>Alle Daten bleiben lokal in diesem Browser. Bitte regelmäßig „Sicherheitskopie aller Klassen“ ausführen – beim Löschen der Browserdaten gehen sie sonst verloren.</p>
+      )}
     </Modal>
   );
 }
@@ -146,8 +153,8 @@ export async function importFachCsv(ctx) {
   const rows = text.split(/\r?\n/).filter((l) => l.trim()).map((l) => l.split(sep).map((c) => c.replace(/^"|"$/g, '').trim()));
   if (rows.length < 2 || rows[0].length < 3) return alert('Erwartet: Kopfzeile „Nachname;Vorname;Arbeit 1;…“ und eine Zeile pro Schüler.');
   const [head, ...body] = rows;
-  const fachName = prompt('Name des importierten Fachs:', f.name.replace(/\.[^.]+$/, ''));
-  if (!fachName) return;
+  // Fachname = Dateiname (prompt() gibt es in der Mac-App nicht; umbenennen unter „Klassen verwalten“)
+  const fachName = f.name.replace(/\.[^.]+$/, '') || 'Importiertes Fach';
   ctx.updK((k) => {
     const fach = newFach(fachName);
     k.faecher.push(fach);

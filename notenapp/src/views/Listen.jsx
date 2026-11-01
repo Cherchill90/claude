@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { bereichAvg, fachAvg, fachTopLevel, fmt, gruppeAvg, zeugnisNote, uid } from '../grades.js';
+import { bereichAvg, fachAvg, fachTopLevel, fmt, gesamtAvg, gruppeAvg, nimmtTeil, zeugnisNote, uid } from '../grades.js';
 import { Avatar, downloadCsv, Empty, fmtDate, fullName, PrintButton, sortSchueler, today } from '../ui.jsx';
 
 export const LISTEN = [
@@ -61,14 +61,15 @@ function FachBlick({ ctx }) {
   const { klasse, fach, sel } = ctx;
   const hj = sel.hj;
   const d = klasse.settings.decimals;
-  const list = sortSchueler(klasse.schueler);
+  const list = sortSchueler(klasse.schueler).filter((st) => nimmtTeil(fach, st.id));
   const top = fachTopLevel(fach);
+  const kz = (x) => x.kurz || x.name;
   const cols = [];
   for (const t of top) {
     if (t.type === 'gruppe') {
-      t.bereiche.forEach((b) => cols.push({ label: b.name, f: (st) => bereichAvg(klasse, st.id, fach.id, b.id, hj) }));
-      cols.push({ label: `Σ ${t.name}`, f: (st) => gruppeAvg(klasse, st.id, fach, t, hj), strong: true });
-    } else cols.push({ label: t.name, f: (st) => bereichAvg(klasse, st.id, fach.id, t.id, hj) });
+      t.bereiche.forEach((b) => cols.push({ label: kz(b), f: (st) => bereichAvg(klasse, st.id, fach.id, b.id, hj) }));
+      cols.push({ label: `Ø ${kz(t)}`, f: (st) => gruppeAvg(klasse, st.id, fach, t, hj), strong: true });
+    } else cols.push({ label: kz(t), f: (st) => bereichAvg(klasse, st.id, fach.id, t.id, hj) });
   }
   const withVorjahr = !!klasse.vorjahr;
   const head = ['Schüler', ...cols.map((c) => c.label), 'Ø Fach', 'Zeugnisnote', ...(withVorjahr ? ['Vorjahr'] : [])];
@@ -120,7 +121,7 @@ function SchuelerBlick({ ctx }) {
           <table className="grid">
             <thead><tr><th>Fach</th><th>Noten</th><th>Ø 1. HJ</th><th>Ø 2. HJ</th><th>Ø Jahr</th><th>Zeugnis</th><th>Notiz</th></tr></thead>
             <tbody>
-              {klasse.faecher.map((f) => (
+              {klasse.faecher.filter((f) => nimmtTeil(f, st.id)).map((f) => (
                 <tr key={f.id}>
                   <td>{f.name}</td>
                   <td>
@@ -141,6 +142,13 @@ function SchuelerBlick({ ctx }) {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr>
+                <th colSpan="2">Gesamtschnitt (Fachgewichte)</th>
+                {[1, 2, 0].map((h) => <th key={h} className="center">{fmt(gesamtAvg(klasse, st.id, h), d)}</th>)}
+                <th colSpan="2"></th>
+              </tr>
+            </tfoot>
           </table>
           <p className="muted">
             {klasse.strichKategorien.map((k) => `${k.name}: ${klasse.striche.filter((x) => x.studentId === st.id && x.catId === k.id).length}`).join(' · ')}
@@ -156,10 +164,14 @@ function Durchschnitte({ ctx }) {
   const { klasse } = ctx;
   const d = klasse.settings.decimals;
   const list = sortSchueler(klasse.schueler);
-  const head = ['Schüler', ...klasse.faecher.flatMap((f) => [`${f.name} 1. HJ`, `${f.name} 2. HJ`, `${f.name} Jahr`])];
-  const row = (st) => [fullName(st), ...klasse.faecher.flatMap((f) => [1, 2, 0].map((h) => fmt(fachAvg(klasse, st.id, f.id, h), d)))];
+  const head = ['Schüler', ...klasse.faecher.flatMap((f) => [`${f.name} 1. HJ`, `${f.name} 2. HJ`, `${f.name} Jahr`]), 'Gesamt 1. HJ', 'Gesamt 2. HJ', 'Gesamt Jahr'];
+  const row = (st) => [
+    fullName(st),
+    ...klasse.faecher.flatMap((f) => [1, 2, 0].map((h) => (nimmtTeil(f, st.id) ? fmt(fachAvg(klasse, st.id, f.id, h), d) : ''))),
+    ...[1, 2, 0].map((h) => fmt(gesamtAvg(klasse, st.id, h), d)),
+  ];
   const klassenSchnitt = (f, h) => {
-    const v = list.map((s) => fachAvg(klasse, s.id, f.id, h)).filter((x) => x !== null);
+    const v = list.filter((s) => nimmtTeil(f, s.id)).map((s) => fachAvg(klasse, s.id, f.id, h)).filter((x) => x !== null);
     return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
   };
   return (
@@ -168,14 +180,14 @@ function Durchschnitte({ ctx }) {
       <div className="scroll-x">
         <table className="grid striped">
           <thead>
-            <tr><th rowSpan="2">Schüler</th>{klasse.faecher.map((f) => <th key={f.id} colSpan="3">{f.name}</th>)}</tr>
-            <tr>{klasse.faecher.map((f) => ['1. HJ', '2. HJ', 'Jahr'].map((l) => <th key={f.id + l}>{l}</th>))}</tr>
+            <tr><th rowSpan="2">Schüler</th>{klasse.faecher.map((f) => <th key={f.id} colSpan="3">{f.name}</th>)}<th colSpan="3">Gesamt</th></tr>
+            <tr>{[...klasse.faecher, { id: 'gesamt' }].map((f) => ['1. HJ', '2. HJ', 'Jahr'].map((l) => <th key={f.id + l}>{l}</th>))}</tr>
           </thead>
           <tbody>
             {list.map((st) => <tr key={st.id}>{row(st).map((v, i) => <td key={i} className={i ? 'center' : ''}>{v}</td>)}</tr>)}
           </tbody>
           <tfoot>
-            <tr><th>Klassenschnitt</th>{klasse.faecher.map((f) => [1, 2, 0].map((h) => <th key={f.id + h}>{fmt(klassenSchnitt(f, h), d)}</th>))}</tr>
+            <tr><th>Klassenschnitt</th>{klasse.faecher.map((f) => [1, 2, 0].map((h) => <th key={f.id + h}>{fmt(klassenSchnitt(f, h), d)}</th>))}<th colSpan="3"></th></tr>
           </tfoot>
         </table>
       </div>
@@ -194,7 +206,7 @@ function Zeugnisnoten({ ctx }) {
     <div className="pad">
       <Toolbar
         title={`Zeugnisnoten – ${klasse.name} · ${hjLabel(hj)}`}
-        csv={() => downloadCsv(`Zeugnisnoten ${klasse.name} ${hjLabel(hj)}.csv`, [head, ...list.map((st) => [fullName(st), ...klasse.faecher.map((f) => zeugnisNote(klasse, st.id, f.id, hj).value)])])}
+        csv={() => downloadCsv(`Zeugnisnoten ${klasse.name} ${hjLabel(hj)}.csv`, [head, ...list.map((st) => [fullName(st), ...klasse.faecher.map((f) => (nimmtTeil(f, st.id) ? zeugnisNote(klasse, st.id, f.id, hj).value : ''))])])}
       />
       <p className="muted no-print">Grau = aus dem Schnitt gerundet. Eintippen überschreibt die Note manuell (fett); Feld leeren setzt sie zurück.</p>
       <div className="scroll-x">
@@ -206,6 +218,7 @@ function Zeugnisnoten({ ctx }) {
                 <td>{fullName(st)}</td>
                 {klasse.faecher.map((f) => {
                   const key = `${st.id}|${f.id}|${hj}`;
+                  if (!nimmtTeil(f, st.id)) return <td key={f.id} className="center muted">—</td>;
                   const z = zeugnisNote(klasse, st.id, f.id, hj);
                   return (
                     <td key={f.id} className="center" title={`Ø ${fmt(fachAvg(klasse, st.id, f.id, hj), d)}`}>
