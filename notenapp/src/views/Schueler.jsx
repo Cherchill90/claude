@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import {
-  bereichAvg, fachAvg, fachTopLevel, fmt, gradeValue, gruppeAvg, roundToZeugnis, zeugnisNote, nimmtTeil, roundAvg,
+  bereichAvg, defaultSchluessel, fachAvg, fachTopLevel, fmt, gradeFromPoints, gradeValue, gruppeAvg, isValidGrade, roundToZeugnis,
+  zeugnisNote, nimmtTeil, roundAvg, uid,
 } from '../grades.js';
 import { Verlauf } from '../charts.jsx';
-import { Avatar, Empty, fmtDate, readPhoto, sortSchueler } from '../ui.jsx';
+import { Avatar, Empty, fmtDate, readPhoto, sortSchueler, today } from '../ui.jsx';
 
 export function SchuelerSide({ ctx }) {
   const { klasse, fach, sel, setSel, setModal } = ctx;
@@ -55,7 +56,33 @@ export function SchuelerMain({ ctx }) {
 
   const top = fachTopLevel(fach).filter((t) => t.type !== 'gruppe' || t.bereiche.length);
   const cols = top.flatMap((t) => (t.type === 'gruppe' ? t.bereiche : [t]));
-  const rows = Math.max(1, ...cols.map((b) => arbeitenOf(b.id).filter((a) => a.results[st.id]?.grade).length));
+  // Eine Zeile je Arbeit des Bereichs + eine leere Zeile für eine neue Note
+  const rows = Math.max(...cols.map((b) => arbeitenOf(b.id).length), 0) + 1;
+  const teil = nimmtTeil(fach, st.id);
+
+  const setGrade = (aid, patch) =>
+    updK((k) => {
+      const a = k.arbeiten.find((x) => x.id === aid);
+      const res = { ...(a.results[st.id] || {}), ...patch };
+      if (a.useSchluessel && 'points' in patch) res.grade = gradeFromPoints(patch.points, a.maxPoints, a.schluessel) ?? '';
+      if (!res.grade && (res.points === undefined || res.points === '') && !res.notiz) delete a.results[st.id];
+      else a.results[st.id] = res;
+    });
+
+  const neueNote = (b, grade) =>
+    updK((k) => {
+      k.arbeiten.push({
+        id: uid(), title: `${b.name} ${fmtDate(today())}`, fachId: fach.id, bereichId: b.id, halbjahr: hj || 1,
+        date: today(), mitDatum: true, individuell: false, weight: 1, locked: false, useSchluessel: false, maxPoints: 50,
+        schluessel: defaultSchluessel(k.settings), notiz: '', results: { [st.id]: { grade } },
+      });
+    });
+
+  const focusCell = (bid, r) => document.querySelector(`[data-cell="${bid}|${r}"]`)?.focus();
+  const onKey = (e, bid, r) => {
+    if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); focusCell(bid, r + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); focusCell(bid, r - 1); }
+  };
   const count = (bid) => arbeitenOf(bid).filter((a) => a.results[st.id]?.grade).length;
 
   // Statistik
@@ -102,11 +129,47 @@ export function SchuelerMain({ ctx }) {
               {Array.from({ length: rows }, (_, r) => (
                 <tr key={r}>
                   {cols.map((b) => {
-                    const a = arbeitenOf(b.id).filter((x) => x.results[st.id]?.grade)[r];
-                    const res = a?.results[st.id];
+                    const list = arbeitenOf(b.id);
+                    const a = list[r];
+                    if (!a) {
+                      return (
+                        <td key={b.id} className="center cell-edit">
+                          {r === list.length && teil && <NeueNoteZelle bid={b.id} r={r} settings={s} onKey={onKey} onCreate={(g) => neueNote(b, g)} />}
+                        </td>
+                      );
+                    }
+                    const res = a.results[st.id] || {};
+                    const datum = res.date || (a.mitDatum ? a.date : '');
                     return (
-                      <td key={b.id} className="center" title={a ? `${a.title}${a.mitDatum ? ' · ' + fmtDate(res.date || a.date) : ''}${res.notiz ? '\n' + res.notiz : ''}` : ''}>
-                        {a && <><span className="big">{res.grade}</span><small className="muted block">{a.title}</small></>}
+                      <td key={b.id} className="center cell-edit" title={`${a.title}${datum ? ' · ' + fmtDate(datum) : ''}${res.notiz ? '\n' + res.notiz : ''}${a.locked ? '\n🔒 Schreibschutz' : ''}`}>
+                        {a.useSchluessel ? (
+                          <span className="row center-row">
+                            <input
+                              data-cell={`${b.id}|${r}`} className="pts" inputMode="decimal" placeholder="Pkt." disabled={a.locked || !teil}
+                              value={res.points ?? ''} onKeyDown={(e) => onKey(e, b.id, r)}
+                              onChange={(e) => setGrade(a.id, { points: e.target.value === '' ? '' : Number(e.target.value.replace(',', '.')) })}
+                              aria-label={`Punkte ${a.title}`}
+                            />
+                            <span className="big">{res.grade || '–'}</span>
+                          </span>
+                        ) : (
+                          <input
+                            data-cell={`${b.id}|${r}`}
+                            className={'grade big' + (isValidGrade(res.grade, s) ? '' : ' invalid')}
+                            value={res.grade ?? ''}
+                            disabled={a.locked || !teil}
+                            onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => onKey(e, b.id, r)}
+                            onChange={(e) => setGrade(a.id, { grade: e.target.value.trim() })}
+                            aria-label={`Note ${a.title}`}
+                          />
+                        )}
+                        <button
+                          className="link-title" title="In der Notenansicht öffnen"
+                          onClick={() => { ctx.setSel({ bereichId: b.id, arbeitId: a.id, hj: hj === 0 ? 0 : a.halbjahr }); ctx.setTab('noten'); }}
+                        >
+                          {a.locked && '🔒 '}{a.title}{res.notiz && ' 📝'}
+                        </button>
                       </td>
                     );
                   })}
@@ -115,6 +178,8 @@ export function SchuelerMain({ ctx }) {
             </tbody>
           </table>
         </div>
+        {!teil && <p className="hint">Dieser Schüler nimmt an „{fach.name}“ nicht teil (Klassen verwalten → Fächer → Fachteilnahme).</p>}
+        <p className="muted no-print small">Noten hier ändern = Änderung in der Notenansicht (gleiche Daten). Letzte Zeile: neue Note eintippen → legt eine neue Arbeit mit heutigem Datum an.</p>
         <p className="muted">
           Fachschnitt {hj ? `${hj}. Halbjahr` : 'Schuljahr'}: <b>Ø {fmt(fachAvg(klasse, st.id, fach.id, hj), d)}</b>
         </p>
@@ -197,5 +262,25 @@ export function Collapsible({ title, open, toggle, children }) {
       </button>
       {open && <div className="coll-body">{children}</div>}
     </div>
+  );
+}
+
+function NeueNoteZelle({ bid, r, settings, onKey, onCreate }) {
+  const [v, setV] = useState('');
+  const commit = () => {
+    if (v && isValidGrade(v, settings)) { onCreate(v); setV(''); }
+  };
+  return (
+    <input
+      data-cell={`${bid}|${r}`}
+      className={'grade big new' + (v && !isValidGrade(v, settings) ? ' invalid' : '')}
+      placeholder="+"
+      value={v}
+      onChange={(e) => setV(e.target.value.trim())}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } else onKey(e, bid, r); }}
+      onBlur={commit}
+      aria-label="Neue Note"
+      title="Neue Note eintragen (legt eine neue Arbeit an)"
+    />
   );
 }
