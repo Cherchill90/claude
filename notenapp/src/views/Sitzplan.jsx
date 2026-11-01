@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { uid, defaultSchluessel, fachAvg, fmt, isValidGrade } from '../grades.js';
-import { Avatar, Empty, fullName, sortSchueler, today, fmtDate } from '../ui.jsx';
+import { Avatar, Empty, fullName, sortSchueler, today, fmtDate, toneGrade } from '../ui.jsx';
 
 const MAX_PLAENE = 3;
 
@@ -136,7 +136,7 @@ export function SitzplanMain({ ctx }) {
                 <>
                   <Avatar s={s} size={42} />
                   <span className="seat-name">{s.first || s.last}<br /><small>{s.first ? s.last : ''}</small></span>
-                  {grade && <span className="seat-grade">{grade}</span>}
+                  {grade && <span className="seat-grade" style={toneGrade(grade, klasse.settings)}>{grade}</span>}
                   {mode === 'bearbeiten' && (
                     <button className="seat-x" onClick={(e) => { e.stopPropagation(); setPlan((p) => delete p.seats[seat]); }} aria-label="Platz leeren">✕</button>
                   )}

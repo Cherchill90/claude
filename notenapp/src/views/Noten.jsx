@@ -3,7 +3,7 @@ import {
   arbeitStats, defaultSchluessel, fmt, gradeFromPoints, isValidGrade, nimmtTeil, schluesselRanges, uid, fachTopLevel,
 } from '../grades.js';
 import { Notenspiegel } from '../charts.jsx';
-import { Avatar, Field, fmtDate, sortSchueler, today, Empty } from '../ui.jsx';
+import { Avatar, Field, fmtDate, sortSchueler, today, Empty, tone, toneGrade } from '../ui.jsx';
 
 export function currentBereich(ctx) {
   const { fach, sel } = ctx;
@@ -81,7 +81,7 @@ export function NotenSide({ ctx }) {
               <b>{a.title}{a.locked && ' 🔒'}</b>
               <small>{a.mitDatum ? fmtDate(a.date) : ''}</small>
             </div>
-            <span className="avg">Ø {fmt(arbeitStats(klasse, a).avg, klasse.settings.decimals)}</span>
+            <span className="avg" style={tone(arbeitStats(klasse, a).avg, klasse.settings.system)}>Ø {fmt(arbeitStats(klasse, a).avg, klasse.settings.decimals)}</span>
           </li>
         ))}
         <li className="add" onClick={neueArbeit}>+ Neue Arbeit</li>
@@ -261,6 +261,7 @@ export function NotenMain({ ctx }) {
                 <input
                   ref={arbeit.useSchluessel ? undefined : (el) => (inputs.current[i] = el)}
                   className={'grade' + (valid ? '' : ' invalid')}
+                  style={valid ? toneGrade(r.grade, s) : undefined}
                   value={r.grade ?? ''}
                   disabled={arbeit.locked || arbeit.useSchluessel}
                   onFocus={(e) => { setSel({ schuelerId: st.id }); e.target.select(); }}

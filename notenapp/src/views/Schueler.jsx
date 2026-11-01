@@ -4,7 +4,7 @@ import {
   zeugnisNote, nimmtTeil, roundAvg, uid,
 } from '../grades.js';
 import { Verlauf } from '../charts.jsx';
-import { Avatar, Empty, fmtDate, readPhoto, sortSchueler, today } from '../ui.jsx';
+import { Avatar, Empty, fmtDate, readPhoto, sortSchueler, today, tone, toneGrade, toneText } from '../ui.jsx';
 
 export function SchuelerSide({ ctx }) {
   const { klasse, fach, sel, setSel, setModal } = ctx;
@@ -19,7 +19,7 @@ export function SchuelerSide({ ctx }) {
               <b>{st.first || st.last}</b>
               <small>{st.first ? st.last : ''}</small>
             </div>
-            <span className="avg">{nimmtTeil(fach, st.id) ? `Ø ${fmt(fachAvg(klasse, st.id, fach.id, sel.hj), klasse.settings.decimals)}` : 'nimmt nicht teil'}</span>
+            <span className="avg" style={nimmtTeil(fach, st.id) ? tone(fachAvg(klasse, st.id, fach.id, sel.hj), klasse.settings.system) : undefined}>{nimmtTeil(fach, st.id) ? `Ø ${fmt(fachAvg(klasse, st.id, fach.id, sel.hj), klasse.settings.decimals)}` : 'nimmt nicht teil'}</span>
           </li>
         ))}
         <li className="add" onClick={() => setModal('verwalten')}>Schüler bearbeiten</li>
@@ -150,12 +150,13 @@ export function SchuelerMain({ ctx }) {
                               onChange={(e) => setGrade(a.id, { points: e.target.value === '' ? '' : Number(e.target.value.replace(',', '.')) })}
                               aria-label={`Punkte ${a.title}`}
                             />
-                            <span className="big">{res.grade || '–'}</span>
+                            <span className="big pill" style={toneGrade(res.grade, s)}>{res.grade || '–'}</span>
                           </span>
                         ) : (
                           <input
                             data-cell={`${b.id}|${r}`}
                             className={'grade big' + (isValidGrade(res.grade, s) ? '' : ' invalid')}
+                            style={isValidGrade(res.grade, s) ? toneGrade(res.grade, s) : undefined}
                             value={res.grade ?? ''}
                             disabled={a.locked || !teil}
                             onFocus={(e) => e.target.select()}
@@ -181,7 +182,7 @@ export function SchuelerMain({ ctx }) {
         {!teil && <p className="hint">Dieser Schüler nimmt an „{fach.name}“ nicht teil (Klassen verwalten → Fächer → Fachteilnahme).</p>}
         <p className="muted no-print small">Noten hier ändern = Änderung in der Notenansicht (gleiche Daten). Letzte Zeile: neue Note eintippen → legt eine neue Arbeit mit heutigem Datum an.</p>
         <p className="muted">
-          Fachschnitt {hj ? `${hj}. Halbjahr` : 'Schuljahr'}: <b>Ø {fmt(fachAvg(klasse, st.id, fach.id, hj), d)}</b>
+          Fachschnitt {hj ? `${hj}. Halbjahr` : 'Schuljahr'}: <b className="pill" style={tone(fachAvg(klasse, st.id, fach.id, hj), s.system)}>Ø {fmt(fachAvg(klasse, st.id, fach.id, hj), d)}</b>
         </p>
       </section>
 
@@ -197,11 +198,12 @@ export function SchuelerMain({ ctx }) {
                 return (
                   <tr key={h}>
                     <td>{l}</td>
-                    <td>{fmt(avg, d)}</td>
+                    <td style={tone(avg, s.system)}>{fmt(avg, d)}</td>
                     <td>{roundToZeugnis(roundAvg(avg, d), s) ?? '–'}</td>
                     <td>
                       <input
                         className={'grade' + (z.manual ? ' manual' : '')}
+                        style={toneText(z.value, s.system)}
                         placeholder={z.value}
                         value={klasse.zeugnis[key] ?? ''}
                         onChange={(e) => updK((k) => { if (e.target.value) k.zeugnis[key] = e.target.value; else delete k.zeugnis[key]; })}

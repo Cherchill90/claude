@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { bereichAvg, fachAvg, fachTopLevel, fmt, gesamtAvg, gruppeAvg, nimmtTeil, zeugnisNote, uid } from '../grades.js';
-import { Avatar, downloadCsv, Empty, fmtDate, fullName, PrintButton, sortSchueler, today } from '../ui.jsx';
+import { Avatar, downloadCsv, Empty, fmtDate, fullName, PrintButton, sortSchueler, today, tone, toneGrade, toneText } from '../ui.jsx';
 
 export const LISTEN = [
   ['strich', 'Strichlisten'],
@@ -90,7 +90,7 @@ function FachBlick({ ctx }) {
           <tbody>
             {list.map((st) => (
               <tr key={st.id}>
-                {row(st).map((v, i) => <td key={i} className={i ? 'center' : ''}>{i === cols.length + 2 ? <b>{v}</b> : v}</td>)}
+                {row(st).map((v, i) => <td key={i} className={i ? 'center' : ''} style={i ? toneText(v, klasse.settings.system) : undefined}>{i === cols.length + 2 ? <b>{v}</b> : v}</td>)}
               </tr>
             ))}
           </tbody>
@@ -129,15 +129,15 @@ function SchuelerBlick({ ctx }) {
                       .filter((a) => a.fachId === f.id && a.results[st.id]?.grade)
                       .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
                       .map((a) => (
-                        <span key={a.id} className="chip" title={`${a.title} ${fmtDate(a.date)}${a.results[st.id].notiz ? ' – ' + a.results[st.id].notiz : ''}`}>
+                        <span key={a.id} className="chip" style={toneGrade(a.results[st.id].grade, klasse.settings)} title={`${a.title} ${fmtDate(a.date)}${a.results[st.id].notiz ? ' – ' + a.results[st.id].notiz : ''}`}>
                           {a.results[st.id].grade}
                         </span>
                       ))}
                   </td>
-                  <td className="center">{fmt(fachAvg(klasse, st.id, f.id, 1), d)}</td>
-                  <td className="center">{fmt(fachAvg(klasse, st.id, f.id, 2), d)}</td>
-                  <td className="center">{fmt(fachAvg(klasse, st.id, f.id, 0), d)}</td>
-                  <td className="center"><b>{zeugnisNote(klasse, st.id, f.id, sel.hj).value}</b></td>
+                  <td className="center" style={tone(fachAvg(klasse, st.id, f.id, 1), klasse.settings.system)}>{fmt(fachAvg(klasse, st.id, f.id, 1), d)}</td>
+                  <td className="center" style={tone(fachAvg(klasse, st.id, f.id, 2), klasse.settings.system)}>{fmt(fachAvg(klasse, st.id, f.id, 2), d)}</td>
+                  <td className="center" style={tone(fachAvg(klasse, st.id, f.id, 0), klasse.settings.system)}>{fmt(fachAvg(klasse, st.id, f.id, 0), d)}</td>
+                  <td className="center" style={toneText(zeugnisNote(klasse, st.id, f.id, sel.hj).value, klasse.settings.system)}><b>{zeugnisNote(klasse, st.id, f.id, sel.hj).value}</b></td>
                   <td>{st.fachNotizen?.[f.id]}</td>
                 </tr>
               ))}
@@ -145,7 +145,7 @@ function SchuelerBlick({ ctx }) {
             <tfoot>
               <tr>
                 <th colSpan="2">Gesamtschnitt (Fachgewichte)</th>
-                {[1, 2, 0].map((h) => <th key={h} className="center">{fmt(gesamtAvg(klasse, st.id, h), d)}</th>)}
+                {[1, 2, 0].map((h) => <th key={h} className="center" style={tone(gesamtAvg(klasse, st.id, h), klasse.settings.system)}>{fmt(gesamtAvg(klasse, st.id, h), d)}</th>)}
                 <th colSpan="2"></th>
               </tr>
             </tfoot>
@@ -184,7 +184,7 @@ function Durchschnitte({ ctx }) {
             <tr>{[...klasse.faecher, { id: 'gesamt' }].map((f) => ['1. HJ', '2. HJ', 'Jahr'].map((l) => <th key={f.id + l}>{l}</th>))}</tr>
           </thead>
           <tbody>
-            {list.map((st) => <tr key={st.id}>{row(st).map((v, i) => <td key={i} className={i ? 'center' : ''}>{v}</td>)}</tr>)}
+            {list.map((st) => <tr key={st.id}>{row(st).map((v, i) => <td key={i} className={i ? 'center' : ''} style={i ? toneText(v, klasse.settings.system) : undefined}>{v}</td>)}</tr>)}
           </tbody>
           <tfoot>
             <tr><th>Klassenschnitt</th>{klasse.faecher.map((f) => [1, 2, 0].map((h) => <th key={f.id + h}>{fmt(klassenSchnitt(f, h), d)}</th>))}<th colSpan="3"></th></tr>
@@ -224,6 +224,7 @@ function Zeugnisnoten({ ctx }) {
                     <td key={f.id} className="center" title={`Ø ${fmt(fachAvg(klasse, st.id, f.id, hj), d)}`}>
                       <input
                         className={'grade' + (z.manual ? ' manual' : '')}
+                        style={toneText(z.value, klasse.settings.system)}
                         placeholder={z.value}
                         value={klasse.zeugnis[key] ?? ''}
                         onChange={(e) => updK((k) => { if (e.target.value) k.zeugnis[key] = e.target.value; else delete k.zeugnis[key]; })}

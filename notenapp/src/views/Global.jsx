@@ -64,6 +64,10 @@ export function Einstellungen({ ctx, store, onClose }) {
         <input type="number" min="0" className="num" value={data.prefs.lockMinutes} onChange={(e) => update((d) => (d.prefs.lockMinutes = Number(e.target.value)))} />
       </Field>
       <h3>Darstellung</h3>
+      <label className="check block">
+        <input type="checkbox" checked={data.prefs.farbskala !== false} onChange={(e) => update((d) => (d.prefs.farbskala = e.target.checked))} />
+        Leistungen farbig markieren (Note 1 / 15 Punkte grün → Note 4 und schlechter / 5 Punkte und weniger rot)
+      </label>
       <Field label="Design">
         <select value={data.prefs.theme} onChange={(e) => update((d) => (d.prefs.theme = e.target.value))}>
           <option value="auto">wie System</option>

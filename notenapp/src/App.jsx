@@ -45,7 +45,8 @@ export default function App() {
   // Theme
   useEffect(() => {
     document.documentElement.dataset.theme = data.prefs.theme;
-  }, [data.prefs.theme]);
+    document.documentElement.dataset.farbskala = data.prefs.farbskala === false ? 'aus' : 'an';
+  }, [data.prefs.theme, data.prefs.farbskala]);
 
   // Automatische Sperre nach Inaktivität (nur mit Passwort)
   const last = useRef(Date.now());

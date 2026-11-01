@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { gradeValue } from './grades.js';
 
 export function Modal({ title, onClose, children, wide, footer }) {
   useEffect(() => {
@@ -100,3 +101,23 @@ export function useAutoFocus() {
   useEffect(() => r.current?.focus(), []);
   return r;
 }
+
+/**
+ * Farbskala für Leistungen: Note 1 / 15 Punkte = grün → Note 4 und schlechter / 5 Punkte und weniger = rot.
+ * Liefert ein style-Objekt mit dem Farbton (--h); die eigentlichen Farben stehen in styles.css (hell/dunkel).
+ */
+export function tone(v, system) {
+  if (v === null || v === undefined || Number.isNaN(v)) return undefined;
+  const t = system === 'punkte' ? (15 - v) / 10 : (v - 1) / 3;
+  const c = Math.min(1, Math.max(0, t));
+  return { '--h': Math.round(130 * (1 - c)) };
+}
+
+/** Farbton für eine eingegebene Note („2-“, „11“ …). */
+export const toneGrade = (raw, settings) => tone(gradeValue(raw, { ...settings, plusMinusImSchnitt: true }), settings.system);
+
+/** Farbton für eine formatierte Zahl („2,38“). */
+export const toneText = (text, system) => {
+  const v = Number(String(text ?? '').replace(',', '.'));
+  return text === '' || text === '–' || text === undefined || Number.isNaN(v) ? undefined : tone(v, system);
+};
