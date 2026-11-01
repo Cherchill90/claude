@@ -1,0 +1,240 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useStore, newKlasse } from './store.js';
+import { uid } from './grades.js';
+import { NotenSide, NotenMain } from './views/Noten.jsx';
+import { SchuelerSide, SchuelerMain } from './views/Schueler.jsx';
+import { ListenSide, ListenMain, LISTEN } from './views/Listen.jsx';
+import { SitzplanSide, SitzplanMain } from './views/Sitzplan.jsx';
+import { KlassenVerwalten, Versetzen } from './views/Verwalten.jsx';
+import { LockScreen, Einstellungen, Hilfe, exportBackup, importBackup, importFachCsv } from './views/Global.jsx';
+import { Empty } from './ui.jsx';
+
+const TABS = [
+  ['noten', 'Noten'],
+  ['schueler', 'Schüler'],
+  ['listen', 'Listen'],
+  ['sitzplan', 'Sitzplan'],
+];
+
+export default function App() {
+  const store = useStore();
+  const { data, update, locked } = store;
+  const [tab, setTab] = useState('noten');
+  const [sel, setSelState] = useState({ hj: 1, liste: 'fach' });
+  const [modal, setModal] = useState(null);
+  const [menu, setMenu] = useState(null);
+  const setSel = (patch) => setSelState((s) => ({ ...s, ...patch }));
+
+  // Theme
+  useEffect(() => {
+    document.documentElement.dataset.theme = data.prefs.theme;
+  }, [data.prefs.theme]);
+
+  // Automatische Sperre nach Inaktivität (nur mit Passwort)
+  const last = useRef(Date.now());
+  useEffect(() => {
+    const bump = () => (last.current = Date.now());
+    const evs = ['mousedown', 'keydown', 'touchstart'];
+    evs.forEach((e) => window.addEventListener(e, bump));
+    const t = setInterval(() => {
+      const min = data.prefs.lockMinutes;
+      if (min > 0 && store.hasPassword() && Date.now() - last.current > min * 60000) store.lock();
+    }, 10000);
+    return () => {
+      evs.forEach((e) => window.removeEventListener(e, bump));
+      clearInterval(t);
+    };
+  });
+
+  // Tastenkürzel wie in der Mac-App
+  useEffect(() => {
+    const h = (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'o') setModal('verwalten');
+      else if (k === 'n') addKlasse();
+      else if (k === 'p') window.print();
+      else if (k === 's') exportBackup(data);
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  });
+
+  const klasse = data.klassen.find((k) => k.id === data.activeKlasseId) || data.klassen[0];
+  const fach = klasse?.faecher.find((f) => f.id === sel.fachId) || klasse?.faecher[0];
+
+  const ctx = useMemo(
+    () => ({
+      data,
+      update,
+      klasse,
+      fach,
+      sel,
+      setSel,
+      setTab,
+      setModal,
+      updK: (fn) =>
+        update((d) => {
+          const k = d.klassen.find((x) => x.id === klasse.id);
+          fn(k, d);
+        }),
+    }),
+    [data, klasse, fach, sel],
+  );
+
+  if (locked) return <LockScreen onUnlock={store.tryUnlock} />;
+
+  function addKlasse() {
+    const k = newKlasse();
+    update((d) => {
+      d.klassen.push(k);
+      d.activeKlasseId = k.id;
+    });
+    setModal('verwalten');
+  }
+
+  function addDemo() {
+    const k = newKlasse('Beispielklasse');
+    for (let i = 1; i <= 12; i++) k.schueler.push({ id: uid(), first: '', last: `Schüler ${String(i).padStart(2, '0')}`, bemerkung: '', fachNotizen: {}, erinnerungen: {} });
+    const f = k.faecher[0];
+    f.name = 'Mathematik';
+    const grades = ['1', '2+', '2', '2-', '3+', '3', '3-', '4', '4-', '5', '2', '3'];
+    const [b1, b2] = f.bereiche;
+    const mk = (title, bereich, date, shift) => ({
+      id: uid(), title, fachId: f.id, bereichId: bereich.id, halbjahr: 1, date, mitDatum: true, notiz: '',
+      results: Object.fromEntries(k.schueler.map((s, i) => [s.id, { grade: grades[(i + shift) % grades.length] }])),
+    });
+    k.arbeiten.push(mk('1. Klassenarbeit', b1, '2026-10-02', 0), mk('2. Klassenarbeit', b1, '2026-11-20', 3), mk('Mündlich Okt.', b2, '2026-10-30', 5));
+    update((d) => {
+      d.klassen.push(k);
+      d.activeKlasseId = k.id;
+    });
+  }
+
+  const menuItems = [
+    ['Klassen verwalten', '⌘O', () => setModal('verwalten')],
+    ['+ Neue Klasse anlegen', '⌘N', addKlasse],
+    ['Klasse versetzen', '', () => klasse && setModal('versetzen')],
+    'sep',
+    ['Sicherheitskopie aller Klassen', '⌘S', () => exportBackup(data)],
+    ['Importieren (Sicherheitskopie)', '', () => importBackup(store)],
+    ['Import von Fächern mit Noten (CSV)', '', () => klasse && importFachCsv(ctx)],
+    'sep',
+    ['Einstellungen & Passwort', '', () => setModal('einstellungen')],
+    store.hasPassword() && ['Jetzt sperren', '', () => store.lock()],
+    ['Drucken …', '⌘P', () => window.print()],
+  ].filter(Boolean);
+
+  const Side = { noten: NotenSide, schueler: SchuelerSide, listen: ListenSide, sitzplan: SitzplanSide }[tab];
+  const Main = { noten: NotenMain, schueler: SchuelerMain, listen: ListenMain, sitzplan: SitzplanMain }[tab];
+
+  return (
+    <div className="app" onClick={() => menu && setMenu(null)}>
+      <aside className="sidebar no-print">
+        <div className="selectors">
+          <select
+            value={klasse?.id || ''}
+            onChange={(e) => {
+              update((d) => (d.activeKlasseId = e.target.value));
+              setSel({ fachId: null, bereichId: null, arbeitId: null, schuelerId: null });
+            }}
+            aria-label="Klasse"
+          >
+            {!klasse && <option value="">– keine Klasse –</option>}
+            {[...new Set(data.klassen.map((k) => k.schuljahr))].sort().reverse().map((sj) => (
+              <optgroup key={sj} label={`Schuljahr ${sj}`}>
+                {data.klassen.filter((k) => k.schuljahr === sj).map((k) => (
+                  <option key={k.id} value={k.id}>{k.name}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          {klasse && tab !== 'sitzplan' && (
+            <select value={fach?.id || ''} onChange={(e) => setSel({ fachId: e.target.value, bereichId: null, arbeitId: null })} aria-label="Fach">
+              {klasse.faecher.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+          )}
+          {klasse && (
+            <div className="seg">
+              {[[1, '1. HJ'], [2, '2. HJ'], [0, 'Jahr']].map(([v, l]) => (
+                <button key={v} className={sel.hj === v ? 'on' : ''} onClick={() => setSel({ hj: v, arbeitId: null })}>{l}</button>
+              ))}
+            </div>
+          )}
+        </div>
+        {klasse && fach && <Side ctx={ctx} />}
+      </aside>
+
+      <div className="content">
+        <header className="topbar no-print">
+          <nav className="tabs">
+            {TABS.map(([id, label]) => (
+              <button
+                key={id}
+                className={tab === id ? 'on' : ''}
+                onClick={(e) => {
+                  if (id === 'listen') {
+                    e.stopPropagation();
+                    setMenu(menu === 'listen' ? null : 'listen');
+                  }
+                  setTab(id);
+                }}
+              >
+                {label}{id === 'listen' && ' ▾'}
+              </button>
+            ))}
+            {menu === 'listen' && (
+              <div className="dropdown" style={{ left: 'calc(50% - 40px)' }}>
+                {LISTEN.map(([id, label]) => (
+                  <button key={id} onClick={() => { setSel({ liste: id }); setTab('listen'); setMenu(null); }}>{label}</button>
+                ))}
+              </div>
+            )}
+          </nav>
+          <div className="actions">
+            <button onClick={(e) => { e.stopPropagation(); setMenu(menu === 'klasse' ? null : 'klasse'); }}>☰ Klasse</button>
+            <button onClick={() => window.print()}>🖨 Drucken</button>
+            <button onClick={() => setModal('hilfe')}>? Hilfe</button>
+            {menu === 'klasse' && (
+              <div className="dropdown right">
+                {menuItems.map((m, i) =>
+                  m !== 'sep' ? (
+                    <button key={i} onClick={() => { setMenu(null); m[2](); }}>
+                      <span>{m[0]}</span><kbd>{m[1]}</kbd>
+                    </button>
+                  ) : <hr key={i} />,
+                )}
+              </div>
+            )}
+          </div>
+        </header>
+        <main>
+          {!klasse ? (
+            <Empty>
+              <h2>Willkommen</h2>
+              <p>Lege deine erste Klasse an oder starte mit einer Beispielklasse.</p>
+              <p>
+                <button className="primary" onClick={addKlasse}>+ Neue Klasse anlegen</button>{' '}
+                <button onClick={addDemo}>Beispielklasse laden</button>{' '}
+                <button onClick={() => importBackup(store)}>Sicherheitskopie importieren</button>
+              </p>
+            </Empty>
+          ) : !fach ? (
+            <Empty>
+              Diese Klasse hat noch kein Fach. <button onClick={() => setModal('verwalten')}>Klasse verwalten</button>
+            </Empty>
+          ) : (
+            <Main ctx={ctx} />
+          )}
+        </main>
+      </div>
+
+      {modal === 'verwalten' && <KlassenVerwalten ctx={ctx} onClose={() => setModal(null)} />}
+      {modal === 'versetzen' && <Versetzen ctx={ctx} onClose={() => setModal(null)} />}
+      {modal === 'einstellungen' && <Einstellungen ctx={ctx} store={store} onClose={() => setModal(null)} />}
+      {modal === 'hilfe' && <Hilfe onClose={() => setModal(null)} />}
+    </div>
+  );
+}
