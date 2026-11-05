@@ -97,7 +97,8 @@ export function Hilfe({ onClose }) {
       </ul>
       <h3>Synchronisation Mac ⇄ iPhone</h3>
       <ul>
-        <li>Mac: ☰ Klasse → Synchronisation mit iPhone → „Synchronisation erlauben“ → „iPhone/iPad koppeln“.</li>
+        <li><b>iCloud-Datei (Web-App):</b> Mac: ⌘Y → „☁︎ iCloud-Datei“ → Sync-Passwort → einschalten. iPhone: ⟳ Sync → „1 · Öffnen“ vor und „2 · Speichern“ (Ersetzen) nach dem Unterricht.</li>
+        <li><b>WLAN (iOS-App aus Xcode):</b> Mac: ☰ Klasse → Synchronisation mit iPhone → „Synchronisation erlauben“ → „iPhone/iPad koppeln“.</li>
         <li>iPhone: ⟳ Sync → Adresse, Port und Code vom Mac eintragen → Koppeln. Danach genügt ⟳ Sync.</li>
         <li>Beide Geräte im selben WLAN; die Notenapp muss am Mac geöffnet und entsperrt sein.</li>
       </ul>

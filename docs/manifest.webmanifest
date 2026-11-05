@@ -1,0 +1,1 @@
+{"name":"Notenapp","short_name":"Notenapp","start_url":"./","display":"standalone","background_color":"#ffffff","lang":"de","scope":"./","description":"Notenverwaltung für Lehrkräfte","theme_color":"#1c5cab","icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}

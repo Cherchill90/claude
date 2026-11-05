@@ -38,7 +38,61 @@ Direkt starten ohne Installation: `npm run app`.
   selbst gesichert. „Backup-Ordner im Finder zeigen“ öffnet den Ordner.
 - Mit Passwort (global oder pro Klasse) sind auch die Backups verschlüsselt.
 
-## iPhone-/iPad-App
+## iPhone als Web-App (empfohlen: kostenlos, ohne Ablaufdatum)
+
+Die Notenapp läuft auf dem iPhone als Web-App vom Home-Bildschirm: offline, ohne App Store, ohne
+Apple-Entwicklerkonto und ohne 7-Tage-Grenze. Die Noten liegen auf dem iPhone in der Web-App
+(IndexedDB). Abgeglichen wird über eine verschlüsselte Datei in **iCloud Drive**.
+
+### Einmalig: Web-App veröffentlichen (GitHub Pages, kostenlos)
+
+Die fertige Web-App liegt im Ordner `docs/` dieses Repositorys. Auf github.com:
+
+1. Repository → **Settings → Pages**
+2. „Build and deployment“ → Source: **Deploy from a branch**
+3. Branch: `claude/cool-galileo-yis581`, Ordner: **/docs** → **Save**
+4. Nach etwa einer Minute ist die App erreichbar unter **https://cherchill90.github.io/claude/**
+
+Im Repository liegt nur der Programmcode, keine Noten. Die Noten bleiben auf deinen Geräten und
+in deiner iCloud.
+
+Nach Änderungen an der App: `npm run web:publish`, dann committen und pushen.
+
+### Auf dem iPhone installieren
+
+1. In **Safari** die Adresse öffnen → Teilen-Symbol → **Zum Home-Bildschirm**.
+2. Die Notenapp ab jetzt **immer über das Symbol** starten, nicht über Safari. Nur so bleiben die
+   Daten dauerhaft gespeichert (Safari löscht Daten von Webseiten, die man 7 Tage nicht besucht,
+   Home-Bildschirm-Apps sind davon ausgenommen).
+
+### Abgleich über iCloud Drive
+
+**Mac (einmalig):** Notenapp → ⌘Y → Reiter „☁︎ iCloud-Datei“ → Sync-Passwort festlegen →
+„Über Sync-Datei abgleichen“ einschalten. Der Mac legt `iCloud Drive/Notenapp/notenapp-sync.json`
+an und gleicht ab dann **automatisch** ab (alle 10 Sekunden auf Änderungen geprüft, eigene
+Änderungen nach 5 Sekunden geschrieben).
+
+**iPhone:** ⟳ Sync → dasselbe Sync-Passwort eintragen (einmalig), dann:
+
+1. **1 · Sync-Datei öffnen** → iCloud Drive → Notenapp → `notenapp-sync.json`. Änderungen vom Mac
+   werden übernommen, eigene bleiben erhalten.
+2. **2 · In iCloud speichern** → „In Dateien sichern“ → iCloud Drive → Notenapp → **Ersetzen**.
+
+Faustregel: vor dem Unterricht öffnen, nach dem Unterricht speichern.
+
+**Was passiert, wenn …**
+- **… man „Beide behalten“ statt „Ersetzen“ tippt?** Es entsteht „notenapp-sync 2.json“. Der Mac
+  führt beide Dateien zusammen und räumt die Kopie auf.
+- **… dieselbe Note auf beiden Geräten geändert wurde?** Es gilt die neuere Änderung. Alles andere
+  wird bis auf die einzelne Note zusammengeführt.
+- **… man das Passwort falsch eingibt?** Die Datei wird nicht angefasst, es erscheint ein Hinweis.
+
+**Datenschutz:** Die Sync-Datei ist mit AES-256 verschlüsselt (Schlüssel aus dem Sync-Passwort
+per PBKDF2). Apple und iCloud sehen nur unlesbare Daten. Ob Lehrkräfte verschlüsselte Notendaten
+in einer privaten Cloud ablegen dürfen, regelt das jeweilige Bundesland bzw. die Schule. Bitte
+dort klären.
+
+## iPhone-/iPad-App (nativ, mit Xcode)
 
 Die iPhone-App ist dieselbe Notenapp, als native iOS-App verpackt (Capacitor). Sie speichert ihre
 Daten auf dem iPhone und gleicht sie über das WLAN mit der Mac-App ab.

@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const B = require('./backup.cjs');
 const { SyncServer } = require('./syncserver.cjs');
+const { FileSync } = require('./filesync.cjs');
 const crypto = require('crypto');
 
 app.setName('Notenapp');
@@ -56,6 +57,35 @@ ipcMain.handle('sync:startPairing', () => sync.startPairing());
 ipcMain.handle('sync:stopPairing', () => sync.stopPairing());
 ipcMain.handle('sync:removeDevice', (_e, id) => sync.removeDevice(id));
 
+// ---------- Abgleich über eine Sync-Datei (iCloud Drive) ----------
+const fileSync = new FileSync({ dir: DIR, onChange: () => win?.webContents.send('filesync:changed') });
+ipcMain.handle('filesync:status', () => fileSync.status());
+ipcMain.handle('filesync:set', (_e, patch) => fileSync.set(patch));
+ipcMain.handle('filesync:read', () => fileSync.read());
+ipcMain.handle('filesync:write', (_e, text, remove) => fileSync.write(text, remove));
+ipcMain.handle('filesync:choose', async () => {
+  const r = await dialog.showOpenDialog(win, { title: 'Ordner für die Sync-Datei wählen', defaultPath: fileSync.state.folder, properties: ['openDirectory', 'createDirectory'] });
+  return r.canceled ? fileSync.status() : fileSync.set({ folder: r.filePaths[0] });
+});
+
+// Weitere kleine Dateien der Oberfläche (z. B. Basis für den Datei-Abgleich)
+const NAMED = { filebase: 'datei-sync-basis.json' };
+ipcMain.on('named:read', (e, name) => {
+  try {
+    e.returnValue = NAMED[name] ? fs.readFileSync(path.join(DIR, NAMED[name]), 'utf8') : null;
+  } catch {
+    e.returnValue = null;
+  }
+});
+ipcMain.handle('named:write', (_e, name, content) => {
+  if (!NAMED[name]) throw new Error('Unbekannte Datei');
+  const f = path.join(DIR, NAMED[name]);
+  if (content == null) return fs.rmSync(f, { force: true });
+  JSON.parse(content);
+  fs.writeFileSync(f + '.tmp', content, { mode: 0o600 });
+  fs.renameSync(f + '.tmp', f);
+});
+
 // ---------- Fenster ----------
 function createWindow() {
   win = new BrowserWindow({
@@ -105,6 +135,7 @@ function flushRenderer(timeoutMs = 3000) {
 async function backupAndQuit() {
   try {
     await sync.stop();
+    fileSync.stop();
     await flushRenderer();
     const file = B.createBackup(DIR);
     const removed = B.cleanupBackups(DIR);
@@ -188,6 +219,7 @@ function buildMenu() {
         { label: 'Backup-Ordner im Finder zeigen', click: () => { fs.mkdirSync(path.join(DIR, B.BACKUP_DIR), { recursive: true }); shell.openPath(path.join(DIR, B.BACKUP_DIR)); } },
         { type: 'separator' },
         { label: 'Synchronisation mit iPhone …', accelerator: 'CmdOrCtrl+Y', click: () => send('sync') },
+        { label: 'Sync-Ordner im Finder zeigen', click: () => { fs.mkdirSync(fileSync.state.folder, { recursive: true }); shell.openPath(fileSync.state.folder); } },
         { type: 'separator' },
         { label: 'Sperren', accelerator: 'CmdOrCtrl+L', click: () => send('sperren') },
         { label: 'Drucken …', accelerator: 'CmdOrCtrl+P', click: () => win?.webContents.print() },
@@ -231,5 +263,6 @@ app.whenReady().then(() => {
   buildMenu();
   createWindow();
   if (sync.state.enabled) sync.start();
+  fileSync.restart();
   app.on('activate', () => BrowserWindow.getAllWindows().length === 0 && createWindow());
 });

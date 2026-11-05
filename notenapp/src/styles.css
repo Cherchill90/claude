@@ -381,3 +381,8 @@ table.names .photo-cell { width: 60px; }
   .import-grid { grid-template-columns: 1fr; }
   table.grid th, table.grid td { padding: 4px 6px; }
 }
+
+/* Datei-Abgleich */
+.filesync-steps { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.filesync-steps .big-btn, .filesync-steps label.button { text-align: center; padding: 12px 16px; font-size: 17px; }
+label.button.disabled { opacity: 0.5; pointer-events: none; }

@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('notenappDesktop', {
   load: () => ipcRenderer.sendSync('daten:load'),
   save: (content) => ipcRenderer.invoke('daten:save', content),
+  readNamed: (name) => ipcRenderer.sendSync('named:read', name),
+  writeNamed: (name, content) => ipcRenderer.invoke('named:write', name, content),
   onFlushRequest(fn) {
     const h = async () => {
       try {
@@ -37,6 +39,17 @@ contextBridge.exposeInMainWorld('notenappDesktop', {
   syncStartPairing: () => ipcRenderer.invoke('sync:startPairing'),
   syncStopPairing: () => ipcRenderer.invoke('sync:stopPairing'),
   syncRemoveDevice: (id) => ipcRenderer.invoke('sync:removeDevice', id),
+  // Abgleich über Sync-Datei (iCloud Drive)
+  fileSyncStatus: () => ipcRenderer.invoke('filesync:status'),
+  fileSyncSet: (patch) => ipcRenderer.invoke('filesync:set', patch),
+  fileSyncChoose: () => ipcRenderer.invoke('filesync:choose'),
+  fileSyncRead: () => ipcRenderer.invoke('filesync:read'),
+  fileSyncWrite: (text, remove) => ipcRenderer.invoke('filesync:write', text, remove),
+  onFileSyncChanged(fn) {
+    const h = () => fn();
+    ipcRenderer.on('filesync:changed', h);
+    return () => ipcRenderer.removeListener('filesync:changed', h);
+  },
   onMenu(fn) {
     const h = (_e, cmd) => fn(cmd);
     ipcRenderer.on('menu', h);

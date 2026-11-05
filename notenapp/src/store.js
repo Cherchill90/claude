@@ -4,6 +4,7 @@ import { b64, unb64 } from './synccrypto.js';
 import { mergeSyncData, stable } from './merge.js';
 import { platform, read, readJson, remove, write } from './storage.js';
 import { syncWithMac, pairWithMac } from './syncclient.js';
+import { decryptSyncFile, encryptSyncFile } from './filesync.js';
 import { backupNow, onAppState, cleanupBackups } from './native.js';
 
 export const DEFAULT_STRICH = [
@@ -158,7 +159,10 @@ export function useStore() {
   }, [data, locked, flush]);
 
   // Mac-App: vor dem Beenden alles sofort sichern
-  useEffect(() => desktop?.onFlushRequest?.(flush), [flush]);
+  useEffect(() => desktop?.onFlushRequest?.(async () => {
+    await flush();
+    await fileSyncCycle().catch(() => {});
+  }), [flush]);
   useEffect(() => {
     const h = () => persist(latest.current, crypt.current, classKeys.current);
     window.addEventListener('beforeunload', h);
@@ -205,8 +209,8 @@ export function useStore() {
     setSaveState('saved');
   }
 
-  async function readBase() {
-    const raw = readJson('base');
+  async function readBase(name = 'base') {
+    const raw = readJson(name);
     if (!raw) return null;
     if (!raw.encrypted) return raw.data;
     try {
@@ -216,8 +220,8 @@ export function useStore() {
       return null; // z. B. nach Passwortwechsel – dann wird ohne Basis zusammengeführt
     }
   }
-  const writeBase = async (base) =>
-    write('base', JSON.stringify(crypt.current ? await encryptJson(base, crypt.current.key, crypt.current.salt) : { encrypted: false, data: base }));
+  const writeBase = async (base, name = 'base') =>
+    write(name, JSON.stringify(crypt.current ? await encryptJson(base, crypt.current.key, crypt.current.salt) : { encrypted: false, data: base }));
 
   // Mac: Anfrage eines iPhones zusammenführen (aufgerufen vom Sync-Server im Hauptprozess)
   useEffect(
@@ -264,6 +268,80 @@ export function useStore() {
     }
   }
 
+  // ---------- Abgleich über Sync-Datei (iCloud Drive) ----------
+  const [fileSync, setFileSync] = useState({ busy: false, error: null, last: null, info: null });
+  const fsBusy = useRef(false);
+
+  /** Inhalte einer oder mehrerer Sync-Dateien mit dem eigenen Stand zusammenführen und übernehmen. */
+  async function mergeFiles(texts) {
+    const pw = latest.current.prefs.syncPasswort;
+    const base = await readBase('filebase');
+    const local = await toWire(latest.current);
+    let merged = local;
+    let fileState = null;
+    for (const t of texts) {
+      const remote = await decryptSyncFile(t, pw);
+      fileState = fileState || remote;
+      merged = mergeSyncData(base, merged, remote);
+    }
+    if (stable(merged) !== stable(local)) await applyWire(merged);
+    return { merged, fileState, changedLocal: stable(merged) !== stable(local) };
+  }
+
+  /** Mac: Datei(en) lesen, zusammenführen, zusammengeführten Stand zurückschreiben. */
+  async function fileSyncCycle() {
+    if (!desktop || fsBusy.current || lockedRef.current) return;
+    fsBusy.current = true;
+    try {
+      const st = await desktop.fileSyncStatus();
+      if (!st.enabled) return;
+      if (!latest.current.prefs.syncPasswort) throw new Error('Bitte ein Sync-Passwort festlegen.');
+      const files = await desktop.fileSyncRead();
+      const { merged, fileState } = await mergeFiles(files.map((f) => f.text));
+      const needWrite = files.length !== 1 || !fileState || stable(fileState) !== stable(merged);
+      if (needWrite) await desktop.fileSyncWrite(await encryptSyncFile(merged, latest.current.prefs.syncPasswort), files.map((f) => f.name));
+      await writeBase(merged, 'filebase');
+      setFileSync({ busy: false, error: null, last: Date.now(), info: needWrite ? 'Sync-Datei aktualisiert' : 'Keine Änderungen' });
+    } catch (e) {
+      setFileSync((s) => ({ ...s, busy: false, error: e.message }));
+    } finally {
+      fsBusy.current = false;
+    }
+  }
+
+  // Mac: bei Änderung der Datei sofort, bei eigenen Änderungen nach 5 s abgleichen
+  useEffect(() => desktop?.onFileSyncChanged?.(() => fileSyncCycle()), []);
+  const fsTimer = useRef(null);
+  useEffect(() => {
+    if (!desktop || locked) return;
+    clearTimeout(fsTimer.current);
+    fsTimer.current = setTimeout(fileSyncCycle, data.changedAt ? 5000 : 1500);
+  }, [data.changedAt, locked]);
+
+  // iPhone/Web: „1 · Öffnen“ – Datei aus iCloud Drive einlesen und zusammenführen
+  async function fileSyncOpen(text) {
+    setFileSync((s) => ({ ...s, busy: true, error: null }));
+    try {
+      await flush();
+      await backupNow('vor-dateisync').catch(() => {});
+      const { changedLocal } = await mergeFiles([text]);
+      setFileSync({ busy: false, error: null, last: Date.now(), info: changedLocal ? 'Änderungen vom Mac übernommen. Jetzt „2 · Speichern“.' : 'Schon auf dem neuesten Stand. Jetzt „2 · Speichern“.' });
+    } catch (e) {
+      setFileSync((s) => ({ ...s, busy: false, error: e.message }));
+      throw e;
+    }
+  }
+
+  // iPhone/Web: „2 · Speichern“ vorbereiten (verschlüsselt, damit das Teilen sofort beim Tippen startet)
+  async function fileSyncPrepare() {
+    const wire = await toWire(latest.current);
+    return { wire, text: await encryptSyncFile(wire, latest.current.prefs.syncPasswort) };
+  }
+  async function fileSyncSaved(wire) {
+    await writeBase(wire, 'filebase');
+    setFileSync({ busy: false, error: null, last: Date.now(), info: 'Gespeichert. Der Mac übernimmt die Änderungen automatisch.' });
+  }
+
   // iPhone: Backup beim Wechsel in den Hintergrund, automatische Synchronisation beim Öffnen
   useEffect(() => {
     cleanupBackups().catch(() => {});
@@ -296,6 +374,11 @@ export function useStore() {
     flush,
     sync,
     syncNow,
+    fileSync,
+    fileSyncCycle,
+    fileSyncOpen,
+    fileSyncPrepare,
+    fileSyncSaved,
     async pair(opts) {
       const deviceId = crypto.randomUUID();
       const p = await pairWithMac({ ...opts, deviceId });
@@ -335,9 +418,11 @@ export function useStore() {
     lockKlassen,
     async setPassword(pw) {
       const base = await readBase();
+      const fbase = await readBase('filebase');
       crypt.current = pw ? await createKey(pw) : null;
       await persist(latest.current, crypt.current, classKeys.current);
       if (base) await writeBase(base);
+      if (fbase) await writeBase(fbase, 'filebase');
     },
     async setKlassePassword(id, pw) {
       if (pw) classKeys.current[id] = await createKey(pw);

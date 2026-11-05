@@ -6,10 +6,160 @@ const desktop = typeof window !== 'undefined' ? window.notenappDesktop : undefin
 const fmtTime = (t) => (t ? new Date(t).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : 'noch nie');
 
 export function SyncDialog({ store, ctx, onClose }) {
+  // Web-App (HTTPS): nur Abgleich über Sync-Datei möglich; Mac/iOS-App: zusätzlich WLAN
+  const [tab, setTab] = useState('datei');
   return (
     <Modal title={platform === 'mac' ? 'Synchronisation mit iPhone/iPad' : 'Mit Mac synchronisieren'} onClose={onClose}>
-      {platform === 'mac' ? <MacSync /> : <PhoneSync store={store} ctx={ctx} />}
+      {platform !== 'web' && (
+        <div className="seg" style={{ marginBottom: 12 }}>
+          <button className={tab === 'datei' ? 'on' : ''} onClick={() => setTab('datei')}>☁︎ iCloud-Datei</button>
+          <button className={tab === 'wlan' ? 'on' : ''} onClick={() => setTab('wlan')}>📶 WLAN</button>
+        </div>
+      )}
+      {tab === 'datei' ? (
+        platform === 'mac' ? <MacFileSync store={store} ctx={ctx} /> : <PhoneFileSync store={store} ctx={ctx} />
+      ) : platform === 'mac' ? (
+        <MacSync />
+      ) : (
+        <PhoneSync store={store} ctx={ctx} />
+      )}
     </Modal>
+  );
+}
+
+function SyncPasswort({ ctx }) {
+  const { data, update } = ctx;
+  const [show, setShow] = useState(false);
+  return (
+    <Field label="Sync-Passwort (auf Mac und iPhone gleich)" hint="Verschlüsselt die Sync-Datei. Ohne dieses Passwort kann niemand die Noten in iCloud lesen – auch Apple nicht.">
+      <span className="row" style={{ margin: 0 }}>
+        <input
+          type={show ? 'text' : 'password'} className="grow" autoComplete="off" autoCapitalize="off"
+          value={data.prefs.syncPasswort || ''} onChange={(e) => update((d) => (d.prefs.syncPasswort = e.target.value))}
+        />
+        <button onClick={() => setShow(!show)}>{show ? 'verbergen' : 'zeigen'}</button>
+      </span>
+    </Field>
+  );
+}
+
+// ---------------- Mac: Sync-Datei automatisch ----------------
+function MacFileSync({ store, ctx }) {
+  const [st, setSt] = useState(null);
+  const refresh = () => desktop.fileSyncStatus().then(setSt);
+  useEffect(() => {
+    refresh();
+    const t = setInterval(refresh, 3000);
+    return () => clearInterval(t);
+  }, []);
+  if (!st) return <p className="muted">Lade …</p>;
+  const fsync = store.fileSync;
+  return (
+    <div className="sync">
+      <p className="muted">
+        Mac und iPhone tauschen die Noten über eine verschlüsselte Datei in iCloud Drive aus. Der Mac gleicht automatisch ab, sobald sich die Datei
+        oder die Noten am Mac ändern. Auf dem iPhone: Datei öffnen, danach speichern.
+      </p>
+      <SyncPasswort ctx={ctx} />
+      <label className="check block">
+        <input type="checkbox" checked={st.enabled} disabled={!ctx.data.prefs.syncPasswort} onChange={async (e) => { setSt(await desktop.fileSyncSet({ enabled: e.target.checked })); if (e.target.checked) setTimeout(store.fileSyncCycle, 300); }} />
+        <b>Über Sync-Datei abgleichen</b>
+      </label>
+      <p>
+        Ordner: <code className="addr">{st.folder.replace(/^.*com~apple~CloudDocs/, 'iCloud Drive')}</code>{' '}
+        <button onClick={async () => setSt(await desktop.fileSyncChoose())}>Ändern …</button>
+      </p>
+      {!st.icloud && <p className="hint">Dieser Ordner liegt nicht in iCloud Drive. Für den Abgleich mit dem iPhone einen Ordner in iCloud Drive wählen.</p>}
+      {st.files.length > 1 && <p className="hint">Es gibt {st.files.length} Versionen der Sync-Datei (iCloud-Konflikt). Sie werden beim nächsten Abgleich zusammengeführt.</p>}
+      <div className="row">
+        <button className="primary" disabled={!st.enabled} onClick={() => store.fileSyncCycle()}>⟳ Jetzt abgleichen</button>
+        <span className="muted small">Letzter Abgleich: {fmtTime(fsync.last)} {fsync.info && `· ${fsync.info}`}</span>
+      </div>
+      {fsync.error && <p className="error">{fsync.error}</p>}
+      <h4>Auf dem iPhone einrichten</h4>
+      <ol className="small">
+        <li>Die Notenapp-Webseite in Safari öffnen → Teilen → <b>Zum Home-Bildschirm</b>. Ab dann immer über das Symbol starten.</li>
+        <li>⟳ Sync → dasselbe Sync-Passwort eintragen.</li>
+        <li><b>1 · Öffnen</b>: Dateien → iCloud Drive → Notenapp → notenapp-sync.json.</li>
+        <li><b>2 · Speichern</b>: „In Dateien sichern“ → iCloud Drive → Notenapp → <b>Ersetzen</b>.</li>
+      </ol>
+    </div>
+  );
+}
+
+// ---------------- iPhone / Web: Öffnen + Speichern ----------------
+function PhoneFileSync({ store, ctx }) {
+  const { data } = ctx;
+  const fsync = store.fileSync;
+  const [prep, setPrep] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const pw = data.prefs.syncPasswort;
+
+  // Speichern vorbereiten, damit „Teilen“ direkt beim Tippen startet (Safari verlangt das)
+  useEffect(() => {
+    let alive = true;
+    setPrep(null);
+    if (!pw) return;
+    const t = setTimeout(() => store.fileSyncPrepare().then((p) => alive && setPrep(p)).catch(() => {}), 300);
+    return () => { alive = false; clearTimeout(t); };
+  }, [data, pw]);
+
+  async function onFile(e) {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    setMsg(null);
+    try {
+      await store.fileSyncOpen(await f.text());
+    } catch (err) {
+      setMsg({ ok: false, text: err.message });
+    }
+  }
+
+  async function save() {
+    if (!prep) return;
+    const file = new File([prep.text], 'notenapp-sync.json', { type: 'application/json' });
+    try {
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file] });
+      } else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(file);
+        a.download = 'notenapp-sync.json';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      }
+      await store.fileSyncSaved(prep.wire);
+    } catch (err) {
+      if (err?.name !== 'AbortError') setMsg({ ok: false, text: 'Speichern fehlgeschlagen: ' + err.message });
+    }
+  }
+
+  return (
+    <div className="sync">
+      <SyncPasswort ctx={ctx} />
+      <div className="filesync-steps">
+        <label className={'button big-btn' + (!pw ? ' disabled' : '')}>
+          1 · Sync-Datei öffnen
+          <input type="file" accept=".json,application/json" hidden disabled={!pw} onChange={onFile} />
+        </label>
+        <button className="primary big-btn" disabled={!prep} onClick={save}>2 · In iCloud speichern</button>
+      </div>
+      {fsync.busy && <p className="muted">Gleiche ab …</p>}
+      {fsync.info && !fsync.error && <p className="ok">{fsync.info}</p>}
+      {(fsync.error || msg) && <p className="error">{fsync.error || msg.text}</p>}
+      <p className="muted small">Letzter Abgleich: {fmtTime(fsync.last)}</p>
+      <h4>So geht's</h4>
+      <ol className="small">
+        <li><b>1 · Öffnen</b>: in „Dateien“ iCloud Drive → Notenapp → <code>notenapp-sync.json</code> wählen. Änderungen vom Mac werden übernommen, deine bleiben erhalten.</li>
+        <li><b>2 · Speichern</b>: „In Dateien sichern“ → iCloud Drive → Notenapp → <b>Ersetzen</b> tippen. Der Mac übernimmt deine Änderungen dann automatisch.</li>
+        <li>Am besten vor dem Unterricht öffnen und nach dem Unterricht speichern.</li>
+      </ol>
+      <p className="muted small">
+        Erste Einrichtung: Am Mac in der Notenapp „☁︎ iCloud-Datei“ einschalten, mit demselben Sync-Passwort. Der Mac legt die Datei an. Hat das iPhone schon
+        Noten und der Mac noch keine Datei: einfach direkt „2 · Speichern“.
+      </p>
+    </div>
   );
 }
 
