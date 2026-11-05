@@ -1,7 +1,7 @@
 // Nur im CI-Build (VITE_SELFTEST=1) enthalten: koppelt die native App automatisch mit einer Mac-App,
 // synchronisiert in beide Richtungen und schreibt das Ergebnis nach Documents/selftest-result.json.
-// In normalen Builds wird diese Datei nicht eingebunden (kein URL-Schema, kein Code).
-import { App } from '@capacitor/app';
+// Parameter kommen aus Documents/selftest.json (legt das Testskript vor dem Start in den App-Container).
+// In normalen Builds wird diese Datei nicht eingebunden.
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { readJson } from './storage.js';
 
@@ -16,40 +16,45 @@ function gradesOnDevice() {
   return { s01: a?.results[sid('Schüler 01')]?.grade, s02: a?.results[sid('Schüler 02')]?.grade, klassen: raw.data.klassen.length };
 }
 
-export function startSelftest(storeRef) {
-  let running = false;
-  const run = async (url) => {
-    if (running || !url || !url.startsWith('notenapp://selftest')) return;
-    running = true;
-    const q = new URL(url.replace('notenapp://', 'http://x/')).searchParams;
-    const log = [];
-    const step = (m) => log.push(`${new Date().toISOString()} ${m}`);
-    const result = { ok: false, log, platform: navigator.userAgent };
-    try {
-      step(`isSecureContext=${window.isSecureContext} subtle=${!!crypto?.subtle} randomUUID=${typeof crypto.randomUUID}`);
-      const p = await storeRef.current.pair({ host: q.get('host'), port: Number(q.get('port')), code: q.get('code'), deviceName: 'iPhone-Simulator' });
-      step(`gekoppelt mit ${p.macName}`);
-      await storeRef.current.syncNow();
-      result.afterSync1 = gradesOnDevice();
-      step(`sync1 ${JSON.stringify(result.afterSync1)}`);
-      storeRef.current.update((d) => {
-        const k = d.klassen.find((x) => x.name === 'Beispielklasse');
-        const a = k.arbeiten.find((x) => x.title === '1. Klassenarbeit');
-        const s = k.schueler.find((x) => x.last === 'Schüler 01');
-        a.results[s.id] = { ...(a.results[s.id] || {}), grade: '5' };
-      });
-      step('iPhone: Schüler 01 → 5');
-      await sleep(Number(q.get('wait') || 10000));
-      await storeRef.current.syncNow();
-      result.afterSync2 = gradesOnDevice();
-      step(`sync2 ${JSON.stringify(result.afterSync2)}`);
-      result.ok = true;
-    } catch (e) {
-      result.error = String(e?.message || e);
-      step('FEHLER ' + result.error);
-    }
-    await Filesystem.writeFile({ path: 'selftest-result.json', directory: Directory.Documents, data: JSON.stringify(result, null, 1), encoding: Encoding.UTF8 });
+export async function startSelftest(storeRef) {
+  let q;
+  try {
+    q = JSON.parse((await Filesystem.readFile({ path: 'selftest.json', directory: Directory.Documents, encoding: Encoding.UTF8 })).data);
+    await Filesystem.deleteFile({ path: 'selftest.json', directory: Directory.Documents });
+  } catch {
+    return; // kein Selbsttest angefordert
+  }
+  const log = [];
+  const result = { ok: false, log, platform: navigator.userAgent };
+  const save = () =>
+    Filesystem.writeFile({ path: 'selftest-result.json', directory: Directory.Documents, data: JSON.stringify(result, null, 1), encoding: Encoding.UTF8 }).catch(() => {});
+  const step = async (m) => {
+    log.push(`${new Date().toISOString()} ${m}`);
+    await save();
   };
-  App.getLaunchUrl().then((r) => run(r?.url));
-  App.addListener('appUrlOpen', (e) => run(e.url));
+  try {
+    await step(`gestartet; isSecureContext=${window.isSecureContext} subtle=${!!crypto?.subtle} randomUUID=${typeof crypto.randomUUID}`);
+    const p = await storeRef.current.pair({ host: q.host, port: Number(q.port), code: q.code, deviceName: 'iPhone-Simulator' });
+    await step(`gekoppelt mit ${p.macName}`);
+    await storeRef.current.syncNow();
+    result.afterSync1 = gradesOnDevice();
+    await step(`sync1 ${JSON.stringify(result.afterSync1)}`);
+    storeRef.current.update((d) => {
+      const k = d.klassen.find((x) => x.name === 'Beispielklasse');
+      const a = k.arbeiten.find((x) => x.title === '1. Klassenarbeit');
+      const s = k.schueler.find((x) => x.last === 'Schüler 01');
+      a.results[s.id] = { ...(a.results[s.id] || {}), grade: '5' };
+    });
+    await step('iPhone: Schüler 01 → 5');
+    await sleep(Number(q.wait || 20000));
+    await storeRef.current.syncNow();
+    result.afterSync2 = gradesOnDevice();
+    await step(`sync2 ${JSON.stringify(result.afterSync2)}`);
+    result.ok = true;
+  } catch (e) {
+    result.error = String(e?.message || e);
+    log.push('FEHLER ' + result.error);
+  }
+  result.done = true;
+  await save();
 }

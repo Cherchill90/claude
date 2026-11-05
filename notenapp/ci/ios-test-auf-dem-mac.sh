@@ -8,12 +8,7 @@ cd "$(dirname "$0")/.."
 echo "▶ Abhängigkeiten"; npm install --no-audit --no-fund >/dev/null
 echo "▶ Web-Build mit Selbsttest"; VITE_SELFTEST=1 npx vite build >/dev/null
 echo "▶ iOS-Projekt"; npx cap sync ios >/dev/null
-PLIST=ios/App/App/Info.plist
-cp "$PLIST" /tmp/notenapp-Info.plist.bak
-trap 'cp /tmp/notenapp-Info.plist.bak "$PLIST"; npx vite build >/dev/null 2>&1 && npx cap sync ios >/dev/null 2>&1; echo "▶ Projekt wieder im Normalzustand (ohne Selbsttest)"' EXIT
-/usr/libexec/PlistBuddy -c "Delete :CFBundleURLTypes" "$PLIST" 2>/dev/null || true
-/usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" -c "Add :CFBundleURLTypes:0 dict" \
-  -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string notenapp" "$PLIST"
+trap 'npx vite build >/dev/null 2>&1 && npx cap sync ios >/dev/null 2>&1; echo "▶ Projekt wieder im Normalzustand (ohne Selbsttest)"' EXIT
 
 echo "▶ Simulator"
 UDID=$(xcrun simctl list devices available -j | python3 -c "

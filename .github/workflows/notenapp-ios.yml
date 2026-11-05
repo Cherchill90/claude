@@ -39,13 +39,6 @@ jobs:
       - name: iOS-Projekt aktualisieren
         run: npx cap sync ios
 
-      - name: URL-Schema nur für den Test registrieren
-        run: |
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" \
-            -c "Add :CFBundleURLTypes:0 dict" \
-            -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" \
-            -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string notenapp" ios/App/App/Info.plist
-
       - name: Neuestes Xcode wählen (Capacitor 8 braucht Xcode 16+)
         run: |
           XC=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
@@ -77,6 +70,7 @@ jobs:
         run: npm i --no-save playwright@1.64.1
 
       - name: Mac-App ⇄ iPhone-App synchronisieren
+        timeout-minutes: 12
         run: node ci/ios-sync-e2e.cjs
 
       - name: Ergebnisse
