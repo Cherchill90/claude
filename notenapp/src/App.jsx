@@ -49,6 +49,13 @@ export default function App() {
     if (['arbeitId', 'schuelerId', 'liste', 'planId'].some((k) => patch[k]) && window.innerWidth < 760) setSideOpen(false);
   };
 
+  // Nur im CI-Build: automatischer Selbsttest der nativen App (siehe .github/workflows/ios.yml)
+  const storeRef = useRef(store);
+  storeRef.current = store;
+  useEffect(() => {
+    if (import.meta.env.VITE_SELFTEST === '1' && platform === 'ios') import('./selftest.js').then((m) => m.startSelftest(storeRef));
+  }, []);
+
   // Theme
   useEffect(() => {
     document.documentElement.dataset.theme = data.prefs.theme;
