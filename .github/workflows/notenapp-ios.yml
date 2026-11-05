@@ -79,3 +79,27 @@ jobs:
         with:
           name: notenapp-ios-e2e
           path: notenapp/ci-out
+
+  mac-app:
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: notenapp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: notenapp/package-lock.json
+      - name: Abhängigkeiten
+        run: npm ci
+      - name: Mac-App bauen (DMG, Apple Silicon + Intel)
+        run: npm run dist:mac
+      - name: DMG bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: Notenapp-Mac
+          path: notenapp/release/*.dmg
+          retention-days: 30
