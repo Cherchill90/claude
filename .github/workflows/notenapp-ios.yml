@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   ios-sync:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 45
     defaults:
       run:
@@ -45,6 +45,12 @@ jobs:
             -c "Add :CFBundleURLTypes:0 dict" \
             -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" \
             -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string notenapp" ios/App/App/Info.plist
+
+      - name: Neuestes Xcode wählen (Capacitor 8 braucht Xcode 16+)
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
 
       - name: iPhone-Simulator starten
         run: |
