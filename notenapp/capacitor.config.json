@@ -1,0 +1,15 @@
+{
+  "appId": "de.notenapp.ios",
+  "appName": "Notenapp",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#ffffff",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

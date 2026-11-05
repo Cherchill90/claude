@@ -95,6 +95,12 @@ export function Hilfe({ onClose }) {
         <li>Mit „Notenschlüssel“ werden Punkte eingegeben und automatisch in Noten umgerechnet.</li>
         <li>„Schreibschutz“ sperrt eine Arbeit gegen versehentliche Änderungen.</li>
       </ul>
+      <h3>Synchronisation Mac ⇄ iPhone</h3>
+      <ul>
+        <li>Mac: ☰ Klasse → Synchronisation mit iPhone → „Synchronisation erlauben“ → „iPhone/iPad koppeln“.</li>
+        <li>iPhone: ⟳ Sync → Adresse, Port und Code vom Mac eintragen → Koppeln. Danach genügt ⟳ Sync.</li>
+        <li>Beide Geräte im selben WLAN; die Notenapp muss am Mac geöffnet und entsperrt sein.</li>
+      </ul>
       <h3>Tastenkürzel</h3>
       <ul>
         <li>⌘/Strg + O: Klassen verwalten · ⌘/Strg + N: Neue Klasse · ⌘/Strg + S: Sicherheitskopie · ⌘/Strg + P: Drucken</li>

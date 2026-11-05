@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_SETTINGS, uid } from './grades.js';
-
-const KEY = 'notenapp:v1';
+import { b64, unb64 } from './synccrypto.js';
+import { mergeSyncData, stable } from './merge.js';
+import { platform, read, readJson, remove, write } from './storage.js';
+import { syncWithMac, pairWithMac } from './syncclient.js';
+import { backupNow, onAppState, cleanupBackups } from './native.js';
 
 export const DEFAULT_STRICH = [
   { id: 'hav', name: 'Hausaufgaben vergessen', kurz: 'HA' },
@@ -60,8 +63,6 @@ export function emptyData() {
 // ---------- Verschlüsselung (AES-GCM, Schlüssel via PBKDF2 aus dem Passwort) ----------
 const enc = new TextEncoder();
 const dec = new TextDecoder();
-const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
-const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
 async function deriveKey(password, salt) {
   const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
@@ -85,21 +86,17 @@ export async function createKey(password) {
   return { key: await deriveKey(password, salt), salt };
 }
 
-// ---------- Speicherort: Datei (Mac-App) oder localStorage (Browser) ----------
+// ---------- Speicherort: siehe storage.js ----------
 const desktop = typeof window !== 'undefined' ? window.notenappDesktop : undefined;
 export const isDesktop = !!desktop;
+export { platform };
 
-export function readRaw() {
-  try {
-    return JSON.parse(desktop ? desktop.load() : localStorage.getItem(KEY));
-  } catch {
-    return null;
-  }
-}
+export const readRaw = () => readJson('data');
+const writeRaw = (str) => write('data', str);
 
-async function writeRaw(str) {
-  if (desktop) await desktop.save(str);
-  else localStorage.setItem(KEY, str);
+async function hashOf(k) {
+  const d = await crypto.subtle.digest('SHA-256', enc.encode(stable(k)));
+  return b64(d);
 }
 
 export async function unlock(password) {
@@ -113,7 +110,7 @@ export async function unlock(password) {
 // ---------- Passwort pro Klasse ----------
 async function sealKlasse(k, ck) {
   const { encrypted, ...box } = await encryptJson(k, ck.key, ck.salt);
-  return { id: k.id, name: k.name, schuljahr: k.schuljahr, sealed: box };
+  return { id: k.id, name: k.name, schuljahr: k.schuljahr, sealed: { ...box, hash: await hashOf(k) } };
 }
 
 async function unsealKlasse(k, password) {
@@ -134,7 +131,7 @@ export async function persist(data, crypt, classKeys = {}) {
 
 /** Zentraler App-Zustand. Jede Änderung wird automatisch gespeichert (250 ms verzögert). */
 export function useStore() {
-  const raw = readRaw();
+  const [raw] = useState(() => readRaw());
   const [locked, setLocked] = useState(!!raw?.encrypted);
   const [data, setData] = useState(() => (raw && !raw.encrypted ? migrate(raw.data) : emptyData()));
   const [saveState, setSaveState] = useState('saved');
@@ -172,7 +169,111 @@ export function useStore() {
     setData((prev) => {
       const draft = structuredClone(prev);
       fn(draft);
+      draft.changedAt = Date.now(); // für Konflikte bei der Synchronisation: neuere Änderung gewinnt
       return draft;
+    });
+  }, []);
+
+  // ---------- Synchronisation ----------
+  /** Zu übertragender Stand: Klassen mit eigenem Passwort verschlüsselt, Geräte-Einstellungen bleiben lokal. */
+  async function toWire(d) {
+    return {
+      klassen: await Promise.all(d.klassen.map((k) => (!k.sealed && classKeys.current[k.id] ? sealKlasse(k, classKeys.current[k.id]) : k))),
+      changedAt: d.changedAt || 0,
+    };
+  }
+
+  /** Zusammengeführten Stand übernehmen und sofort speichern. */
+  async function applyWire(merged) {
+    const cur = latest.current;
+    const klassen = [];
+    for (const mk of merged.klassen) {
+      if (mk.sealed) {
+        const loc = cur.klassen.find((x) => x.id === mk.id);
+        if (loc && !loc.sealed && classKeys.current[mk.id] && (await hashOf(loc)) === mk.sealed.hash) klassen.push(loc);
+        else {
+          delete classKeys.current[mk.id]; // geänderte geschützte Klasse muss neu entsperrt werden
+          klassen.push(mk);
+        }
+      } else klassen.push(migrate({ klassen: [mk] }).klassen[0]);
+    }
+    const next = { ...cur, klassen, changedAt: merged.changedAt };
+    if (!klassen.some((k) => k.id === next.activeKlasseId)) next.activeKlasseId = klassen[0]?.id ?? null;
+    latest.current = next;
+    setData(next);
+    await persist(next, crypt.current, classKeys.current);
+    setSaveState('saved');
+  }
+
+  async function readBase() {
+    const raw = readJson('base');
+    if (!raw) return null;
+    if (!raw.encrypted) return raw.data;
+    try {
+      const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(raw.iv) }, crypt.current.key, unb64(raw.data));
+      return JSON.parse(dec.decode(pt));
+    } catch {
+      return null; // z. B. nach Passwortwechsel – dann wird ohne Basis zusammengeführt
+    }
+  }
+  const writeBase = async (base) =>
+    write('base', JSON.stringify(crypt.current ? await encryptJson(base, crypt.current.key, crypt.current.salt) : { encrypted: false, data: base }));
+
+  // Mac: Anfrage eines iPhones zusammenführen (aufgerufen vom Sync-Server im Hauptprozess)
+  useEffect(
+    () =>
+      desktop?.onSyncRequest?.(async ({ base, remote }) => {
+        if (lockedRef.current) {
+          const e = new Error('Die Notenapp am Mac ist gesperrt. Bitte am Mac entsperren und erneut synchronisieren.');
+          e.status = 423;
+          throw e;
+        }
+        clearTimeout(timer.current);
+        const merged = mergeSyncData(base, await toWire(latest.current), remote);
+        await applyWire(merged);
+        return merged;
+      }),
+    [],
+  );
+
+  const [sync, setSync] = useState(() => ({ pairing: readJson('pairing'), busy: false, error: null }));
+
+  async function syncNow() {
+    const pairing = readJson('pairing');
+    if (!pairing) throw new Error('Noch nicht mit einem Mac gekoppelt.');
+    if (lockedRef.current) throw new Error('Bitte zuerst entsperren.');
+    setSync((s) => ({ ...s, busy: true, error: null }));
+    try {
+      await flush();
+      await backupNow('vor-sync').catch(() => {});
+      const base = await readBase();
+      const local = await toWire(latest.current);
+      const { merged, seq, macName } = await syncWithMac(pairing, base, local);
+      // Änderungen, die während der Übertragung gemacht wurden, nicht verlieren
+      const now = await toWire(latest.current);
+      const final = stable(now) === stable(local) ? merged : mergeSyncData(local, merged, now);
+      await applyWire(final);
+      await writeBase(merged);
+      const p = { ...pairing, seq, macName, lastSync: Date.now() };
+      await write('pairing', JSON.stringify(p));
+      setSync({ pairing: p, busy: false, error: null });
+      return p;
+    } catch (e) {
+      setSync((s) => ({ ...s, busy: false, error: e.message }));
+      throw e;
+    }
+  }
+
+  // iPhone: Backup beim Wechsel in den Hintergrund, automatische Synchronisation beim Öffnen
+  useEffect(() => {
+    cleanupBackups().catch(() => {});
+    return onAppState(async (active) => {
+      if (!active) {
+        await flush().catch(() => {});
+        await backupNow().catch(() => {});
+      } else if (latest.current.prefs.autoSync !== false && readJson('pairing') && !lockedRef.current) {
+        syncNow().catch(() => {});
+      }
     });
   }, []);
 
@@ -193,6 +294,26 @@ export function useStore() {
     locked,
     saveState,
     flush,
+    sync,
+    syncNow,
+    async pair(opts) {
+      const deviceId = crypto.randomUUID();
+      const p = await pairWithMac({ ...opts, deviceId });
+      await write('pairing', JSON.stringify(p));
+      await remove('base');
+      setSync({ pairing: p, busy: false, error: null });
+      return p;
+    },
+    async updatePairing(patch) {
+      const p = { ...readJson('pairing'), ...patch };
+      await write('pairing', JSON.stringify(p));
+      setSync((s) => ({ ...s, pairing: p }));
+    },
+    async unpair() {
+      await remove('pairing');
+      await remove('base');
+      setSync({ pairing: null, busy: false, error: null });
+    },
     hasPassword: () => !!crypt.current,
     hasKlassePassword: (id) => !!classKeys.current[id],
     anyKlassePassword: () => Object.keys(classKeys.current).length > 0,
@@ -213,8 +334,10 @@ export function useStore() {
     },
     lockKlassen,
     async setPassword(pw) {
+      const base = await readBase();
       crypt.current = pw ? await createKey(pw) : null;
       await persist(latest.current, crypt.current, classKeys.current);
+      if (base) await writeBase(base);
     },
     async setKlassePassword(id, pw) {
       if (pw) classKeys.current[id] = await createKey(pw);

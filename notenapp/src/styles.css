@@ -311,3 +311,73 @@ table.names .photo-cell { width: 60px; }
 :root[data-farbskala='an'] .avg[style*='--h'],
 :root[data-farbskala='an'] .pill[style*='--h'] { padding: 1px 7px; border-radius: 9px; }
 :root[data-farbskala='an'] .cell-edit input.grade.big[style*='--h'] { border-radius: 8px; }
+
+/* ---------- Synchronisation ---------- */
+.sync ol, .sync ul { padding-left: 20px; }
+.sync code.addr { background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; margin-right: 4px; }
+.sync code.addr.big { font-size: 18px; }
+.pair-code { font: 600 40px/1.2 ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: 6px; margin: 10px 0; }
+.code-input { font: 600 20px ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: 3px; text-transform: uppercase; }
+.big-btn { font-size: 17px; padding: 10px 18px; }
+.sync-btn.busy { opacity: 0.6; }
+.sync-btn.err { border-color: var(--danger); color: var(--danger); }
+.card.center { text-align: center; }
+.side-toggle { display: none; }
+
+/* Ränder für Statusleiste/Home-Balken auf iPhone und iPad (auf dem Mac 0) */
+.app { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); box-sizing: border-box; }
+
+/* ---------- iPhone / schmale Fenster ---------- */
+@media (max-width: 760px) {
+  html, body { -webkit-tap-highlight-color: transparent; overflow-x: hidden; overscroll-behavior: none; }
+  .content, main, .col, .pad, .three-col, .two-col { min-width: 0; max-width: 100vw; }
+  .scroll-x, .preview { max-width: 100%; }
+  .tree-row input.grow { flex: 1 1 100%; }
+  .tree-row.fach input.grow { font-size: 17px; }
+  input, select, textarea { font-size: 16px; } /* verhindert Zoomen beim Antippen */
+  .app { display: block; height: 100%; }
+  .content { height: 100%; }
+  .sidebar {
+    position: fixed; z-index: 45; top: 0; bottom: 0; left: 0; width: min(86vw, 340px);
+    padding-top: env(safe-area-inset-top); transform: translateX(-102%); transition: transform 0.2s ease;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.25);
+  }
+  .app.side-open .sidebar { transform: none; }
+  .app.side-open::after { content: ''; position: fixed; inset: 0; z-index: 44; background: rgba(0, 0, 0, 0.3); }
+  .side-toggle { display: inline-block; border: 0; background: none; font-size: 22px; padding: 6px 10px; }
+  .topbar { flex-wrap: wrap; padding: 0 4px; gap: 2px; }
+  .tabs { order: 3; flex: 1 1 100%; justify-content: space-between; overflow-x: auto; }
+  .tabs > button { padding: 10px 8px 8px; font-size: 15px; flex: 1; }
+  .actions { margin-left: auto; gap: 4px; }
+  .actions > button { padding: 5px 8px; }
+  .save-state { display: none; }
+  .dropdown { position: fixed; left: 8px !important; right: 8px; top: calc(env(safe-area-inset-top) + 96px); max-height: 70vh; overflow-y: auto; }
+  main { overflow: auto; height: calc(100% - 96px); -webkit-overflow-scrolling: touch; }
+  .three-col, .two-col { display: flex; flex-direction: column; height: auto; }
+  .col { border-right: 0; border-bottom: 1px solid var(--line); overflow: visible; padding: 10px 12px; }
+  .three-col .col.entry { order: 1; }
+  .three-col .col.right { order: 2; }
+  .three-col .col.details { order: 3; }
+  .entry-list.two { grid-template-columns: 1fr; }
+  .entry-list li { padding: 6px; }
+  .pad { padding: 12px; overflow-x: auto; }
+  .toolbar h2 { font-size: 16px; }
+  .seats { overflow-x: auto; }
+  .sitzplan .seats { grid-auto-columns: 84px; }
+  .modal-bg { padding: 0; align-items: stretch; }
+  .modal, .modal.wide, .modal.full { width: 100%; height: 100%; max-height: 100%; border-radius: 0; padding-top: env(safe-area-inset-top); }
+  .modal-body { flex: 1; }
+  .manage, .split { grid-template-columns: 1fr; margin: 0; }
+  .split > :first-child { padding: 8px 4px; }
+  .detail { border-left: 0; border-top: 1px solid var(--line); }
+  .editor-head { flex-wrap: wrap; }
+  .stepper { order: 3; flex: 1 1 100%; overflow-x: auto; }
+  .stepper b { display: none; }
+  .tree-row { flex-wrap: wrap; }
+  .tree-row .kurz { width: 70px; }
+  .irow > input:not(.num), .irow > select { width: 100%; }
+  .cards { grid-template-columns: 1fr; gap: 12px; }
+  .kcard { min-height: 0; }
+  .import-grid { grid-template-columns: 1fr; }
+  table.grid th, table.grid td { padding: 4px 6px; }
+}

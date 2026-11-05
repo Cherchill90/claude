@@ -7,15 +7,22 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test src/grades.test.js src/csv.test.js electron/backup.test.cjs",
+    "test": "node --test src/grades.test.js src/csv.test.js src/merge.test.js src/synccrypto.test.js electron/backup.test.cjs electron/syncserver.test.cjs",
     "app": "vite build && electron .",
-    "dist:mac": "vite build && electron-builder --mac"
+    "dist:mac": "vite build && electron-builder --mac",
+    "ios": "vite build && npx cap sync ios && npx cap open ios",
+    "ios:sync": "vite build && npx cap sync ios"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/ios": "^8.6.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^45.2.1",
     "electron-builder": "^26.18.0",

@@ -8,6 +8,8 @@ import { SitzplanSide, SitzplanMain } from './views/Sitzplan.jsx';
 import { KlassenVerwalten, Versetzen } from './views/Verwalten.jsx';
 import { LockScreen, Einstellungen, Hilfe, exportBackup, importBackup, pickCsv } from './views/Global.jsx';
 import { CsvImport } from './views/CsvImport.jsx';
+import { SyncDialog } from './views/Sync.jsx';
+import { platform } from './storage.js';
 import { Empty } from './ui.jsx';
 
 function KlasseEntsperren({ klasse, store }) {
@@ -40,7 +42,12 @@ export default function App() {
   const [sel, setSelState] = useState({ hj: 1, liste: 'fach' });
   const [modal, setModal] = useState(null);
   const [menu, setMenu] = useState(null);
-  const setSel = (patch) => setSelState((s) => ({ ...s, ...patch }));
+  const [sideOpen, setSideOpen] = useState(false);
+  const setSel = (patch) => {
+    setSelState((s) => ({ ...s, ...patch }));
+    // Handy: nach einer Auswahl in der Seitenleiste wieder zum Inhalt
+    if (['arbeitId', 'schuelerId', 'liste', 'planId'].some((k) => patch[k]) && window.innerWidth < 760) setSideOpen(false);
+  };
 
   // Theme
   useEffect(() => {
@@ -94,6 +101,7 @@ export default function App() {
       else if (cmd === 'einstellungen') setModal('einstellungen');
       else if (cmd === 'sperren') store.lock();
       else if (cmd === 'hilfe') setModal('hilfe');
+      else if (cmd === 'sync') setModal('sync');
     }),
   );
 
@@ -158,16 +166,26 @@ export default function App() {
     ['Importieren (Sicherheitskopie)', '', () => importBackup(store, openCsv)],
     ['Import von Fächern mit Noten (CSV)', '', () => pickCsv(openCsv)],
     'sep',
+    [platform === 'mac' ? 'Synchronisation mit iPhone …' : 'Mit Mac synchronisieren …', platform === 'mac' ? '⌘Y' : '', () => setModal('sync')],
     ['Einstellungen & Passwort', '', () => setModal('einstellungen')],
     (store.hasPassword() || store.anyKlassePassword()) && ['Jetzt sperren', '', () => store.lock()],
-    ['Drucken …', '⌘P', () => window.print()],
+    platform !== 'ios' && ['Drucken …', '⌘P', () => window.print()],
   ].filter(Boolean);
+
+  async function syncButton() {
+    if (platform === 'mac' || !store.sync.pairing) return setModal('sync');
+    try {
+      await store.syncNow();
+    } catch (e) {
+      alert('Synchronisation fehlgeschlagen:\n' + e.message);
+    }
+  }
 
   const Side = { noten: NotenSide, schueler: SchuelerSide, listen: ListenSide, sitzplan: SitzplanSide }[tab];
   const Main = { noten: NotenMain, schueler: SchuelerMain, listen: ListenMain, sitzplan: SitzplanMain }[tab];
 
   return (
-    <div className="app" onClick={() => menu && setMenu(null)}>
+    <div className={'app' + (sideOpen ? ' side-open' : '')} onClick={() => menu && setMenu(null)}>
       <aside className="sidebar no-print">
         <div className="selectors">
           <select
@@ -205,6 +223,7 @@ export default function App() {
 
       <div className="content">
         <header className="topbar no-print">
+          <button className="side-toggle" onClick={() => setSideOpen(!sideOpen)} aria-label="Auswahl ein-/ausblenden">{sideOpen ? '✕' : '☰'}</button>
           <nav className="tabs">
             {TABS.map(([id, label]) => (
               <button
@@ -216,6 +235,7 @@ export default function App() {
                     setMenu(menu === 'listen' ? null : 'listen');
                   }
                   setTab(id);
+                  if (id !== 'listen') setSideOpen(false);
                 }}
               >
                 {label}{id === 'listen' && ' ▾'}
@@ -230,11 +250,14 @@ export default function App() {
             )}
           </nav>
           <div className="actions">
-            <span className={'save-state ' + (store.saveState.startsWith('error') ? 'error' : '')} title={isDesktop ? 'Daten werden automatisch in einer Datei auf diesem Mac gespeichert' : 'Daten werden automatisch im Browser gespeichert'}>
+            <span className={'save-state ' + (store.saveState.startsWith('error') ? 'error' : '')} title={platform === 'mac' ? 'Daten werden automatisch in einer Datei auf diesem Mac gespeichert' : platform === 'ios' ? 'Daten werden automatisch auf diesem Gerät gespeichert' : 'Daten werden automatisch im Browser gespeichert'}>
               {store.saveState === 'saved' ? '✓ Gespeichert' : store.saveState === 'pending' ? 'Speichert …' : '⚠ Speicherfehler'}
             </span>
             <button onClick={(e) => { e.stopPropagation(); setMenu(menu === 'klasse' ? null : 'klasse'); }}>☰ Klasse</button>
-            <button onClick={() => window.print()}>🖨 Drucken</button>
+            <button className={'sync-btn' + (store.sync.busy ? ' busy' : '') + (store.sync.error ? ' err' : '')} onClick={syncButton} title={store.sync.error || (store.sync.pairing?.lastSync ? 'Zuletzt: ' + new Date(store.sync.pairing.lastSync).toLocaleString('de-DE') : 'Synchronisation')}>
+              {platform === 'mac' ? '📱 Sync' : store.sync.busy ? '⟳ …' : '⟳ Sync'}
+            </button>
+            {platform !== 'ios' && <button className="print-btn" onClick={() => window.print()}>🖨 Drucken</button>}
             <button onClick={() => setModal('hilfe')}>? Hilfe</button>
             {menu === 'klasse' && (
               <div className="dropdown right">
@@ -289,6 +312,7 @@ export default function App() {
       {modal?.type === 'csv' && <CsvImport ctx={ctx} text={modal.text} fileName={modal.name} onClose={() => setModal(null)} />}
       {modal === 'einstellungen' && <Einstellungen ctx={ctx} store={store} onClose={() => setModal(null)} />}
       {modal === 'hilfe' && <Hilfe onClose={() => setModal(null)} />}
+      {modal === 'sync' && <SyncDialog store={store} ctx={ctx} onClose={() => setModal(null)} />}
     </div>
   );
 }

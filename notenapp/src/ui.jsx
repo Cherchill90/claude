@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { gradeValue } from './grades.js';
+import { isNative } from './storage.js';
+import { saveExport } from './native.js';
 
 export function Modal({ title, onClose, children, wide, footer }) {
   useEffect(() => {
@@ -55,6 +57,7 @@ export function downloadCsv(filename, rows) {
 }
 
 export function download(filename, blob) {
+  if (isNative) return saveExport(filename, blob).catch((e) => alert('Speichern fehlgeschlagen: ' + e.message));
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = filename;

@@ -38,11 +38,77 @@ Direkt starten ohne Installation: `npm run app`.
   selbst gesichert. „Backup-Ordner im Finder zeigen“ öffnet den Ordner.
 - Mit Passwort (global oder pro Klasse) sind auch die Backups verschlüsselt.
 
+## iPhone-/iPad-App
+
+Die iPhone-App ist dieselbe Notenapp, als native iOS-App verpackt (Capacitor). Sie speichert ihre
+Daten auf dem iPhone und gleicht sie über das WLAN mit der Mac-App ab.
+
+### Installieren (am Mac, einmalig etwa 15 Minuten)
+
+Voraussetzungen: **Xcode** (kostenlos im Mac App Store), eine **Apple-ID**, iPhone mit iOS 16 oder neuer
+und ein Kabel.
+
+```bash
+cd ~/notenapp-repo && git pull
+```
+
+```bash
+cd notenapp && npm install && npm run ios
+```
+
+`npm run ios` baut die App und öffnet das Projekt in Xcode. Dort:
+
+1. Links „App“ anklicken → Reiter **Signing & Capabilities** → bei **Team** die eigene Apple-ID wählen
+   („Add an Account …“ beim ersten Mal).
+2. Meldet Xcode, die Bundle-ID sei vergeben: `de.notenapp.ios` z. B. in `de.deinname.notenapp` ändern.
+3. iPhone per Kabel anschließen, oben in der Geräteauswahl das iPhone wählen, **▶ (Run)** klicken.
+4. Auf dem iPhone beim ersten Mal:
+   - Einstellungen → Datenschutz & Sicherheit → **Entwicklermodus** einschalten (Neustart).
+   - Einstellungen → Allgemein → **VPN & Geräteverwaltung** → dem eigenen Entwicklerprofil vertrauen.
+
+**Laufzeit:** Mit einer kostenlosen Apple-ID läuft die App **7 Tage**. Danach in Xcode erneut auf ▶
+klicken; die Daten bleiben erhalten. Mit dem Apple Developer Program (99 €/Jahr) läuft sie 1 Jahr
+und lässt sich per TestFlight ohne Kabel installieren.
+
+### Mit dem Mac synchronisieren
+
+1. Mac: Notenapp → **☰ Klasse → Synchronisation mit iPhone …** (⌘Y) → „Synchronisation erlauben“.
+   Fragt macOS nach eingehenden Verbindungen: **Erlauben**.
+2. Mac: **„iPhone/iPad koppeln“** zeigt Adresse, Port und einen 8-stelligen Code (10 Minuten gültig).
+3. iPhone: oben **⟳ Sync** → Adresse, Port und Code eintragen → **Koppeln**. iOS fragt nach dem
+   lokalen Netzwerk: **Erlauben**.
+4. Danach genügt **⟳ Sync**. Beim Öffnen der App wird automatisch synchronisiert (abschaltbar).
+
+**Wie abgeglichen wird:**
+- Drei-Wege-Abgleich bis auf die einzelne Note. Änderungen auf beiden Geräten bleiben erhalten.
+  Wurde dieselbe Note auf beiden Geräten unterschiedlich geändert, gilt die neuere Änderung.
+- Neue und gelöschte Arbeiten, Schüler und Fächer werden übernommen. Ist etwas auf einem Gerät
+  gelöscht und auf dem anderen geändert worden, bleibt die Änderung erhalten.
+- Klassen mit eigenem Passwort werden als Ganzes abgeglichen und bleiben verschlüsselt.
+- Geräte-Einstellungen (Design, gewählte Klasse) werden nicht übertragen.
+
+**Sicherheit:**
+- Es gibt keine Cloud: Die Daten gehen nur im WLAN direkt zwischen iPhone und Mac hin und her.
+- Der Code selbst wird nie übertragen. Das iPhone weist ihn kryptografisch nach (PBKDF2), danach
+  erhält es einen zufälligen 256-Bit-Schlüssel.
+- Jede Übertragung ist mit AES-256-GCM verschlüsselt. Mitgeschnittene Anfragen lassen sich nicht
+  wiederholen.
+- Nach 10 falschen Codes endet die Kopplung. Geräte lassen sich am Mac jederzeit entfernen.
+
+**Voraussetzungen:** Der Mac muss wach sein, die Notenapp muss dort geöffnet und entsperrt sein,
+und beide Geräte müssen im selben WLAN sein. In manchen Schul-WLANs ist die Verbindung zwischen
+Geräten gesperrt. Dann funktioniert der Abgleich nur zu Hause oder über einen Hotspot des iPhones.
+
+**Backups auf dem iPhone:** vor jeder Synchronisation und beim Wechsel in den Hintergrund (nur wenn
+sich etwas geändert hat), unter Dateien → Auf meinem iPhone → Notenapp → Backups. Backups älter als
+3 Monate werden gelöscht. Exporte (CSV, Sicherheitskopie) liegen daneben unter „Exporte“.
+Drucken ist auf dem iPhone nicht verfügbar.
+
 ## Entwicklung
 
 ```bash
 npm run dev      # Browser-Version, http://localhost:5173 (speichert im localStorage)
-npm test         # Tests: Notenberechnung + Speichern/Backups
+npm test         # Tests: Notenberechnung, CSV, Abgleich, Verschlüsselung, Sync-Server, Backups
 ```
 
 ## Funktionen
@@ -91,7 +157,8 @@ npm test         # Tests: Notenberechnung + Speichern/Backups
 
 ## Nicht enthalten
 
-- Synchronisation mit Mobilgeräten, Nextcloud oder WebDAV.
+- Synchronisation über Nextcloud/WebDAV oder über das Internet (nur WLAN, direkt mit dem Mac).
+- Android-App.
 - Signierung und Notarisierung bei Apple (dafür wäre ein Apple-Developer-Konto für 99 €/Jahr nötig).
 - Import von NotenBox-Dateien (`.nbw`). Das Format ist verschlüsselt und proprietär.
   Weg zur Übernahme: In der NotenBox als Excel exportieren, als CSV speichern und hier unter

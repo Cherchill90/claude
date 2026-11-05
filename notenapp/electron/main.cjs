@@ -2,6 +2,8 @@ const { app, BrowserWindow, Menu, ipcMain, dialog, shell } = require('electron')
 const path = require('path');
 const fs = require('fs');
 const B = require('./backup.cjs');
+const { SyncServer } = require('./syncserver.cjs');
+const crypto = require('crypto');
 
 app.setName('Notenapp');
 if (process.env.NOTENAPP_DATA_DIR) app.setPath('userData', process.env.NOTENAPP_DATA_DIR);
@@ -18,6 +20,41 @@ ipcMain.handle('daten:save', (_e, content) => {
   B.writeData(DIR, content);
   return true;
 });
+
+// ---------- Synchronisation mit iPhone/iPad (WLAN) ----------
+const pendingSync = new Map();
+ipcMain.on('sync:response', (_e, res) => {
+  const p = pendingSync.get(res.reqId);
+  if (!p) return;
+  pendingSync.delete(res.reqId);
+  clearTimeout(p.timer);
+  if (res.ok) p.resolve(res.merged);
+  else p.reject(Object.assign(new Error(res.error || 'Fehler am Mac'), { status: res.status || 503 }));
+});
+
+function syncViaRenderer(req) {
+  return new Promise((resolve, reject) => {
+    if (!win || win.isDestroyed()) return reject(Object.assign(new Error('Das Fenster der Notenapp ist am Mac nicht geöffnet.'), { status: 503 }));
+    const reqId = crypto.randomUUID();
+    const timer = setTimeout(() => {
+      pendingSync.delete(reqId);
+      reject(Object.assign(new Error('Der Mac hat nicht rechtzeitig geantwortet.'), { status: 504 }));
+    }, 60000);
+    pendingSync.set(reqId, { resolve, reject, timer });
+    win.webContents.send('sync:request', { ...req, reqId });
+  });
+}
+
+const sync = new SyncServer({
+  dir: DIR,
+  onSync: syncViaRenderer,
+  onEvent: (ev) => win?.webContents.send('sync:event', ev),
+});
+ipcMain.handle('sync:status', () => sync.status());
+ipcMain.handle('sync:setEnabled', (_e, enabled, port) => sync.setEnabled(enabled, port));
+ipcMain.handle('sync:startPairing', () => sync.startPairing());
+ipcMain.handle('sync:stopPairing', () => sync.stopPairing());
+ipcMain.handle('sync:removeDevice', (_e, id) => sync.removeDevice(id));
 
 // ---------- Fenster ----------
 function createWindow() {
@@ -67,6 +104,7 @@ function flushRenderer(timeoutMs = 3000) {
 
 async function backupAndQuit() {
   try {
+    await sync.stop();
     await flushRenderer();
     const file = B.createBackup(DIR);
     const removed = B.cleanupBackups(DIR);
@@ -149,6 +187,8 @@ function buildMenu() {
         { label: 'Backup wiederherstellen …', click: restoreBackup },
         { label: 'Backup-Ordner im Finder zeigen', click: () => { fs.mkdirSync(path.join(DIR, B.BACKUP_DIR), { recursive: true }); shell.openPath(path.join(DIR, B.BACKUP_DIR)); } },
         { type: 'separator' },
+        { label: 'Synchronisation mit iPhone …', accelerator: 'CmdOrCtrl+Y', click: () => send('sync') },
+        { type: 'separator' },
         { label: 'Sperren', accelerator: 'CmdOrCtrl+L', click: () => send('sperren') },
         { label: 'Drucken …', accelerator: 'CmdOrCtrl+P', click: () => win?.webContents.print() },
         ...(isMac ? [] : [{ type: 'separator' }, { role: 'quit', label: 'Beenden' }]),
@@ -190,5 +230,6 @@ app.whenReady().then(() => {
   }
   buildMenu();
   createWindow();
+  if (sync.state.enabled) sync.start();
   app.on('activate', () => BrowserWindow.getAllWindows().length === 0 && createWindow());
 });
