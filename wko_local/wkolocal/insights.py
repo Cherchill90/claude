@@ -432,6 +432,7 @@ def assess_data(wk: pd.DataFrame, thr: pd.DataFrame, today) -> list[Insight]:
 # ===================================================================== Erklärungen je Ansicht
 EXPLAIN = {
 "Dashboard": """
+**Empfehlung:** für heute (Stand bis gestern) oder morgen (inkl. heutiger Einheiten); 📚 markiert studiengestützte, 📐 Faustregel-Begründungen. **Deine Woche** zeigt den Wechsel aus harten und lockeren Tagen.
 **CTL** (Fitness) ist der gleitende 42-Tage-Schnitt Deiner Tageslast, **ATL** (Ermüdung) der 7-Tage-Schnitt, **TSB** = CTL − ATL (Form).
 Steigende CTL bei tragbarer Rampe = Fortschritt im Training. mFTP/FRC/Pmax kommen aus dem Leistungsmodell des gewählten Zeitraums.
 **Gute Entwicklung:** CTL steigt 2–5/Woche, TSB bewegt sich zwischen −30 und +10, 4+ Trainingstage pro Woche. **Alarmzeichen:** Rampe > 8, TSB < −30, plötzliche Umfangssprünge.""",
@@ -461,7 +462,8 @@ Referenzen und Phänotyp-Regeln sind Näherungen. Aussagekräftig nur, wenn im Z
 "Fatigue Resistance": """
 Wie viel Deiner frischen Bestleistung bleibt nach 1000/2000/3000 kJ Vorarbeit? Hohe Werte (≥ 90 %) bedeuten, dass Du auch spät im Rennen noch Leistung bringst. Training (Hypothesen/kleine Studien): lange Einheiten, späte intensive Abschnitte gut verpflegt, 2×/Woche Kraft. Alle Studien dazu: Ansicht „Quellen & Evidenz“.""",
 "Fortschritt": """
-Jeder Punkt ist ein Modell über das davorliegende Fenster (z. B. 90 Tage). Änderungen unter ±3 % liegen im Schwankungsbereich. Ein Rückgang kann nur heißen, dass im Fenster keine Maximaltests/Rennen waren.""",
+**Lauf:** Tempo bei gleicher Herzfrequenz. Wirst Du bei derselben Herzfrequenz schneller, verbessert sich Deine aerobe Fitness. Einzelne Läufe streuen stark (Gelände, Hitze, Ermüdung) – maßgeblich ist der 4-Wochen-Median; Änderungen unter ±2 % sind Schwankung.
+**Rad:** Jeder Punkt ist ein Leistungsmodell über das davorliegende Fenster (z. B. 90 Tage). Änderungen unter ±3 % liegen im Schwankungsbereich. Ein Rückgang kann nur heißen, dass im Fenster keine Maximaltests oder Rennen waren. Fenster ohne belastbares Modell werden ausgeblendet.""",
 "Erholung (HRV & Schlaf)": """
 **HRV** (Herzfrequenzvariabilität, Nacht-Durchschnitt in ms) ist individuell – nur der Vergleich mit **Deiner** Baseline zählt. Ein Absinken über mehrere Nächte deutet auf hohe Belastung, Krankheit oder Stress, ein Anstieg auf gute Erholung. Einzelne Nächte schwanken stark; achte auf den 3–7-Tage-Trend.
 **Schlaf:** Richtwert 7–9 h; Schlafscore < 60 = schlechte Qualität. **Ruhepuls:** ≥ 5 bpm über Deiner Baseline kann Übermüdung oder Infekt anzeigen.

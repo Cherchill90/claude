@@ -92,6 +92,19 @@ h1, h2, h3 {letter-spacing: -0.02em;}
 .wk-stat .v {font-size:1.45rem; font-weight:700; letter-spacing:-0.02em; margin-top:.1rem; white-space:nowrap;}
 .wk-stat .s {font-size:.78rem; opacity:.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 [data-testid="stMetricValue"] {font-size: 1.75rem;}
+/* Wochenstreifen */
+.wk-week {display:grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap:.5rem; margin:.2rem 0 .4rem 0;}
+.wk-day {border-radius:.9rem; padding:.55rem .6rem .6rem; text-align:center; min-height:6.6rem;
+         border:1px solid color-mix(in srgb, currentColor 10%, transparent); background: color-mix(in srgb, currentColor 2.5%, transparent);}
+.wk-day.today {border-color: color-mix(in srgb, currentColor 35%, transparent);}
+.wk-day.plan {border:2px solid var(--wk-accent); background: color-mix(in srgb, var(--wk-accent) 8%, transparent);}
+.wk-day .d {font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; opacity:.68;}
+.wk-day .i {font-size:1.25rem; line-height:1.9rem; height:1.9rem;}
+.wk-day .l {font-size:.78rem; opacity:.75; height:1.1rem;}
+.wk-day .t {display:inline-block; margin-top:.25rem; padding:.05rem .5rem; border-radius:999px; font-size:.72rem; font-weight:600;
+            background: color-mix(in srgb, currentColor 8%, transparent);}
+.wk-day .t.hart {background: color-mix(in srgb, var(--wk-hard) 22%, transparent);}
+.wk-day .p {font-size:.8rem; font-weight:700; margin-top:.2rem; line-height:1.15;}
 /* Streamlit-Ballast ausblenden */
 #MainMenu {visibility: hidden;} footer {visibility: hidden;} [data-testid="stDecoration"] {display:none;}
 </style>
@@ -140,6 +153,18 @@ def stats(items: list[tuple]) -> None:
     cells = "".join(f"<div class='wk-stat'><div class='l'>{esc(i[0])}</div><div class='v'>{esc(i[1])}</div>"
                     + (f"<div class='s'>{esc(i[2])}</div>" if len(i) > 2 and i[2] else "") + "</div>" for i in items)
     st.markdown(f"<div class='wk-stats'>{cells}</div>", unsafe_allow_html=True)
+
+
+def week_strip(cells: list[dict]) -> None:
+    """Tageskacheln: Wochentag, Sportarten, Last, hart/locker/Ruhe; empfohlene Einheit umrandet."""
+    out = []
+    for cl in cells:
+        cls = "wk-day" + (" today" if cl["today"] else "") + (" plan" if cl["plan"] else "")
+        tag = f"<span class='t {esc(cl['tag'])}'>{esc(cl['tag'])}</span>" if cl["tag"] else ""
+        plan = f"<div class='p'>→ {esc(cl['plan'])}</div>" if cl["plan"] else ""
+        out.append(f"<div class='{cls}'><div class='d'>{esc(cl['day'])} {esc(cl['date'])}{' · heute' if cl['today'] else ''}</div>"
+                   f"<div class='i'>{esc(cl['icons'])}</div><div class='l'>{esc(cl['load'])}</div>{tag}{plan}</div>")
+    st.markdown(f"<div class='wk-week' style='--wk-accent:{c(1)}; --wk-hard:{c(2)}'>{''.join(out)}</div>", unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------- Diagramme

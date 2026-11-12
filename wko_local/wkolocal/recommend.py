@@ -165,7 +165,13 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
               readiness: dict | None = None, sport_override: str | None = None, run_cap_km: float | None = None) -> Rec:
     """Empfehlung für today+1. recent: Workouts der letzten ~28 Tage (alle Sportarten)."""
     D = today + timedelta(days=1)
+    when = "Heute" if D == date.today() else "Morgen" if D == date.today() + timedelta(days=1) else f"{D:%d.%m.}"
     reasons: list[str] = []
+    # nur Daten bis einschließlich `today` verwenden (für die Empfehlung "heute" ist das der gestrige Tag)
+    if len(daily_tss):
+        daily_tss = daily_tss[pd.to_datetime(daily_tss.index) <= pd.Timestamp(today)]
+    if len(recent):
+        recent = recent[recent.date <= str(today)]
     if daily_tss.empty:
         return Rec(D, "–", "–", "info", "Noch keine Trainingsdaten – nach dem ersten Import gibt es eine Empfehlung.")
     s = daily_tss.copy(); s.index = pd.to_datetime(s.index)
@@ -210,8 +216,8 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
         c["end_min"] = c["end_min"]   # Lauf-Dauern werden in build_session gedeckelt
 
     if len(s) < 42:
-        reasons.append(f"Achtung: erst {len(s)} Tage Historie – CTL/TSB sind noch nicht belastbar (Start bei 0), die Form wirkt zu negativ.")
-    reasons.append(f"Form (TSB) morgen früh: {tsb_load:+.0f} (CTL {ctl:.0f}, ATL {atl:.0f}); Rampe {ramp:+.1f} CTL/Woche."
+        reasons.append(f"Achtung: erst {len(s)} Tage Historie – Fitness und Form sind noch unsicher (Startwert geschätzt aus den ersten Wochen).")
+    reasons.append(f"Form (TSB) am Morgen des Tages: {tsb_load:+.0f} (CTL {ctl:.0f}, ATL {atl:.0f}); Rampe {ramp:+.1f} CTL/Woche."
                    + (f" Mit Erholungsdaten angepasst: {tsb:+.0f} (−{adj:.0f})." if adj else ""))
     reasons.append(f"Letzte 7 Tage: {7 - rest7} Trainingstage, {hard7} harte Einheit(en)"
                    + (f"; letzte harte Einheit vor {since_hard} Tag(en)." if since_hard is not None else "; keine harte Einheit in 28 Tagen."))
@@ -371,7 +377,7 @@ def recommend(today: date, daily_tss: pd.Series, recent: pd.DataFrame, races: pd
     level = {"Ruhetag": "info", "Regeneration": "info", "Wettkampf": "good", "Aktivierung": "good"}.get(kind, "good")
     if feeling == "Krank": level = "warn"
     wd = WEEKDAYS[D.weekday()]
-    headline = f"Morgen ({wd}, {D:%d.%m.}): " + (f"{kind}" if sport == "–" else f"{kind} – {'Rad' if sport == 'Cycling' else 'Lauf'}")
+    headline = f"{when} ({wd}, {D:%d.%m.}): " + (f"{kind}" if sport == "–" else f"{kind} – {'Rad' if sport == 'Cycling' else 'Lauf'}")
 
     # ---- Plan-Abgleich
     plan_note = None

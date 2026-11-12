@@ -85,7 +85,7 @@ def test_insights_ride_and_pmc():
     out = insights.assess_ride(w, df, 250)
     assert out[0].level in ("good", "info", "warn") and "Schwelle" in out[0].text
     assert insights.assess_ride(w, df, 250, "Erholung")[0].level == "warn"      # 255 W-Intervalle sind keine Erholung
-    d = pmc.pmc(pd.Series([300.0] * 60, index=pd.date_range("2024-01-01", periods=60)))
+    d = pmc.pmc(pd.Series([300.0] * 60, index=pd.date_range("2024-01-01", periods=60)), seed=False)
     assert insights.assess_pmc(d)[0].level in ("bad", "warn", "info") and any("aggressiv" in i.text for i in insights.assess_pmc(d))
 
 
@@ -378,3 +378,32 @@ def test_hr_speed_relation():
     assert r and abs(r["speed"] - 2.75) < .05 and r["method"] == "Regression"
     assert runplan.hr_speed_relation(df, 185)["speed"] is None                    # keine Extrapolation
     assert runplan.hr_speed_relation(df.assign(hr=np.nan), 145) is None
+
+
+def test_pmc_seed_and_today_recommendation():
+    import pandas as pd
+    from datetime import date, timedelta
+    from wkolocal import recommend
+    s = pd.Series([70.0] * 30, index=pd.date_range("2024-01-01", periods=30))
+    d = pmc.pmc(s)
+    assert abs(d.ctl.iloc[0] - 70) < 1 and abs(d.tsb.iloc[5]) < 1          # Start nahe Gleichgewicht statt bei 0
+    assert pmc.pmc(s, seed=False).ctl.iloc[0] < 5
+    # Empfehlung "heute": Bezugstag gestern, heutige Einheit wird ignoriert
+    t = date.today()
+    days = [t - timedelta(days=i) for i in range(20, -1, -1)]
+    daily = pd.Series([60.0] * 21, index=pd.to_datetime(days))
+    recent = pd.DataFrame([dict(uid=str(i), start_time=f"{d} 07:00:00", date=str(d), sport="Cycling", tss=60.0, tss_method="power",
+                                if_=.99 if d == t else .65, duration_s=5400, mmp={"300": 250.0}, ftp_used=250.0) for i, d in enumerate(days)])
+    races = pd.DataFrame(columns=["id", "date", "name", "sport", "priority", "duration_h", "tss", "notes"])
+    r = recommend.recommend(t - timedelta(days=1), daily, recent, races, pd.DataFrame(), 250, None)
+    assert r.day == t and r.headline.startswith("Heute") and not any("vor 0 Tag" in x for x in r.reasons)
+
+
+def test_all_explain_keys_exist():
+    """Jede in der Oberfläche verwendete Erklärung muss vorhanden sein (Schutz vor versehentlich gelöschten Texten)."""
+    import re
+    from pathlib import Path
+    from wkolocal import insights
+    src = (Path(__file__).parent.parent / "app.py").read_text()
+    keys = set(re.findall(r'explain\("([^"]+)"\)', src)) | set(re.findall(r'EXPLAIN\["([^"]+)"\]', src))
+    assert keys and keys <= set(insights.EXPLAIN), keys - set(insights.EXPLAIN)

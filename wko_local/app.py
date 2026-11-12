@@ -86,7 +86,30 @@ def wellness_df(start, end): return _wellness(str(start), str(end), ver())
 @st.cache_data(show_spinner=False, max_entries=8)
 def _daily_tss(sport, v):
     w = db.workouts_df(sport=sport)
+    if len(w) and sport in (None, "Alle") and db.get_settings().get("other_sports_load", "ja") == "nein":
+        w = w[w.sport.isin(["Cycling", "Running"])]          # Wandern u. a. nicht in Fitness/Form einrechnen
     return w.groupby("date")["tss"].sum() if len(w) else pd.Series(dtype=float)
+
+
+@st.cache_data(show_spinner=False, max_entries=4)
+def _sport_ctl(today, v):
+    """Fitness (CTL) je Sportart – die Anteile summieren sich zur Gesamt-Fitness."""
+    s = db.get_settings()
+    w = db.workouts_df()
+    if w.empty:
+        return pd.DataFrame()
+    w = w.assign(grp=w.sport.map(lambda x: {"Cycling": "Rad", "Running": "Lauf"}.get(x, "Sonstige")))
+    if s.get("other_sports_load", "ja") == "nein":
+        w = w[w.grp != "Sonstige"]
+    idx = pd.date_range(pd.to_datetime(w.date).min(), pd.Timestamp(today))
+    out = {}
+    for g in ("Rad", "Lauf", "Sonstige"):
+        x = w[w.grp == g]
+        if x.empty:
+            continue
+        ser = x.groupby("date").tss.sum(); ser.index = pd.to_datetime(ser.index)
+        out[g] = pmc.pmc(ser.reindex(idx, fill_value=0.0), float(s["ctl_tau"]), float(s["atl_tau"])).ctl
+    return pd.DataFrame(out)
 
 
 def daily_tss(sport="Alle"): return _daily_tss(sport, ver())
@@ -191,13 +214,47 @@ def readiness(): return _readiness(str(TODAY), ver())
 
 
 @st.cache_data(show_spinner=False, max_entries=32)
-def _recommendation(today, feeling, sport, v):
+def _recommendation(ref, feeling, sport, v):
+    """ref = letzter Tag mit berücksichtigten Daten; empfohlen wird für den Tag danach (heute oder morgen)."""
     s = settings()
-    recent = db.workouts_df(str(TODAY - timedelta(days=28)), today)
-    runs = db.workouts_df(str(TODAY - timedelta(days=45)), today, "Running")
-    cap = runplan.next_long_run_cap(runs, TODAY + timedelta(days=1))
-    return recommend.recommend(TODAY, daily_tss(), recent, races(), planned(), cur_ftp(), run_threshold_pace(),
+    ref_d = date.fromisoformat(ref)
+    recent = db.workouts_df(str(ref_d - timedelta(days=28)), ref)
+    runs = db.workouts_df(str(ref_d - timedelta(days=45)), ref, "Running")
+    cap = runplan.next_long_run_cap(runs, ref_d + timedelta(days=1))
+    return recommend.recommend(ref_d, daily_tss(), recent, races(), planned(), cur_ftp(), run_threshold_pace(),
                                feeling, float(s["ctl_tau"]), float(s["atl_tau"]), readiness(), sport, cap)
+
+
+def tagged(lines) -> str:
+    """Begründungen kennzeichnen: 📚 = durch Studie gestützt (Quelle [Qn]), 📐 = Faustregel/Trainerpraxis."""
+    return "\n".join(f"- {'📚' if '[Q' in x else '📐'} {x}" for x in lines)
+
+
+TAG_LEGEND = "📚 durch Studie gestützt (Quelle in Klammern) · 📐 Faustregel oder Trainerpraxis ohne direkte Studie"
+
+
+def week_cells(target: date, kind: str | None) -> list[dict]:
+    """Letzte 7 Tage + Zieltag für den Wochenstreifen: Sportarten, Last, hart/locker/Ruhe."""
+    w = W(TODAY - timedelta(days=7), TODAY)
+    sdays = set(strength.strength_dates(w, strength_log()))
+    icon = {"Cycling": "🚴", "Running": "🏃", "Walking": "🥾"}
+    cells = []
+    for i in range(6, -1, -1):
+        d = TODAY - timedelta(days=i)
+        x = w[w.date == str(d)] if len(w) else w
+        x = x[~x.sport.map(lambda s: str(s).lower() in ("training", "gym") or str(s).lower().startswith("strength"))] if len(x) else x
+        hard = any(recommend._hard(r) for r in x.itertuples()) if len(x) else False
+        icons = "".join(dict.fromkeys(icon.get(s, "•") for s in x.sport)) + ("🏋️" if d in sdays else "")
+        cells.append(dict(day=["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][d.weekday()], date=f"{d:%d.%m.}", icons=icons or "–",
+                          load=f"{x.tss.sum():.0f} TSS" if len(x) else "", tag="hart" if hard else "locker" if len(x) else "" if d == TODAY else "Ruhe",
+                          today=d == TODAY, plan=None))
+    if kind:
+        if target == TODAY:
+            cells[-1]["plan"] = kind
+        else:
+            cells.append(dict(day=["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][target.weekday()], date=f"{target:%d.%m.}", icons="", load="",
+                              tag="", today=False, plan=kind))
+    return cells
 
 
 def strength_for(r) -> strength.StrengthRec:
@@ -228,7 +285,8 @@ def strength_card(sr: strength.StrengthRec) -> None:
     st.caption(" · ".join(sr.notes))
     a, b, c3 = st.columns(3)
     with a.popover("Warum so?", icon=":material/psychology:", width="stretch"):
-        st.markdown("\n".join(f"- {x}" for x in sr.reasons))
+        st.markdown(tagged(sr.reasons))
+        st.caption(TAG_LEGEND)
         st.markdown(insights.EXPLAIN["Kraft"])
     ids = sorted(set(__import__("re").findall(r"Q\d+", " ".join(sr.reasons))), key=lambda s: int(s[1:]))
     with b.popover(f"Quellen ({len(ids)})", icon=":material/menu_book:", width="stretch", disabled=not ids):
@@ -322,9 +380,17 @@ def page_dashboard():
 
     left, right = st.columns([1.75, 1], gap="large")
     with left:
-        feeling = st.segmented_control("Wie fühlst Du Dich heute?", recommend.FEELINGS, default="Normal", required=True, key="feeling",
+        trained_today = len(W(TODAY, TODAY)) > 0
+        c1, c2 = st.columns([1, 1.6])
+        target = c1.segmented_control("Empfehlung für", ["Heute", "Morgen"], default="Morgen" if trained_today else "Heute", required=True,
+                                      key=f"target_{trained_today}",
+                                      help="Heute: Stand bis gestern (für die Planung am Morgen). Morgen: bezieht die heutigen Einheiten ein.")
+        feeling = c2.segmented_control("Wie fühlst Du Dich heute?", recommend.FEELINGS, default="Normal", required=True, key="feeling",
                                        help="Schlaf, HRV und Ruhepuls fließen automatisch ein, wenn Garmin-Daten vorliegen; Krankheit oder Stress kennt das Programm nicht.")
-        auto = _recommendation(str(TODAY), feeling, None, ver())
+        ref = str(TODAY - timedelta(days=1)) if target == "Heute" else str(TODAY)
+        if target == "Heute" and trained_today:
+            st.caption("Heute ist bereits eine Einheit erfasst – sie zählt für „Heute“ nicht mit. Für die nächste Einheit „Morgen“ wählen.")
+        auto = _recommendation(ref, feeling, None, ver())
         r = auto
         if auto.kind not in ("Ruhetag", "Wettkampf"):
             star = {"Cycling": "Rad", "Running": "Lauf"}
@@ -333,19 +399,21 @@ def page_dashboard():
                                         format_func=lambda s: ("🚴 " if s == "Cycling" else "🏃 ") + star[s] + (" · empfohlen" if s == auto.auto_sport else ""),
                                         help="Die Empfehlung passt Einheit und Intensität an die gewählte Sportart an.")
             if pick != auto.auto_sport:
-                r = _recommendation(str(TODAY), feeling, pick, ver())
+                r = _recommendation(ref, feeling, pick, ver())
         chips = []
         if r.sport != "–": chips.append(("🚴 " if r.sport == "Cycling" else "🏃 ") + ui.sport_label(r.sport))
         if r.duration_min: chips.append(f"⏱ {r.duration_min[0]}–{r.duration_min[1]} min")
         if r.tss and r.tss[1]: chips.append(f"TSS {r.tss[0]}–{r.tss[1]}")
-        ui.hero(f"Empfehlung für {r.headline.split('(')[1].split(')')[0] if '(' in r.headline else 'morgen'}", r.kind, chips, r.details,
+        ui.hero(f"Empfehlung für {target.lower()} · {r.headline.split('(')[1].split(')')[0] if '(' in r.headline else ''}", r.kind, chips, r.details,
                 "warn" if r.level == "warn" else "good")
+        n_ev = sum("[Q" in x for x in [*r.reasons, *r.details])
+        st.caption(f"Grundlage: {n_ev} studiengestützte Punkte, {len(r.reasons) + len(r.details) - n_ev} Faustregeln/Angaben – Einordnung unter „Warum“.")
         if r.plan_note:
             show([insights.Insight(r.plan_note[0], r.plan_note[1])])
         a, b = st.columns(2)
-        with a.popover("Warum diese Empfehlung?", icon=":material/psychology:", width="stretch"):
-            st.markdown("\n".join(f"- {x}" for x in r.reasons))
-            st.caption("Regelbasiert aus Form, harten Einheiten, Wettkämpfen, Plan, Befinden und – falls vorhanden – Schlaf/HRV. Keine medizinische Beratung.")
+        with a.popover("Warum?", icon=":material/psychology:", width="stretch"):
+            st.markdown(tagged(r.reasons))
+            st.caption(TAG_LEGEND + ". Keine medizinische Beratung.")
         cited = recommend.cited_ids(r)
         with b.popover(f"Quellen ({len(cited)})", icon=":material/menu_book:", width="stretch", disabled=not cited):
             for qid in cited:
@@ -376,6 +444,9 @@ def page_dashboard():
             tsb_r = f" · Form am Renntag {fc.loc[pd.Timestamp(nr.date)].tsb:+.0f}" if fc is not None and pd.Timestamp(nr.date) in fc.index else ""
             st.markdown(f"**🏁 Nächster Wettkampf:** {ui.esc(nr['name'])} ({nr.priority}) in **{days} Tagen**{tsb_r}")
 
+    st.markdown("#### Deine Woche")
+    ui.week_strip(week_cells(r.day, r.kind))
+    st.caption("Harte und lockere Tage im Wechsel sind das Grundmuster: hart = intensive oder sehr lange Einheit, 🏋️ = Krafttraining. Umrandet: empfohlene Einheit.")
     st.markdown("#### Überblick")
     c = st.columns(3) + st.columns(3)
     week = d.iloc[-7:]
@@ -911,11 +982,11 @@ def page_pmc():
     d = full_pmc()
     last = d.iloc[-1]
     c = st.columns(5)
-    kpi(c[0], "Fitness (CTL)", f"{last.ctl:.0f}", f"{last.ramp:+.1f}/Woche" if pd.notna(last.ramp) else None, d.ctl.iloc[-60:], height=178)
-    kpi(c[1], "Ermüdung (ATL)", f"{last.atl:.0f}", None, d.atl.iloc[-60:], height=178)
-    kpi(c[2], "Form (TSB)", f"{last.tsb:+.0f}", None, d.tsb.iloc[-60:], height=178)
+    kpi(c[0], "Fitness", f"{last.ctl:.0f}", f"{last.ramp:+.1f}/Woche" if pd.notna(last.ramp) else None, d.ctl.iloc[-60:], height=178)
+    kpi(c[1], "Ermüdung", f"{last.atl:.0f}", None, d.atl.iloc[-60:], height=178)
+    kpi(c[2], "Form", f"{last.tsb:+.0f}", None, d.tsb.iloc[-60:], height=178)
     has_adj = bool(d.readiness_pts.iloc[-3:].any())
-    kpi(c[3], "Form inkl. Erholung", f"{last.tsb_adj:+.0f}" if has_adj else "–", f"{last.tsb_adj - last.tsb:+.0f}" if has_adj else None,
+    kpi(c[3], "Form + Erholung", f"{last.tsb_adj:+.0f}" if has_adj else "–", f"{last.tsb_adj - last.tsb:+.0f}" if has_adj else None,
         d.tsb_adj.iloc[-60:] if has_adj else None, delta_color="off", help="TSB minus 5 je Warnsignal aus Schlaf/HRV/Ruhepuls (max. 25).", height=178)
     kpi(c[4], "TSS 7 Tage", f"{d.tss.iloc[-7:].sum():.0f}", None, d.tss.iloc[-28:], chart_type="bar", height=178)
     a, b = st.columns(2, gap="large")
@@ -927,7 +998,8 @@ def page_pmc():
         if fc is not None and len(rc):
             show(insights.assess_races(fc, rc, TODAY))
         else:
-            races_manager()
+            show([insights.Insight("info", "Noch kein Wettkampf eingetragen. Mit einem Wettkampf zeigt die Prognose Fitness und Form am Renntag, "
+                                           "und die Empfehlung plant Taper und Erholung ein (unten: „Wettkämpfe anlegen & verwalten“).")])
     v = fc if fc is not None else d.assign(geplant=False)
     start = pd.Timestamp(rng[0])
     end = max(pd.Timestamp(rng[1]), v.index.max())
@@ -954,11 +1026,23 @@ def page_pmc():
         if start <= x <= end:
             f.add_shape(type="line", x0=x, x1=x, y0=0, y1=1, yref="paper", line=dict(color=ui.text2(), width=1.5, dash=PRIO_DASH.get(r.priority, "dot")))
             f.add_annotation(x=x, y=1, yref="paper", text=f"🏁 {r.priority}: {ui.esc(r.name)}", showarrow=False, yanchor="bottom", font=dict(size=11, color=ui.text2()))
-    ui.range_buttons(f)
-    ui.chart(ui.style(f, 540))
+    ui.chart(ui.style(f, 520))
     st.caption("Gepunktet = Prognose aus Plan und Wettkampf-TSS (ab morgen; ohne Planeinträge 0 TSS). Rennen: durchgezogen A · gestrichelt B · gepunktet C.")
-    if fc is not None and len(rc):
-        races_manager()
+    sc = _sport_ctl(str(TODAY), ver())
+    if len(sc.columns) > 1:
+        sc = sc.loc[start:]
+        g = go.Figure()
+        for name in sc.columns:
+            col = {"Rad": ui.c(1), "Lauf": ui.c(2)}.get(name, ui.text2())
+            g.add_scatter(x=sc.index, y=sc[name], name=name, stackgroup="ctl", line=dict(color=col, width=1),
+                          hovertemplate="%{y:.0f}<extra>" + name + "</extra>")
+        g.update_yaxes(title="CTL-Anteil")
+        ui.chart(ui.style(g, 300, title="Woraus Deine Fitness besteht (CTL nach Sportart)"))
+        lastc = sc.iloc[-1]
+        st.caption("Fitness ist sportartspezifisch: " + " · ".join(f"{n} {v:.0f}" for n, v in lastc.items())
+                   + f" (Summe {lastc.sum():.0f}). Eine hohe Gesamt-Fitness aus dem Radfahren macht die Beine nicht automatisch belastbar fürs Laufen – "
+                     "für Laufziele zählt vor allem der Lauf-Anteil und die Steigerung einzelner Läufe (Laufauswertung).")
+    races_manager()
     with st.expander("Tabelle der letzten 14 Tage", icon=":material/table:"):
         st.dataframe(d.tail(14).round(1)[::-1], width="stretch")
     explain("Performance Management (PMC)")
@@ -1398,8 +1482,10 @@ def page_athlete():
         exp = st.segmented_control("Krafttraining-Erfahrung", ["Einsteiger", "Geübt"], default=s.get("strength_experience", "Einsteiger"), required=True,
                                    help="Geübt = sichere Technik bei schweren Kniebeugen/Kreuzheben (3–5 Wdh.). Einsteiger beginnen mit mittleren Lasten.")
         crank = c[2].number_input("Kurbellänge (mm)", 150.0, 185.0, float(s["crank_mm"]))
+        other = st.toggle("Sonstige Sportarten (z. B. Wandern) in Fitness und Form einrechnen", value=s.get("other_sports_load", "ja") == "ja",
+                          help="Ihre Last wird nur grob über die Herzfrequenz geschätzt. Ausschalten, wenn Fitness/Form nur Rad und Lauf abbilden sollen.")
         if st.button("Einstellungen speichern", icon=":material/save:"):
-            for k, v in dict(sex=sex, rest_hr=rest, crank_mm=crank, strength_experience=exp).items():
+            for k, v in dict(sex=sex, rest_hr=rest, crank_mm=crank, strength_experience=exp, other_sports_load="ja" if other else "nein").items():
                 db.set_setting(k, v)
             st.toast("Gespeichert")
         st.caption("Hell/Dunkel: Menü ⋮ oben rechts → Settings.")

@@ -71,6 +71,14 @@ Ansicht **Analyse → Laufauswertung** (`wkolocal/runplan.py`), abgeleitet aus d
 Ansicht **Fortschritt** mit Filter „Lauf“ (bei „Alle“ als Reiter): steigungskorrigiertes Tempo bei einer Referenz-HF je Lauf (gleichmäßige 30-s-Abschnitte nach 10 min, Regression ohne Extrapolation), 4-Wochen-Median und Vergleich mit 6–10 Wochen davor, dazu Effizienz (m/min je Herzschlag). Grundlage: HF bei submaximaler Belastung als Trainingszustands-Maß [Q39]; Alltagsläufe sind verrauschter als standardisierte Tests.
 Rad-Fortschritt blendet Wochenfenster ohne belastbares Leistungsmodell aus (FRC an der Modellgrenze, großer Modellfehler, kein 20-min-Wert).
 
+## Überarbeitung Trainingsprinzipien (Review)
+- **Empfehlung für heute oder morgen** (Dashboard): „Heute“ rechnet mit dem Stand bis gestern, „Morgen“ bezieht heutige Einheiten ein.
+- **Startwert der Fitnesskurve:** CTL/ATL starten mit der mittleren Tageslast der ersten 28 Tage statt bei 0 (Annahme: davor ähnlich trainiert) – sonst wirkt die Form wochenlang zu negativ.
+- **Fitness nach Sportart** (Fitness & Form): CTL-Anteile Rad/Lauf/Sonstige – Spezifität.
+- **Kennzeichnung:** Begründungen tragen 📚 (studiengestützt, mit Quelle) oder 📐 (Faustregel/Trainerpraxis).
+- **Deine Woche:** Tagesstreifen mit hart/locker/Ruhe, Kraft und empfohlener Einheit.
+- **Einstellung:** sonstige Sportarten (z. B. Wandern) optional nicht in Fitness/Form einrechnen.
+
 ## Trainingsempfehlung & Wettkämpfe
 - **Dashboard → „Trainingsempfehlung für morgen“:** regelbasiert aus Form (TSB), harten Einheiten der letzten Tage, Trainingsserie, Rampe, Wettkämpfen und Plan – mit konkreter Einheit (Dauer, Watt- bzw. Pace-Bereiche, geschätzte TSS) und Begründung. Dein Befinden (Gut/Normal/Müde/Krank) stellst Du direkt darüber ein. Schlaf/HRV/Termine kennt das Programm nicht. Regeln: `wkolocal/recommend.py`.
 - **PMC → „Wettkämpfe anlegen & verwalten“:** Datum, Name, Sportart, Priorität A/B/C, erwartete Dauer/Intensität (→ TSS-Schätzung). Wettkämpfe erscheinen als Markierung im PMC, die Prognose (gepunktet) zeigt Fitness/Form am Renntag; Tapering, Aktivierung und Erholung nach dem Rennen fließen in die Empfehlung ein.

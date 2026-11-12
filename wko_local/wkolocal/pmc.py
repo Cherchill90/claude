@@ -6,15 +6,20 @@ import math
 import pandas as pd
 
 
-def pmc(daily_tss: pd.Series, ctl_tau=42, atl_tau=7, start_ctl=0.0, start_atl=0.0) -> pd.DataFrame:
-    """daily_tss: Index = Datum (lückenlos wird ergänzt). TSB = CTL(Vortag) - ATL(Vortag)."""
+def pmc(daily_tss: pd.Series, ctl_tau=42, atl_tau=7, start_ctl=None, start_atl=None, seed=True) -> pd.DataFrame:
+    """daily_tss: Index = Datum (lückenlos wird ergänzt). TSB = CTL(Vortag) - ATL(Vortag).
+    seed: Startwerte = mittlere Tageslast der ersten 28 Tage statt 0. Annahme: vor dem ersten importierten Tag wurde
+    ähnlich trainiert. Ohne das startet die Fitness bei 0 und die Form wirkt wochenlang zu negativ."""
     if daily_tss.empty:
         return pd.DataFrame(columns=["tss", "ctl", "atl", "tsb", "ramp"])
     s = daily_tss.copy()
     s.index = pd.to_datetime(s.index)
     s = s.groupby(level=0).sum().asfreq("D", fill_value=0.0)
     kc, ka = 1 - math.exp(-1 / ctl_tau), 1 - math.exp(-1 / atl_tau)
-    ctl, atl, rows = start_ctl, start_atl, []
+    s0 = float(s.iloc[:28].mean()) if seed and len(s) else 0.0
+    ctl = s0 if start_ctl is None else start_ctl
+    atl = s0 if start_atl is None else start_atl
+    rows = []
     for d, v in s.items():
         tsb = ctl - atl
         ctl += (v - ctl) * kc
