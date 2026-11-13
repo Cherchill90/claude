@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sitzplan zur Hochzeit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=Jost:wght@400;500;600&display=swap">
+<style>
+/* Layout: schmale Gästeliste links, rechts der Saal mit den Tischen als Karten; auf dem Handy untereinander. */
+:root{
+  --bg:#f2f5f1; --surface:#ffffff; --ink:#25322c; --muted:#64746b; --line:#d5ddd5;
+  --sage:#557a66; --sage-soft:#e2ece5; --on-sage:#ffffff;
+  --rose:#b05d74; --rose-soft:#f7e4e9; --on-rose:#ffffff;
+  --gold:#a68238; --linen:#efebe2; --danger:#a8423f;
+  --display:"Cormorant Garamond","Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --body:"Jost","Avenir Next","Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#141b17; --surface:#1d2722; --ink:#e7eee9; --muted:#9bada3; --line:#34423a;
+  --sage:#8fb9a1; --sage-soft:#27372e; --on-sage:#13201a;
+  --rose:#e39db0; --rose-soft:#43282f; --on-rose:#2a1218;
+  --gold:#d2b16b; --linen:#2a342e; --danger:#ef8f8a; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#141b17; --surface:#1d2722; --ink:#e7eee9; --muted:#9bada3; --line:#34423a;
+  --sage:#8fb9a1; --sage-soft:#27372e; --on-sage:#13201a;
+  --rose:#e39db0; --rose-soft:#43282f; --on-rose:#2a1218;
+  --gold:#d2b16b; --linen:#2a342e; --danger:#ef8f8a; color-scheme:dark }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--body)}
+.wrap{max-width:1400px;margin:0 auto;padding-block:20px 120px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:20px}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+/* Kopf */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:12px;flex:1 1 280px;min-width:0}
+.brand svg{flex:none}
+.brand div{min-width:0;flex:1}
+.eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+#plan-title{display:block;width:100%;border:0;border-bottom:1px dashed transparent;background:none;padding:0;
+  font:italic 600 32px/1.15 var(--display);color:var(--ink)}
+#plan-title:hover,#plan-title:focus{border-bottom-color:var(--gold);outline:none}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 16px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--sage)}
+.btn.primary{background:var(--sage);border-color:var(--sage);color:var(--on-sage)}
+.btn.danger{color:var(--danger)}
+.btn.small{padding:5px 12px;font-size:13px}
+
+h2{font:italic 600 26px/1.2 var(--display);margin:0;text-wrap:balance}
+h3{font:italic 600 21px/1.2 var(--display);margin:0}
+.hint{color:var(--muted);margin:0;max-width:65ch}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);letter-spacing:.04em;min-width:0}
+input[type=text],input[type=number],select,textarea{border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:8px;padding:8px 10px;min-width:0;width:100%;font:inherit}
+
+/* Einrichtung */
+#setup{display:flex;flex-direction:column;gap:18px;max-width:760px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.defaults{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;align-items:end}
+.rows{display:flex;flex-direction:column;gap:8px}
+.row{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1.2fr) 84px;gap:8px;align-items:end}
+.row.head{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.setup-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.total{font-variant-numeric:tabular-nums;color:var(--muted)}
+
+/* Planer */
+#planner{display:grid;grid-template-columns:300px minmax(0,1fr);gap:20px;align-items:start}
+#pool{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto;border:1px solid var(--line);background:var(--surface);
+  border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:14px}
+#pool.drop{border-color:var(--sage);background:var(--sage-soft)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center}
+.stats div{border:1px solid var(--line);border-radius:10px;padding:6px 2px}
+.stats b{display:block;font:600 22px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.stats span{font-size:11px;color:var(--muted)}
+#add-form{display:flex;flex-direction:column;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.seg label{text-align:center;padding:6px 8px;cursor:pointer;font-size:14px}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label:has(input:checked){background:var(--sage);color:var(--on-sage)}
+.seg label.k:has(input:checked){background:var(--rose);color:var(--on-rose)}
+.seg label:has(input:focus-visible){outline:2px solid var(--gold);outline-offset:-2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;border:1px solid var(--sage);background:var(--sage-soft);
+  border-radius:999px;padding:5px 12px 5px 6px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.chip.kind{border-color:var(--rose);background:var(--rose-soft)}
+.chip i{flex:none;font-style:normal;font-size:11px;font-weight:600;border-radius:999px;padding:1px 7px;background:var(--sage);color:var(--on-sage)}
+.chip.kind i{background:var(--rose);color:var(--on-rose)}
+.chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel{outline:3px solid var(--gold);outline-offset:2px}
+.empty{color:var(--muted);font-size:14px;margin:0}
+
+#tables{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.tcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;max-width:100%;min-width:230px;
+  display:flex;flex-direction:column;gap:10px}
+.tcard header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.tcard header small{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.scroll{overflow-x:auto;max-width:100%}
+.diagram{position:relative;margin:0 auto}
+.tshape{position:absolute;background:var(--linen);border:1.5px solid var(--gold);display:grid;place-items:center;
+  font:italic 500 17px var(--display);color:var(--muted);font-variant-numeric:tabular-nums}
+.seat{position:absolute;width:66px;height:64px;padding:0;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;
+  cursor:pointer;user-select:none;-webkit-user-select:none}
+.seat[data-guest]{cursor:grab;touch-action:none}
+.tok{position:relative;flex:none;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:13px;
+  border:1.5px dashed var(--line);color:var(--muted);font-variant-numeric:tabular-nums}
+.seat[data-guest] .tok{border:0;background:var(--sage);color:var(--on-sage)}
+.seat.kind .tok{background:var(--rose);color:var(--on-rose)}
+.tok em{position:absolute;top:-6px;right:-10px;min-width:20px;height:18px;padding:0 4px;border-radius:999px;font:600 10.5px/16px var(--body);
+  background:var(--surface);color:var(--rose);border:1px solid var(--rose)}
+.seat .nm{font-size:10.5px;line-height:1.1;text-align:center;max-width:66px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.seat.sel{outline:0}.seat.sel .tok{outline:3px solid var(--gold);outline-offset:2px}
+.seat.drop .tok{outline:3px solid var(--sage);outline-offset:2px;transform:scale(1.12)}
+.ghost{position:fixed;z-index:50;pointer-events:none;transform:translate(-50%,-50%) rotate(-3deg);opacity:.92;box-shadow:0 8px 22px rgb(0 0 0/.25)}
+body.dragging,body.dragging *{cursor:grabbing!important}
+
+/* Auswahlleiste */
+#selbar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--gold);
+  padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:center}
+#selbar p{margin:0;min-width:0}
+#selbar p b{font:italic 600 19px var(--display)}
+#selbar p small{color:var(--muted);display:block}
+#toast{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:60;background:var(--ink);color:var(--bg);
+  padding:9px 18px;border-radius:999px;max-width:calc(100% - 32px);text-align:center}
+
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);padding:20px;width:min(440px,calc(100% - 32px))}
+dialog::backdrop{background:rgb(0 0 0/.45)}
+dialog form,dialog .col{display:flex;flex-direction:column;gap:14px}
+dialog .foot{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+textarea{min-height:200px;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+
+@media (max-width:820px){
+  #planner{grid-template-columns:minmax(0,1fr)}
+  #pool{position:static;max-height:none}
+  #plan-title{font-size:26px}
+  .tcard{flex:1 1 100%}
+}
+@media (prefers-reduced-motion:no-preference){ .tok{transition:transform .12s} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg width="46" height="32" viewBox="0 0 46 32" fill="none" aria-hidden="true">
+        <circle cx="16" cy="16" r="12" stroke="var(--gold)" stroke-width="2.2"/>
+        <circle cx="30" cy="16" r="12" stroke="var(--gold)" stroke-width="2.2"/>
+      </svg>
+      <div>
+        <span class="eyebrow">Sitzplan</span>
+        <input id="plan-title" type="text" maxlength="60" aria-label="Titel des Sitzplans" value="Unsere Hochzeit">
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="btn-setup" type="button">Tische bearbeiten</button>
+      <button class="btn" id="btn-load" type="button">Laden</button>
+      <button class="btn primary" id="btn-save" type="button">Speichern</button>
+    </div>
+  </header>
+
+  <section id="setup" hidden>
+    <div>
+      <h2 id="setup-title">Wie sieht euer Saal aus?</h2>
+      <p class="hint">Lege fest, wie viele Tische es gibt, welche Form jeder Tisch hat und wie viele Personen daran Platz finden. Alles lässt sich später ändern.</p>
+    </div>
+    <div class="panel">
+      <div class="defaults">
+        <label class="f">Anzahl Tische<input id="s-count" type="number" min="1" max="40" value="6" inputmode="numeric"></label>
+        <label class="f">Form<select id="s-form"></select></label>
+        <label class="f">Plätze pro Tisch<input id="s-seats" type="number" min="1" max="24" value="8" inputmode="numeric"></label>
+        <button class="btn" id="s-all" type="button">Auf alle anwenden</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="row head"><span>Tisch</span><span>Form</span><span>Plätze</span></div>
+      <div class="rows" id="s-rows"></div>
+    </div>
+    <div class="setup-foot">
+      <span class="total" id="s-total"></span>
+      <div class="actions">
+        <button class="btn danger" id="s-reset" type="button" hidden>Alles zurücksetzen</button>
+        <button class="btn" id="s-cancel" type="button" hidden>Abbrechen</button>
+        <button class="btn primary" id="s-apply" type="button">Sitzplan erstellen</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="planner" hidden>
+    <aside id="pool" data-pool>
+      <div class="stats" id="stats"></div>
+      <form id="add-form" autocomplete="off">
+        <h3>Gast hinzufügen</h3>
+        <label class="f">Name<input id="a-name" type="text" maxlength="60" required placeholder="Vor- und Nachname"></label>
+        <div class="seg" role="radiogroup" aria-label="Art des Gastes">
+          <label><input type="radio" name="a-typ" id="a-erw" value="erwachsener" checked>Erwachsener</label>
+          <label class="k"><input type="radio" name="a-typ" id="a-kind" value="kind">Kind</label>
+        </div>
+        <label class="f" id="a-age-wrap" hidden>Alter in Jahren<input id="a-age" type="number" min="0" max="17" inputmode="numeric"></label>
+        <button class="btn primary" type="submit">Hinzufügen</button>
+      </form>
+      <h3>Noch ohne Platz <small class="total" id="pool-count"></small></h3>
+      <div class="chips" id="chips"></div>
+    </aside>
+    <div id="tables"></div>
+  </section>
+</div>
+
+<div id="selbar" hidden>
+  <p><b id="sel-name"></b><small id="sel-meta"></small></p>
+  <div class="actions">
+    <button class="btn small" id="sel-edit" type="button">Bearbeiten</button>
+    <button class="btn small" id="sel-unseat" type="button">Vom Platz nehmen</button>
+    <button class="btn small" id="sel-clear" type="button">Auswahl aufheben</button>
+  </div>
+</div>
+<div id="toast" role="status" hidden></div>
+<input type="file" id="file" accept=".json,application/json" hidden>
+
+<dialog id="guest-dlg">
+  <form id="e-form" method="dialog" autocomplete="off">
+    <h3>Gast bearbeiten</h3>
+    <label class="f">Name<input id="e-name" type="text" maxlength="60" required></label>
+    <div class="seg" role="radiogroup" aria-label="Art des Gastes">
+      <label><input type="radio" name="e-typ" id="e-erw" value="erwachsener">Erwachsener</label>
+      <label class="k"><input type="radio" name="e-typ" id="e-kind" value="kind">Kind</label>
+    </div>
+    <label class="f" id="e-age-wrap">Alter in Jahren<input id="e-age" type="number" min="0" max="17" inputmode="numeric"></label>
+    <div class="foot">
+      <button class="btn danger" id="e-del" type="button">Gast löschen</button>
+      <button class="btn" id="e-cancel" type="button">Abbrechen</button>
+      <button class="btn primary" type="submit">Übernehmen</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="json-dlg">
+  <div class="col">
+    <h3>Sitzordnung als Text</h3>
+    <p class="hint" id="json-hint"></p>
+    <textarea id="json-text" spellcheck="false" aria-label="JSON der Sitzordnung"></textarea>
+    <div class="foot">
+      <button class="btn" id="json-close" type="button">Schließen</button>
+      <button class="btn" id="json-import" type="button">Aus Text laden</button>
+      <button class="btn primary" id="json-copy" type="button">Kopieren</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+(() => {
+'use strict';
+const SHAPES = { rund: 'Rund', oval: 'Oval', rechteck: 'Rechteckig', quadrat: 'Quadratisch' };
+const MAX_SEATS = 24, MAX_TABLES = 40, STORE = 'hochzeit-sitzplan-v1';
+const $ = id => document.getElementById(id);
+const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+const uid = p => p + Math.random().toString(36).slice(2, 9);
+const int = (v, d) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? n : d; };
+
+let state = { format: 'hochzeit-sitzplan', version: 1, titel: 'Unsere Hochzeit', tische: [], gaeste: [] };
+let view = 'setup', selected = null, draft = [], resetArmed = false;
+
+function el(tag, props, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') n.className = v;
+    else if (k === 'text') n.textContent = v;
+    else if (k === 'style') Object.assign(n.style, v);
+    else n.setAttribute(k, v);
+  }
+  for (const k of kids) if (k != null) n.append(k);
+  return n;
+}
+
+/* ---------- Daten ---------- */
+function normalize(d) {
+  if (!d || typeof d !== 'object' || !Array.isArray(d.tische) || !Array.isArray(d.gaeste))
+    throw new Error('Das ist keine gültige Sitzordnung.');
+  const ids = new Set();
+  const gaeste = d.gaeste.slice(0, 2000).filter(g => g && typeof g === 'object').map(g => {
+    let id = String(g.id ?? uid('g')); while (ids.has(id)) id = uid('g'); ids.add(id);
+    const kind = g.typ === 'kind';
+    return { id, name: String(g.name || 'Gast').slice(0, 60), typ: kind ? 'kind' : 'erwachsener', alter: kind ? clamp(int(g.alter, 0), 0, 17) : null };
+  });
+  const used = new Set(), tids = new Set();
+  const tische = d.tische.slice(0, MAX_TABLES).filter(t => t && typeof t === 'object').map((t, i) => {
+    let id = String(t.id ?? uid('t')); while (tids.has(id)) id = uid('t'); tids.add(id);
+    const n = clamp(int(t.plaetze, 8), 1, MAX_SEATS);
+    const src = Array.isArray(t.belegung) ? t.belegung : [];
+    const belegung = Array.from({ length: n }, (_, k) => {
+      const g = src[k] == null ? null : String(src[k]);
+      if (g && ids.has(g) && !used.has(g)) { used.add(g); return g; }
+      return null;
+    });
+    return { id, name: String(t.name || `Tisch ${i + 1}`).slice(0, 40), form: Object.hasOwn(SHAPES, t.form) ? t.form : 'rund', plaetze: n, belegung };
+  });
+  return { format: 'hochzeit-sitzplan', version: 1, titel: String(d.titel || 'Unsere Hochzeit').slice(0, 60), tische, gaeste };
+}
+const guest = id => state.gaeste.find(g => g.id === id);
+function locate(id) {
+  for (const t of state.tische) { const i = t.belegung.indexOf(id); if (i >= 0) return { t, i }; }
+  return null;
+}
+const seatedIds = () => new Set(state.tische.flatMap(t => t.belegung).filter(Boolean));
+function place(id, tid, idx) {
+  const t = state.tische.find(x => x.id === tid); if (!t || !guest(id)) return;
+  const from = locate(id), other = t.belegung[idx];
+  if (from && from.t === t && from.i === idx) return;
+  t.belegung[idx] = id;
+  if (from) from.t.belegung[from.i] = other || null;
+  else if (other) toast(`${guest(other).name} ist zurück in der Gästeliste.`);
+}
+function unseat(id) { const l = locate(id); if (l) l.t.belegung[l.i] = null; }
+function persist() { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch {} }
+function commit() { persist(); render(); }
+
+/* ---------- Tischgeometrie ---------- */
+const SW = 68, SH = 66;
+function layout(form, n) {
+  const seats = [];
+  if (form === 'rund' || form === 'oval') {
+    const base = n > 1 ? 1 / (2 * Math.sin(Math.PI / n)) : 0;
+    const ry = Math.max(form === 'oval' ? 66 : 84, (form === 'oval' ? SH : SW) * base);
+    const rx = form === 'oval' ? ry * 1.5 : ry;
+    const cx = rx + SW / 2, cy = ry + SH / 2;
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + i * 2 * Math.PI / n;
+      seats.push({ x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) });
+    }
+    return { w: 2 * rx + SW, h: 2 * ry + SH, seats,
+      table: { x: cx - (rx - 44), y: cy - (ry - 44), w: 2 * (rx - 44), h: 2 * (ry - 44), r: '50%' } };
+  }
+  if (form === 'rechteck') {
+    const top = Math.ceil(n / 2), bottom = n - top, tw = Math.max(top, 2) * SW, th = 64;
+    for (let i = 0; i < top; i++) seats.push({ x: (i + .5) * tw / top, y: SH / 2 });
+    for (let i = 0; i < bottom; i++) seats.push({ x: tw - (i + .5) * tw / bottom, y: SH + th + 8 + SH / 2 });
+    return { w: tw, h: 2 * SH + th + 8, seats, table: { x: 6, y: SH + 4, w: tw - 12, h: th, r: '8px' } };
+  }
+  const c = [0, 0, 0, 0]; // oben, rechts, unten, links
+  [0, 2, 1, 3].forEach((side, k) => { c[side] = Math.floor(n / 4) + (k < n % 4 ? 1 : 0); });
+  const L = Math.max(Math.max(...c) * SW, 110);
+  for (let i = 0; i < c[0]; i++) seats.push({ x: SW + (i + .5) * L / c[0], y: SH / 2 });
+  for (let i = 0; i < c[1]; i++) seats.push({ x: SW + L + SW / 2, y: SH + (i + .5) * L / c[1] });
+  for (let i = 0; i < c[2]; i++) seats.push({ x: SW + L - (i + .5) * L / c[2], y: SH + L + SH / 2 });
+  for (let i = 0; i < c[3]; i++) seats.push({ x: SW / 2, y: SH + L - (i + .5) * L / c[3] });
+  return { w: L + 2 * SW, h: L + 2 * SH, seats, table: { x: SW + 4, y: SH + 4, w: L - 8, h: L - 8, r: '8px' } };
+}
+
+/* ---------- Darstellung ---------- */
+const initials = name => name.trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
+const describe = g => g.typ === 'kind' ? `Kind, ${g.alter} ${g.alter === 1 ? 'Jahr' : 'Jahre'}` : 'Erwachsener';
+
+function render() {
+  $('setup').hidden = view !== 'setup';
+  $('planner').hidden = view !== 'planner';
+  $('btn-setup').hidden = view !== 'planner';
+  $('btn-save').hidden = view !== 'planner';
+  if ($('plan-title').value !== state.titel && document.activeElement !== $('plan-title')) $('plan-title').value = state.titel;
+  if (view === 'setup') renderSetup(); else renderPlanner();
+  renderSelbar();
+}
+
+function renderPlanner() {
+  const seated = seatedIds(), kids = state.gaeste.filter(g => g.typ === 'kind').length;
+  const seatsTotal = state.tische.reduce((s, t) => s + t.plaetze, 0);
+  $('stats').replaceChildren(...[
+    [state.gaeste.length - kids, 'Erwachsene'], [kids, kids === 1 ? 'Kind' : 'Kinder'], [`${seated.size}/${seatsTotal}`, 'Plätze belegt'],
+  ].map(([v, l]) => el('div', null, el('b', { text: v }), el('span', { text: l }))));
+
+  const open = state.gaeste.filter(g => !seated.has(g.id));
+  $('pool-count').textContent = open.length ? `(${open.length})` : '';
+  $('chips').replaceChildren(...(open.length ? open.map(g =>
+    el('button', { type: 'button', class: 'chip' + (g.typ === 'kind' ? ' kind' : '') + (selected === g.id ? ' sel' : ''), 'data-guest': g.id, title: `${g.name} – ${describe(g)}` },
+      el('i', { text: g.typ === 'kind' ? `Kind ${g.alter}` : 'Erw.' }), el('span', { text: g.name })))
+    : [el('p', { class: 'empty', text: state.gaeste.length ? 'Alle Gäste haben einen Platz.' : 'Noch keine Gäste. Füge oben den ersten Gast hinzu und ziehe ihn auf einen Platz.' })]));
+
+  $('tables').replaceChildren(...state.tische.map(t => {
+    const L = layout(t.form, t.plaetze), occ = t.belegung.filter(Boolean);
+    const k = occ.filter(id => guest(id).typ === 'kind').length;
+    const dia = el('div', { class: 'diagram', style: { width: L.w + 'px', height: L.h + 'px' } },
+      el('div', { class: 'tshape', text: `${occ.length}/${t.plaetze}`,
+        style: { left: L.table.x + 'px', top: L.table.y + 'px', width: L.table.w + 'px', height: L.table.h + 'px', borderRadius: L.table.r } }));
+    L.seats.forEach((p, i) => {
+      const g = t.belegung[i] && guest(t.belegung[i]);
+      dia.append(el('button', {
+        type: 'button', 'data-seat': `${t.id}:${i}`, 'data-guest': g && g.id,
+        class: 'seat' + (g && g.typ === 'kind' ? ' kind' : '') + (g && selected === g.id ? ' sel' : ''),
+        style: { left: (p.x - 33) + 'px', top: (p.y - SH / 2 + 2) + 'px' },
+        title: g ? `${g.name} – ${describe(g)}` : null,
+        'aria-label': g ? `${t.name}, Platz ${i + 1}: ${g.name}, ${describe(g)}` : `${t.name}, Platz ${i + 1}, frei`,
+      },
+        el('span', { class: 'tok' }, g ? initials(g.name) : String(i + 1), g && g.typ === 'kind' ? el('em', { text: String(g.alter) }) : null),
+        g ? el('span', { class: 'nm', text: g.name }) : null));
+    });
+    return el('article', { class: 'tcard' },
+      el('header', null, el('h3', { text: t.name }),
+        el('small', { text: `${SHAPES[t.form]} · ${occ.length}/${t.plaetze}` + (k ? ` · ${k} ${k === 1 ? 'Kind' : 'Kinder'}` : '') })),
+      el('div', { class: 'scroll' }, dia));
+  }));
+}
+
+function renderSelbar() {
+  const g = view === 'planner' && selected && guest(selected);
+  $('selbar').hidden = !g;
+  if (!g) { selected = null; return; }
+  const l = locate(g.id);
+  $('sel-name').textContent = g.name;
+  $('sel-meta').textContent = `${describe(g)} · ` + (l ? `${l.t.name}, Platz ${l.i + 1}` : 'tippe auf einen freien Platz, um zu setzen');
+  $('sel-unseat').hidden = !l;
+}
+
+let toastTimer;
+function toast(msg) {
+  $('toast').textContent = msg; $('toast').hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 3200);
+}
+
+/* ---------- Einrichtung ---------- */
+function openSetup() {
+  draft = state.tische.map(t => ({ id: t.id, name: t.name, form: t.form, plaetze: t.plaetze }));
+  if (!draft.length) resizeDraft(int($('s-count').value, 6));
+  $('s-count').value = draft.length;
+  resetArmed = false; view = 'setup'; selected = null; render();
+}
+function resizeDraft(n) {
+  n = clamp(n, 1, MAX_TABLES);
+  while (draft.length > n) draft.pop();
+  while (draft.length < n) draft.push({ id: null, name: `Tisch ${draft.length + 1}`, form: $('s-form').value, plaetze: clamp(int($('s-seats').value, 8), 1, MAX_SEATS) });
+}
+function renderSetup() {
+  const editing = state.tische.length > 0;
+  $('setup-title').textContent = editing ? 'Tische bearbeiten' : 'Wie sieht euer Saal aus?';
+  $('s-apply').textContent = editing ? 'Änderungen übernehmen' : 'Sitzplan erstellen';
+  $('s-cancel').hidden = !editing;
+  $('s-reset').hidden = !editing && !state.gaeste.length;
+  $('s-reset').textContent = resetArmed ? 'Wirklich alles löschen?' : 'Alles zurücksetzen';
+  $('s-rows').replaceChildren(...draft.map((d, i) => {
+    const sel = el('select', { id: `r-form-${i}`, 'data-i': i, 'data-k': 'form', 'aria-label': `Form von Tisch ${i + 1}` });
+    for (const [v, l] of Object.entries(SHAPES)) sel.append(el('option', { value: v, text: l, selected: d.form === v ? '' : null }));
+    return el('div', { class: 'row' },
+      el('input', { id: `r-name-${i}`, type: 'text', maxlength: 40, value: d.name, 'data-i': i, 'data-k': 'name', 'aria-label': `Name von Tisch ${i + 1}` }),
+      sel,
+      el('input', { id: `r-seats-${i}`, type: 'number', min: 1, max: MAX_SEATS, value: d.plaetze, inputmode: 'numeric', 'data-i': i, 'data-k': 'plaetze', 'aria-label': `Plätze an Tisch ${i + 1}` }));
+  }));
+  updateTotal();
+}
+function updateTotal() {
+  const s = draft.reduce((a, d) => a + clamp(int(d.plaetze, 1), 1, MAX_SEATS), 0);
+  $('s-total').textContent = `${draft.length} ${draft.length === 1 ? 'Tisch' : 'Tische'} · ${s} Plätze insgesamt`;
+}
+function applySetup() {
+  const old = new Map(state.tische.map(t => [t.id, t])), before = seatedIds().size;
+  state.tische = draft.map((d, i) => {
+    const o = d.id && old.get(d.id), n = clamp(int(d.plaetze, 8), 1, MAX_SEATS);
+    return { id: d.id || uid('t'), name: String(d.name).trim() || `Tisch ${i + 1}`, form: d.form, plaetze: n,
+      belegung: Array.from({ length: n }, (_, k) => (o && o.belegung[k]) || null) };
+  });
+  const lost = before - seatedIds().size;
+  view = 'planner'; commit();
+  if (lost) toast(`${lost} ${lost === 1 ? 'Gast ist' : 'Gäste sind'} zurück in der Gästeliste.`);
+}
+
+for (const [v, l] of Object.entries(SHAPES)) $('s-form').append(el('option', { value: v, text: l }));
+$('s-count').addEventListener('input', () => { const n = int($('s-count').value, 0); if (n >= 1) { resizeDraft(n); renderSetup(); } });
+$('s-count').addEventListener('change', () => { $('s-count').value = draft.length; });
+$('s-all').addEventListener('click', () => {
+  const p = clamp(int($('s-seats').value, 8), 1, MAX_SEATS); $('s-seats').value = p;
+  draft.forEach(d => { d.form = $('s-form').value; d.plaetze = p; }); renderSetup();
+});
+$('s-rows').addEventListener('input', e => {
+  const t = e.target, d = draft[t.dataset.i]; if (!d) return;
+  d[t.dataset.k] = t.dataset.k === 'plaetze' ? int(t.value, 1) : t.value; updateTotal();
+});
+$('s-rows').addEventListener('change', e => {
+  if (e.target.dataset.k === 'plaetze') { const d = draft[e.target.dataset.i]; d.plaetze = clamp(int(d.plaetze, 1), 1, MAX_SEATS); e.target.value = d.plaetze; updateTotal(); }
+});
+$('s-apply').addEventListener('click', applySetup);
+$('s-cancel').addEventListener('click', () => { view = 'planner'; render(); });
+$('s-reset').addEventListener('click', () => {
+  if (!resetArmed) { resetArmed = true; renderSetup(); return; }
+  state = normalize({ tische: [], gaeste: [] }); persist(); draft = []; openSetup(); toast('Alles zurückgesetzt.');
+});
+$('btn-setup').addEventListener('click', openSetup);
+$('plan-title').addEventListener('input', e => { state.titel = e.target.value.slice(0, 60); persist(); });
+
+/* ---------- Gäste ---------- */
+function readGuestForm(p) {
+  const name = $(p + '-name').value.trim(), kind = $(p + '-kind').checked;
+  if (!name) { toast('Bitte einen Namen eingeben.'); $(p + '-name').focus(); return null; }
+  let alter = null;
+  if (kind) {
+    alter = int($(p + '-age').value, NaN);
+    if ($(p + '-age').value === '' || !(alter >= 0 && alter <= 17)) { toast('Bitte das Alter des Kindes angeben (0 bis 17).'); $(p + '-age').focus(); return null; }
+  }
+  return { name, typ: kind ? 'kind' : 'erwachsener', alter };
+}
+const syncAge = p => { $(p + '-age-wrap').hidden = !$(p + '-kind').checked; };
+for (const p of ['a', 'e']) for (const r of ['erw', 'kind']) $(`${p}-${r}`).addEventListener('change', () => syncAge(p));
+$('add-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const g = readGuestForm('a'); if (!g) return;
+  state.gaeste.push({ id: uid('g'), ...g });
+  $('a-name').value = ''; $('a-age').value = ''; commit(); $('a-name').focus();
+});
+function openEdit() {
+  const g = guest(selected); if (!g) return;
+  $('e-name').value = g.name; $(g.typ === 'kind' ? 'e-kind' : 'e-erw').checked = true; $('e-age').value = g.alter ?? ''; syncAge('e');
+  $('guest-dlg').showModal();
+}
+$('e-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const v = readGuestForm('e'), g = guest(selected); if (!v || !g) return;
+  Object.assign(g, v); $('guest-dlg').close(); commit();
+});
+$('e-cancel').addEventListener('click', () => $('guest-dlg').close());
+$('e-del').addEventListener('click', () => {
+  unseat(selected); state.gaeste = state.gaeste.filter(g => g.id !== selected); selected = null; $('guest-dlg').close(); commit();
+});
+$('sel-edit').addEventListener('click', openEdit);
+$('sel-unseat').addEventListener('click', () => { unseat(selected); commit(); });
+$('sel-clear').addEventListener('click', () => { selected = null; render(); });
+
+/* ---------- Drag & Drop (Maus und Touch) ---------- */
+let drag = null;
+const dropTarget = (x, y) => { const n = document.elementFromPoint(x, y); return n && n.closest('[data-seat],[data-pool]'); };
+function setHover(t) {
+  if (drag.hover === t) return;
+  drag.hover && drag.hover.classList.remove('drop');
+  drag.hover = t; t && t.classList.add('drop');
+}
+function endDrag() {
+  if (!drag) return;
+  setHover(null); drag.ghost && drag.ghost.remove(); clearInterval(drag.timer);
+  document.body.classList.remove('dragging'); drag = null;
+}
+document.addEventListener('pointerdown', e => {
+  const src = e.target.closest('[data-guest]');
+  if (!src || e.button > 0 || view !== 'planner') return;
+  drag = { id: src.dataset.guest, src, x: e.clientX, y: e.clientY, cx: e.clientX, cy: e.clientY, active: false, hover: null };
+});
+document.addEventListener('pointermove', e => {
+  if (!drag) return;
+  drag.cx = e.clientX; drag.cy = e.clientY;
+  if (!drag.active) {
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
+    const g = guest(drag.id); if (!g) return endDrag();
+    drag.active = true;
+    drag.ghost = el('div', { class: 'chip ghost' + (g.typ === 'kind' ? ' kind' : '') },
+      el('i', { text: g.typ === 'kind' ? `Kind ${g.alter}` : 'Erw.' }), el('span', { text: g.name }));
+    document.body.append(drag.ghost); document.body.classList.add('dragging');
+    drag.timer = setInterval(() => {
+      if (drag.cy < 70) scrollBy(0, -14); else if (drag.cy > innerHeight - 70) scrollBy(0, 14);
+    }, 16);
+  }
+  drag.ghost.style.left = e.clientX + 'px'; drag.ghost.style.top = e.clientY + 'px';
+  setHover(dropTarget(e.clientX, e.clientY));
+});
+document.addEventListener('pointerup', e => {
+  if (!drag) return;
+  const d = drag, t = d.active ? dropTarget(e.clientX, e.clientY) : null;
+  endDrag();
+  if (!d.active) { selected = selected === d.id ? null : d.id; render(); return; }
+  if (!t) return;
+  if (t.dataset.seat) { const [tid, i] = t.dataset.seat.split(':'); place(d.id, tid, +i); }
+  else unseat(d.id);
+  commit();
+});
+document.addEventListener('pointercancel', endDrag);
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-guest]');
+  if (g) { if (e.detail === 0) { selected = selected === g.dataset.guest ? null : g.dataset.guest; render(); } return; }
+  const s = e.target.closest('[data-seat]'); if (!s) return;
+  if (!selected) return toast('Wähle zuerst einen Gast aus oder ziehe ihn auf den Platz.');
+  const [tid, i] = s.dataset.seat.split(':'); place(selected, tid, +i); selected = null; commit();
+});
+
+/* ---------- Speichern und Laden ---------- */
+const dlReady = window.claude && window.claude.use ? window.claude.use('downloads').catch(() => null) : null;
+function showJson(text, hint) { $('json-text').value = text; $('json-hint').textContent = hint; $('json-dlg').showModal(); }
+async function save() {
+  const text = JSON.stringify(state, null, 2);
+  const slug = state.titel.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const filename = `sitzplan${slug ? '-' + slug : ''}.json`;
+  const manual = 'Der direkte Download ist in dieser Ansicht nicht möglich. Kopiere den Text und sichere ihn als .json-Datei.';
+  if (dlReady) {
+    toast('Speichern wird vorbereitet …');
+    const dl = await dlReady;
+    if (!dl) return showJson(text, manual);
+    try { await dl.save({ filename, data: text }); toast('Sitzordnung gespeichert.'); }
+    catch (err) { if (err && err.code === 'declined') toast('Speichern abgebrochen.'); else showJson(text, manual); }
+    return;
+  }
+  try {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const a = el('a', { href: url, download: filename }); document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000); toast(`Gespeichert als ${filename}`);
+  } catch { showJson(text, manual); }
+}
+function loadText(text) {
+  try { state = normalize(JSON.parse(text)); }
+  catch (err) { toast(err instanceof SyntaxError ? 'Die Datei ist kein gültiges JSON.' : err.message); return false; }
+  selected = null; persist();
+  if (state.tische.length) { view = 'planner'; render(); } else openSetup();
+  toast('Sitzordnung geladen.'); return true;
+}
+$('btn-save').addEventListener('click', save);
+$('btn-load').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', () => {
+  const f = $('file').files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => loadText(String(r.result)); r.onerror = () => toast('Die Datei konnte nicht gelesen werden.');
+  r.readAsText(f); $('file').value = '';
+});
+$('json-close').addEventListener('click', () => $('json-dlg').close());
+$('json-import').addEventListener('click', () => { if (loadText($('json-text').value)) $('json-dlg').close(); });
+$('json-copy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('json-text').value); toast('In die Zwischenablage kopiert.'); }
+  catch { $('json-text').select(); toast('Text ist markiert – jetzt mit Strg+C kopieren.'); }
+});
+
+/* ---------- Start ---------- */
+try { const raw = localStorage.getItem(STORE); if (raw) state = normalize(JSON.parse(raw)); } catch {}
+if (state.tische.length) { view = 'planner'; render(); } else openSetup();
+})();
+</script>
+</body>
+</html>
