@@ -589,7 +589,7 @@ $('imp-file').addEventListener('change', () => {
   const r = new FileReader();
   r.onload = () => {
     let t = new TextDecoder('utf-8').decode(r.result);
-    if (t.includes('�')) t = new TextDecoder('windows-1252').decode(r.result); // Excel-CSV
+    if (t.includes(String.fromCharCode(0xFFFD))) t = new TextDecoder('windows-1252').decode(r.result); // Excel-CSV
     $('imp-text').value = t; previewImport();
   };
   r.onerror = () => toast('Die Datei konnte nicht gelesen werden.');
