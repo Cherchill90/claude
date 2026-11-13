@@ -104,6 +104,7 @@ export default function AdminEmployees() {
           Rolle
           <select value={form.role} onChange={update('role')}>
             <option value="employee">Mitarbeiter:in</option>
+            <option value="coordinator">Fortbildungsbeauftragte:r</option>
             <option value="admin">Verwaltung</option>
           </select>
         </label>
@@ -118,8 +119,8 @@ export default function AdminEmployees() {
       <h2 className="admin-list-title">Mehrere Konten per Excel-Datei importieren</h2>
       <p className="screen-subtitle">
         Datei mit den Spalten <strong>Name</strong> und <strong>E-Mail</strong> hochladen (optional
-        eine Spalte <strong>Rolle</strong> mit „admin“ für Verwaltungszugänge). Unterstützt werden
-        .xlsx und .csv.
+        eine Spalte <strong>Rolle</strong> mit „admin“ für Verwaltungszugänge oder
+        „fortbildungsbeauftragte“ für den Überblicks-Zugang). Unterstützt werden .xlsx und .csv.
       </p>
       <label className="import-upload">
         <input
@@ -185,6 +186,9 @@ export default function AdminEmployees() {
               <div>
                 <h3>
                   {emp.name} {emp.role === 'admin' && <span className="role-tag">Verwaltung</span>}
+                  {emp.role === 'coordinator' && (
+                    <span className="role-tag">Fortbildungsbeauftragte:r</span>
+                  )}
                 </h3>
                 <p className="training-organizer">{emp.email}</p>
                 <p className="deck-empty-hint">

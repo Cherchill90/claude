@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db.js';
-import { requireAuth, requireFreshPassword } from '../auth.js';
+import { requireAuth, requireFreshPassword, requireCoordinator } from '../auth.js';
 
 export const trainingsRouter = Router();
 trainingsRouter.use(requireAuth, requireFreshPassword);
@@ -89,6 +89,35 @@ trainingsRouter.get('/all', (req, res) => {
     .all(req.user.id, req.user.id);
 
   res.json(rows.map((row) => serializeTraining(row, { myDirection: row.my_direction || null })));
+});
+
+// Overview for admins and the designated Fortbildungsbeauftragte: every training
+// company-wide, including the private attendee list that is otherwise only
+// visible to each training's own organizer.
+trainingsRouter.get('/overview', requireCoordinator, (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT t.*, u.name AS organizer_name FROM trainings t
+       JOIN users u ON u.id = t.organizer_id
+       ORDER BY t.date ASC, t.time ASC, t.created_at ASC`
+    )
+    .all();
+
+  const withAttendees = rows.map((row) => {
+    const attendees = db
+      .prepare(
+        `SELECT u.id, u.name, s.created_at AS interested_at
+         FROM swipes s JOIN users u ON u.id = s.user_id
+         WHERE s.training_id = ? AND s.direction = 'right'
+         ORDER BY s.created_at ASC`
+      )
+      .all(row.id)
+      .map((a) => ({ id: a.id, name: a.name, interestedAt: a.interested_at }));
+
+    return serializeTraining(row, { attendees });
+  });
+
+  res.json(withAttendees);
 });
 
 trainingsRouter.get('/mine', (req, res) => {

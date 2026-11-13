@@ -31,6 +31,7 @@ export const api = {
 
   getFeed: (token) => request('/trainings/feed', { token }),
   getAll: (token) => request('/trainings/all', { token }),
+  getOverview: (token) => request('/trainings/overview', { token }),
   getMine: (token) => request('/trainings/mine', { token }),
   getInterests: (token) => request('/trainings/interests', { token }),
   getInterested: (token, id) => request(`/trainings/${id}/interested`, { token }),

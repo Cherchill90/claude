@@ -63,7 +63,7 @@ adminRouter.get('/employees', (req, res) => {
 adminRouter.post('/employees', (req, res) => {
   const email = (req.body?.email || '').trim().toLowerCase();
   const name = (req.body?.name || '').trim();
-  const role = req.body?.role === 'admin' ? 'admin' : 'employee';
+  const role = ['admin', 'coordinator'].includes(req.body?.role) ? req.body.role : 'employee';
 
   const emailError = validateEmail(email);
   if (emailError) return res.status(400).json({ error: emailError });
@@ -122,7 +122,12 @@ adminRouter.post('/employees/import', upload.single('file'), async (req, res) =>
       const roleRaw = String(row.Rolle ?? row.Role ?? row.role ?? '')
         .trim()
         .toLowerCase();
-      const role = roleRaw === 'admin' || roleRaw === 'verwaltung' ? 'admin' : 'employee';
+      const role =
+        roleRaw === 'admin' || roleRaw === 'verwaltung'
+          ? 'admin'
+          : roleRaw === 'coordinator' || roleRaw === 'fortbildungsbeauftragte' || roleRaw === 'beauftragte'
+            ? 'coordinator'
+            : 'employee';
 
       if (!email && !name) return null; // leere Zeile überspringen
 

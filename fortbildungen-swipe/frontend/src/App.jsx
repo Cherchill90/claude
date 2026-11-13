@@ -7,6 +7,7 @@ import CreateTrainingForm from './components/CreateTrainingForm.jsx';
 import MyTrainings from './components/MyTrainings.jsx';
 import AllTrainings from './components/AllTrainings.jsx';
 import AdminEmployees from './components/AdminEmployees.jsx';
+import CoordinatorOverview from './components/CoordinatorOverview.jsx';
 
 const TABS = [
   { id: 'discover', label: 'Entdecken', icon: '🔥' },
@@ -16,6 +17,7 @@ const TABS = [
 ];
 
 const ADMIN_TAB = { id: 'admin', label: 'Verwaltung', icon: '🛠️' };
+const OVERVIEW_TAB = { id: 'overview', label: 'Überblick', icon: '📊' };
 
 function Shell() {
   const { user, logout } = useAuth();
@@ -34,7 +36,11 @@ function Shell() {
     return <ChangePasswordScreen onCancel={() => setShowChangePassword(false)} />;
   }
 
-  const tabs = user.role === 'admin' ? [...TABS, ADMIN_TAB] : TABS;
+  const tabs = [
+    ...TABS,
+    ...(user.role === 'admin' || user.role === 'coordinator' ? [OVERVIEW_TAB] : []),
+    ...(user.role === 'admin' ? [ADMIN_TAB] : []),
+  ];
 
   return (
     <div className="app-shell">
@@ -56,6 +62,9 @@ function Shell() {
         {tab === 'all' && <AllTrainings refreshKey={refreshKey} />}
         {tab === 'create' && <CreateTrainingForm onCreated={handleCreated} />}
         {tab === 'mine' && <MyTrainings refreshKey={refreshKey} />}
+        {tab === 'overview' && (user.role === 'admin' || user.role === 'coordinator') && (
+          <CoordinatorOverview refreshKey={refreshKey} />
+        )}
         {tab === 'admin' && user.role === 'admin' && <AdminEmployees />}
       </main>
 

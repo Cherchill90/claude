@@ -29,6 +29,13 @@ export function requireAdmin(req, res, next) {
   next();
 }
 
+export function requireCoordinator(req, res, next) {
+  if (!['admin', 'coordinator'].includes(req.user?.role)) {
+    return res.status(403).json({ error: 'Nur für Verwaltung oder Fortbildungsbeauftragte zugänglich.' });
+  }
+  next();
+}
+
 export function requireFreshPassword(req, res, next) {
   const row = db.prepare('SELECT must_change_password FROM users WHERE id = ?').get(req.user.id);
   if (row?.must_change_password) {

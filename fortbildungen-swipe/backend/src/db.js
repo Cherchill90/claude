@@ -15,7 +15,7 @@ db.exec(`
     email TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'employee' CHECK (role IN ('admin', 'employee')),
+    role TEXT NOT NULL DEFAULT 'employee' CHECK (role IN ('admin', 'employee', 'coordinator')),
     must_change_password INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
