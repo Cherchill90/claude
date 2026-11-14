@@ -95,7 +95,20 @@ input[type=text],input[type=number],select,textarea{border:1px solid var(--line)
 .sel{outline:3px solid var(--gold);outline-offset:2px}
 .empty{color:var(--muted);font-size:14px;margin:0}
 
+.main{display:flex;flex-direction:column;gap:12px;min-width:0}
+.viewbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.viewseg{width:300px;max-width:100%}
 #tables{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+#tables.room{display:block;overflow:auto;max-width:100%;border:1px solid var(--gold);border-radius:14px;background:var(--surface)}
+.roomin{position:relative;user-select:none;-webkit-user-select:none;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:40px 40px;background-position:-1px -1px}
+.rtable{position:absolute;display:flex;flex-direction:column;align-items:center;gap:6px}
+.rlabel{padding:3px 14px;border:1px solid var(--gold);border-radius:999px;background:var(--surface);cursor:grab;touch-action:none;
+  white-space:nowrap;font:italic 600 16px var(--display);font-variant-numeric:tabular-nums}
+.rlabel:hover{background:var(--linen)}
+.rtable.moving{z-index:5}.rtable.moving .rlabel{border-color:var(--sage);background:var(--sage-soft)}
+.tshape[data-move]{cursor:grab;touch-action:none}
 .tcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;max-width:100%;min-width:230px;
   display:flex;flex-direction:column;gap:10px}
 .tcard header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
@@ -208,7 +221,17 @@ textarea{min-height:200px;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;re
       <h3>Noch ohne Platz <small class="total" id="pool-count"></small></h3>
       <div class="chips" id="chips"></div>
     </aside>
-    <div id="tables"></div>
+    <div class="main">
+      <div class="viewbar">
+        <div class="seg viewseg" role="radiogroup" aria-label="Ansicht">
+          <label><input type="radio" name="vm" id="vm-karten" value="karten" checked>Tischkarten</label>
+          <label><input type="radio" name="vm" id="vm-saal" value="saal">Saalplan</label>
+        </div>
+        <button class="btn small" id="btn-autoplace" type="button" hidden>Automatisch anordnen</button>
+      </div>
+      <p class="hint" id="mode-hint" hidden></p>
+      <div id="tables"></div>
+    </div>
   </section>
 </div>
 
@@ -280,7 +303,7 @@ const uid = p => p + Math.random().toString(36).slice(2, 9);
 const int = (v, d) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? n : d; };
 
 let state = { format: 'hochzeit-sitzplan', version: 1, titel: 'Unsere Hochzeit', tische: [], gaeste: [] };
-let view = 'setup', selected = null, draft = [], resetArmed = false;
+let view = 'setup', selected = null, draft = [], resetArmed = false, mode = 'karten';
 
 function el(tag, props, ...kids) {
   const n = document.createElement(tag);
@@ -315,8 +338,11 @@ function normalize(d) {
       if (g && ids.has(g) && !used.has(g)) { used.add(g); return g; }
       return null;
     });
-    return { id, name: String(t.name || `Tisch ${i + 1}`).slice(0, 40), form: Object.hasOwn(SHAPES, t.form) ? t.form : 'rund', plaetze: n, belegung };
+    return { id, name: String(t.name || `Tisch ${i + 1}`).slice(0, 40), form: Object.hasOwn(SHAPES, t.form) ? t.form : 'rund', plaetze: n, belegung,
+      x: typeof t.x === 'number' && isFinite(t.x) ? Math.max(0, Math.round(t.x)) : null,
+      y: typeof t.y === 'number' && isFinite(t.y) ? Math.max(0, Math.round(t.y)) : null };
   });
+  autoPlace(tische);
   return { format: 'hochzeit-sitzplan', version: 1, titel: String(d.titel || 'Unsere Hochzeit').slice(0, 60), tische, gaeste };
 }
 const guest = id => state.gaeste.find(g => g.id === id);
@@ -369,6 +395,25 @@ function layout(form, n) {
   return { w: L + 2 * SW, h: L + 2 * SH, seats, table: { x: SW + 4, y: SH + 4, w: L - 8, h: L - 8, r: '8px' } };
 }
 
+/* Tische ohne Position werden in Reihen unter die vorhandenen gesetzt. */
+function autoPlace(list, all) {
+  if (all) list.forEach(t => { t.x = null; t.y = null; });
+  const placed = list.filter(t => t.x != null && t.y != null);
+  let x = 30, y = 30, rowH = 0;
+  if (placed.length) y = Math.max(...placed.map(t => t.y + layout(t.form, t.plaetze).h + 40)) + 20;
+  for (const t of list) {
+    if (t.x != null && t.y != null) continue;
+    const L = layout(t.form, t.plaetze);
+    if (x > 30 && x + L.w > 1100) { x = 30; y += rowH + 30; rowH = 0; }
+    t.x = Math.round(x); t.y = Math.round(y); x += L.w + 30; rowH = Math.max(rowH, L.h + 34);
+  }
+}
+function roomTable(t, dia, n) {
+  dia.querySelector('.tshape').dataset.move = t.id;
+  return el('div', { class: 'rtable', style: { left: t.x + 'px', top: t.y + 'px' } },
+    el('div', { class: 'rlabel', 'data-move': t.id, title: 'Zum Verschieben ziehen', text: `${t.name} · ${n}/${t.plaetze}` }), dia);
+}
+
 /* ---------- Darstellung ---------- */
 const initials = name => name.trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
 const describe = g => g.typ === 'kind' ? `Kind, ${g.alter} ${g.alter === 1 ? 'Jahr' : 'Jahre'}` : 'Erwachsener';
@@ -397,7 +442,7 @@ function renderPlanner() {
       el('i', { text: g.typ === 'kind' ? `Kind ${g.alter}` : 'Erw.' }), el('span', { text: g.name })))
     : [el('p', { class: 'empty', text: state.gaeste.length ? 'Alle Gäste haben einen Platz.' : 'Noch keine Gäste. Füge oben den ersten Gast hinzu und ziehe ihn auf einen Platz.' })]));
 
-  $('tables').replaceChildren(...state.tische.map(t => {
+  const nodes = state.tische.map(t => {
     const L = layout(t.form, t.plaetze), occ = t.belegung.filter(Boolean);
     const k = occ.filter(id => guest(id).typ === 'kind').length;
     const dia = el('div', { class: 'diagram', style: { width: L.w + 'px', height: L.h + 'px' } },
@@ -415,11 +460,23 @@ function renderPlanner() {
         el('span', { class: 'tok' }, g ? initials(g.name) : String(i + 1), g && g.typ === 'kind' ? el('em', { text: String(g.alter) }) : null),
         g ? el('span', { class: 'nm', text: g.name }) : null));
     });
+    if (mode === 'saal') return roomTable(t, dia, occ.length);
     return el('article', { class: 'tcard' },
       el('header', null, el('h3', { text: t.name }),
         el('small', { text: `${SHAPES[t.form]} · ${occ.length}/${t.plaetze}` + (k ? ` · ${k} ${k === 1 ? 'Kind' : 'Kinder'}` : '') })),
       el('div', { class: 'scroll' }, dia));
-  }));
+  });
+  const room = mode === 'saal';
+  $('tables').className = room ? 'room' : '';
+  if (room) {
+    let W = 900, H = 520;
+    for (const t of state.tische) { const L = layout(t.form, t.plaetze); W = Math.max(W, t.x + L.w + 40); H = Math.max(H, t.y + L.h + 80); }
+    $('tables').replaceChildren(el('div', { class: 'roomin', style: { width: W + 'px', height: H + 'px' } }, ...nodes));
+  } else $('tables').replaceChildren(...nodes);
+  $('vm-saal').checked = room; $('vm-karten').checked = !room;
+  $('btn-autoplace').hidden = !room;
+  $('mode-hint').hidden = !room;
+  $('mode-hint').textContent = 'Ziehe einen Tisch am Namensschild oder an der Tischplatte an die gewünschte Stelle. Gäste setzt du wie gewohnt per Drag-and-Drop auf die Plätze.';
 }
 
 function renderSelbar() {
@@ -475,9 +532,10 @@ function applySetup() {
   const old = new Map(state.tische.map(t => [t.id, t])), before = seatedIds().size;
   state.tische = draft.map((d, i) => {
     const o = d.id && old.get(d.id), n = clamp(int(d.plaetze, 8), 1, MAX_SEATS);
-    return { id: d.id || uid('t'), name: String(d.name).trim() || `Tisch ${i + 1}`, form: d.form, plaetze: n,
+    return { id: d.id || uid('t'), name: String(d.name).trim() || `Tisch ${i + 1}`, form: d.form, plaetze: n, x: o ? o.x : null, y: o ? o.y : null,
       belegung: Array.from({ length: n }, (_, k) => (o && o.belegung[k]) || null) };
   });
+  autoPlace(state.tische);
   const lost = before - seatedIds().size;
   view = 'planner'; commit();
   if (lost) toast(`${lost} ${lost === 1 ? 'Gast ist' : 'Gäste sind'} zurück in der Gästeliste.`);
@@ -542,6 +600,38 @@ $('e-del').addEventListener('click', () => {
 $('sel-edit').addEventListener('click', openEdit);
 $('sel-unseat').addEventListener('click', () => { unseat(selected); commit(); });
 $('sel-clear').addEventListener('click', () => { selected = null; render(); });
+
+/* ---------- Tische im Saal verschieben ---------- */
+let mv = null;
+for (const r of document.querySelectorAll('[name="vm"]'))
+  r.addEventListener('change', () => { mode = r.value; render(); });
+$('btn-autoplace').addEventListener('click', () => { autoPlace(state.tische, true); commit(); toast('Tische automatisch angeordnet.'); });
+document.addEventListener('pointerdown', e => {
+  const h = e.target.closest('[data-move]');
+  if (!h || e.button > 0 || view !== 'planner' || mode !== 'saal') return;
+  const t = state.tische.find(x => x.id === h.dataset.move); if (!t) return;
+  mv = { t, el: h.closest('.rtable'), sx: e.clientX, sy: e.clientY, moved: false };
+  e.preventDefault();
+});
+document.addEventListener('pointermove', e => {
+  if (!mv) return;
+  const dx = e.clientX - mv.sx, dy = e.clientY - mv.sy;
+  if (!mv.moved && Math.hypot(dx, dy) < 4) return;
+  if (!mv.moved) { mv.moved = true; mv.el.classList.add('moving'); document.body.classList.add('dragging'); }
+  mv.nx = Math.max(0, Math.round((mv.t.x + dx) / 10) * 10);
+  mv.ny = Math.max(0, Math.round((mv.t.y + dy) / 10) * 10);
+  mv.el.style.left = mv.nx + 'px'; mv.el.style.top = mv.ny + 'px';
+});
+document.addEventListener('pointerup', () => {
+  if (!mv) return;
+  const m = mv; mv = null; document.body.classList.remove('dragging');
+  if (m.moved) { m.t.x = m.nx; m.t.y = m.ny; commit(); }
+});
+document.addEventListener('pointercancel', () => {
+  if (!mv) return;
+  mv.el.style.left = mv.t.x + 'px'; mv.el.style.top = mv.t.y + 'px'; mv.el.classList.remove('moving');
+  document.body.classList.remove('dragging'); mv = null;
+});
 
 /* ---------- Namensliste importieren ---------- */
 const META = /^(kind(er)?|k|child|erw\w*|adult|e|\d{1,3}|(kind|k)\s*\d{1,3}|\d{1,3}\s*(j|jahre?))$/i;
