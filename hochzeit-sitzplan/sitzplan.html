@@ -99,7 +99,7 @@ input[type=text],input[type=number],select,textarea{border:1px solid var(--line)
 .viewbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
 .viewseg{width:300px;max-width:100%}
 #tables{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
-#tables.room{display:block;overflow:auto;max-width:100%;border:1px solid var(--gold);border-radius:14px;background:var(--surface)}
+#tables.room{display:block;overflow:auto;width:fit-content;max-width:100%;border:1px solid var(--gold);border-radius:14px;background:var(--surface)}
 .roomin{position:relative;user-select:none;-webkit-user-select:none;
   background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
   background-size:40px 40px;background-position:-1px -1px}
@@ -109,6 +109,26 @@ input[type=text],input[type=number],select,textarea{border:1px solid var(--line)
 .rlabel:hover{background:var(--linen)}
 .rtable.moving{z-index:5}.rtable.moving .rlabel{border-color:var(--sage);background:var(--sage-soft)}
 .tshape[data-move]{cursor:grab;touch-action:none}
+.rhead{display:flex;align-items:center;justify-content:center;gap:4px;height:28px;white-space:nowrap}
+.rlabel{height:28px;padding:0 12px;max-width:110px;overflow:hidden;text-overflow:ellipsis;line-height:26px}
+.rb{flex:none;width:26px;height:26px;padding:0;border-radius:50%;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:13px;line-height:1;color:var(--ink)}
+.rb:hover{border-color:var(--sage);background:var(--sage-soft)}
+.rtable.bad .tshape,.robj.bad{outline:3px solid var(--danger);outline-offset:1px}
+.rtable.bad .rlabel{border-color:var(--danger)}
+.robj{position:absolute;display:grid;place-items:center;text-align:center;overflow:hidden;cursor:grab;touch-action:none;border-radius:6px;border:2px solid var(--line);padding:2px}
+.robj span{pointer-events:none;display:block;min-width:0;max-width:100%}
+.robj b{display:block;font:italic 600 16px/1.2 var(--display);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.robj small{display:block;color:var(--muted);font-size:11px}
+.robj.moving{z-index:5;opacity:.9}
+.o-tanzflaeche{border-color:var(--gold);background:conic-gradient(var(--linen) 25%,var(--surface) 0 50%,var(--linen) 0 75%,var(--surface) 0) 0 0/40px 40px}
+.o-buehne{border-color:var(--sage);background:var(--sage-soft)}
+.o-buffet,.o-bar{border-color:var(--rose);background:var(--rose-soft)}
+.o-eingang{border:2px dashed var(--gold);background:var(--surface)}
+.o-sonstiges{border-color:var(--muted);background:var(--linen)}
+.roomtools{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:end}
+.roomtools input[type=number]{width:92px}.roomtools select{width:auto}
+#room-status{margin:0;font-size:13px}#room-status.warn{color:var(--danger)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .tcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;max-width:100%;min-width:230px;
   display:flex;flex-direction:column;gap:10px}
 .tcard header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
@@ -227,9 +247,16 @@ textarea{min-height:200px;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;re
           <label><input type="radio" name="vm" id="vm-karten" value="karten" checked>Tischkarten</label>
           <label><input type="radio" name="vm" id="vm-saal" value="saal">Saalplan</label>
         </div>
-        <button class="btn small" id="btn-autoplace" type="button" hidden>Automatisch anordnen</button>
+        <button class="btn small" id="btn-autoplace" type="button" hidden>Tische automatisch anordnen</button>
+      </div>
+      <div class="roomtools" id="roomtools" hidden>
+        <label class="f">Raumbreite (m)<input id="room-w" type="number" min="6" max="80" step="0.5" inputmode="decimal"></label>
+        <label class="f">Raumlänge (m)<input id="room-l" type="number" min="6" max="80" step="0.5" inputmode="decimal"></label>
+        <label class="f">Element<select id="obj-type"></select></label>
+        <button class="btn small" id="btn-addobj" type="button">Hinzufügen</button>
       </div>
       <p class="hint" id="mode-hint" hidden></p>
+      <p class="hint" id="room-status" hidden></p>
       <div id="tables"></div>
     </div>
   </section>
@@ -279,6 +306,23 @@ textarea{min-height:200px;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;re
   </div>
 </dialog>
 
+<dialog id="obj-dlg">
+  <form id="o-form" method="dialog" autocomplete="off">
+    <h3>Element bearbeiten</h3>
+    <label class="f">Bezeichnung<input id="o-name" type="text" maxlength="40" required></label>
+    <div class="two">
+      <label class="f">Breite (m)<input id="o-w" type="number" min="0.5" max="40" step="0.5" inputmode="decimal" required></label>
+      <label class="f">Tiefe (m)<input id="o-h" type="number" min="0.5" max="40" step="0.5" inputmode="decimal" required></label>
+    </div>
+    <label class="f">Drehung (Grad)<input id="o-rot" type="number" min="0" max="359" step="15" inputmode="numeric"></label>
+    <div class="foot">
+      <button class="btn danger" id="o-del" type="button">Löschen</button>
+      <button class="btn" id="o-cancel" type="button">Abbrechen</button>
+      <button class="btn primary" type="submit">Übernehmen</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="json-dlg">
   <div class="col">
     <h3>Sitzordnung als Text</h3>
@@ -302,7 +346,7 @@ const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
 const uid = p => p + Math.random().toString(36).slice(2, 9);
 const int = (v, d) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? n : d; };
 
-let state = { format: 'hochzeit-sitzplan', version: 1, titel: 'Unsere Hochzeit', tische: [], gaeste: [] };
+let state = { format: 'hochzeit-sitzplan', version: 1, titel: 'Unsere Hochzeit', raum: { breite: 25, laenge: 15 }, objekte: [], tische: [], gaeste: [] };
 let view = 'setup', selected = null, draft = [], resetArmed = false, mode = 'karten';
 
 function el(tag, props, ...kids) {
@@ -322,6 +366,9 @@ function el(tag, props, ...kids) {
 function normalize(d) {
   if (!d || typeof d !== 'object' || !Array.isArray(d.tische) || !Array.isArray(d.gaeste))
     throw new Error('Das ist keine gültige Sitzordnung.');
+  const num = (v, def) => (typeof v === 'number' && isFinite(v) ? v : def);
+  const pos = v => (typeof v === 'number' && isFinite(v) ? Math.max(0, Math.round(v)) : null);
+  const rotOf = v => ((Math.round(num(v, 0)) % 360) + 360) % 360;
   const ids = new Set();
   const gaeste = d.gaeste.slice(0, 2000).filter(g => g && typeof g === 'object').map(g => {
     let id = String(g.id ?? uid('g')); while (ids.has(id)) id = uid('g'); ids.add(id);
@@ -329,8 +376,9 @@ function normalize(d) {
     return { id, name: String(g.name || 'Gast').slice(0, 60), typ: kind ? 'kind' : 'erwachsener', alter: kind ? clamp(int(g.alter, 0), 0, 17) : null };
   });
   const used = new Set(), tids = new Set();
+  const cleanId = (v, p) => { let id = String(v ?? '').replace(/[^\w-]/g, '') || uid(p); while (tids.has(id)) id = uid(p); tids.add(id); return id; };
   const tische = d.tische.slice(0, MAX_TABLES).filter(t => t && typeof t === 'object').map((t, i) => {
-    let id = String(t.id ?? uid('t')); while (tids.has(id)) id = uid('t'); tids.add(id);
+    const id = cleanId(t.id, 't');
     const n = clamp(int(t.plaetze, 8), 1, MAX_SEATS);
     const src = Array.isArray(t.belegung) ? t.belegung : [];
     const belegung = Array.from({ length: n }, (_, k) => {
@@ -339,11 +387,18 @@ function normalize(d) {
       return null;
     });
     return { id, name: String(t.name || `Tisch ${i + 1}`).slice(0, 40), form: Object.hasOwn(SHAPES, t.form) ? t.form : 'rund', plaetze: n, belegung,
-      x: typeof t.x === 'number' && isFinite(t.x) ? Math.max(0, Math.round(t.x)) : null,
-      y: typeof t.y === 'number' && isFinite(t.y) ? Math.max(0, Math.round(t.y)) : null };
+      rot: rotOf(t.rot), x: pos(t.x), y: pos(t.y) };
   });
-  autoPlace(tische);
-  return { format: 'hochzeit-sitzplan', version: 1, titel: String(d.titel || 'Unsere Hochzeit').slice(0, 60), tische, gaeste };
+  const objekte = (Array.isArray(d.objekte) ? d.objekte : []).slice(0, 60).filter(o => o && typeof o === 'object').map(o => {
+    const typ = Object.hasOwn(OBJ, o.typ) ? o.typ : 'sonstiges', def = OBJ[typ];
+    return { id: cleanId(o.id, 'o'), typ, name: String(o.name || def.label).slice(0, 40),
+      breite: clamp(Math.round(num(o.breite, def.b) * 2) / 2, 0.5, 40), tiefe: clamp(Math.round(num(o.tiefe, def.t) * 2) / 2, 0.5, 40),
+      rot: rotOf(o.rot), x: pos(o.x), y: pos(o.y) };
+  });
+  const rr = d.raum && typeof d.raum === 'object' ? d.raum : {};
+  const raum = { breite: clamp(Math.round(num(rr.breite, 25) * 2) / 2, 6, 80), laenge: clamp(Math.round(num(rr.laenge, 15) * 2) / 2, 6, 80) };
+  autoPlace(tische, objekte, raum); ensureRoom(tische, objekte, raum);
+  return { format: 'hochzeit-sitzplan', version: 1, titel: String(d.titel || 'Unsere Hochzeit').slice(0, 60), raum, objekte, tische, gaeste };
 }
 const guest = id => state.gaeste.find(g => g.id === id);
 function locate(id) {
@@ -395,23 +450,119 @@ function layout(form, n) {
   return { w: L + 2 * SW, h: L + 2 * SH, seats, table: { x: SW + 4, y: SH + 4, w: L - 8, h: L - 8, r: '8px' } };
 }
 
-/* Tische ohne Position werden in Reihen unter die vorhandenen gesetzt. */
-function autoPlace(list, all) {
-  if (all) list.forEach(t => { t.x = null; t.y = null; });
-  const placed = list.filter(t => t.x != null && t.y != null);
-  let x = 30, y = 30, rowH = 0;
-  if (placed.length) y = Math.max(...placed.map(t => t.y + layout(t.form, t.plaetze).h + 40)) + 20;
-  for (const t of list) {
-    if (t.x != null && t.y != null) continue;
-    const L = layout(t.form, t.plaetze);
-    if (x > 30 && x + L.w > 1100) { x = 30; y += rowH + 30; rowH = 0; }
-    t.x = Math.round(x); t.y = Math.round(y); x += L.w + 30; rowH = Math.max(rowH, L.h + 34);
+/* ---------- Saal: Geometrie, Kollisionen, Anordnung (1 Kästchen = 1 m = 40 px) ---------- */
+const M = 40, LABEL_H = 34, HEAD_W = 210;
+const OBJ = {
+  tanzflaeche: { label: 'Tanzfläche', b: 5, t: 5 },
+  buehne: { label: 'Bühne', b: 6, t: 3 },
+  buffet: { label: 'Buffet', b: 4, t: 1.5 },
+  bar: { label: 'Bar', b: 3, t: 1 },
+  eingang: { label: 'Eingang', b: 2, t: 1 },
+  sonstiges: { label: 'Element', b: 2, t: 2 },
+};
+function layoutR(form, n, rot) {
+  const L = layout(form, n);
+  if (!rot) return L;
+  const a = rot * Math.PI / 180, cs = Math.cos(a), sn = Math.sin(a), cx = L.w / 2, cy = L.h / 2;
+  const rp = (x, y) => ({ x: cx + (x - cx) * cs - (y - cy) * sn, y: cy + (x - cx) * sn + (y - cy) * cs });
+  const seats = L.seats.map(p => rp(p.x, p.y));
+  const T = L.table, tc = rp(T.x + T.w / 2, T.y + T.h / 2);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const s of seats) { x0 = Math.min(x0, s.x - SW / 2); x1 = Math.max(x1, s.x + SW / 2); y0 = Math.min(y0, s.y - SH / 2); y1 = Math.max(y1, s.y + SH / 2); }
+  for (const [px, py] of [[T.x, T.y], [T.x + T.w, T.y], [T.x, T.y + T.h], [T.x + T.w, T.y + T.h]]) {
+    const q = rp(px, py); x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y);
+  }
+  return { w: x1 - x0, h: y1 - y0, seats: seats.map(s => ({ x: s.x - x0, y: s.y - y0 })),
+    table: { x: tc.x - x0 - T.w / 2, y: tc.y - y0 - T.h / 2, w: T.w, h: T.h, r: T.r } };
+}
+const tblGeom = t => layoutR(t.form, t.plaetze, t.rot || 0);
+const itemsOf = (s = state) => [...s.tische.map(o => ({ k: 't', o })), ...s.objekte.map(o => ({ k: 'o', o }))];
+/* Belegte Fläche eines Tisches (ohne Namensschild) oder Elements, nach Drehung als umschließendes Rechteck. */
+function rectOf(k, o, x = o.x, y = o.y) {
+  if (k === 't') { const L = tblGeom(o); return { x, y: y + LABEL_H, w: L.w, h: L.h }; }
+  const w = o.breite * M, h = o.tiefe * M, a = (o.rot || 0) * Math.PI / 180, c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a));
+  const bw = w * c + h * s, bh = w * s + h * c;
+  return { x: x + w / 2 - bw / 2, y: y + h / 2 - bh / 2, w: bw, h: bh };
+}
+function boundsOf(k, o, raum = state.raum) {
+  const r = rectOf(k, o, 0, 0), W = raum.breite * M, H = raum.laenge * M;
+  const pad = k === 't' ? Math.max(0, (HEAD_W - r.w) / 2) : 0;
+  const b = { minX: -r.x + pad, maxX: W - r.w - r.x - pad, minY: k === 't' ? 0 : -r.y, maxY: H - r.h - r.y };
+  return b.maxX >= b.minX && b.maxY >= b.minY ? b : null;
+}
+const hit = (a, b) => a.x < b.x + b.w - .5 && a.x + a.w > b.x + .5 && a.y < b.y + b.h - .5 && a.y + a.h > b.y + .5;
+function collides(k, o, x, y) {
+  const r = rectOf(k, o, x, y);
+  return itemsOf().some(it => it.o !== o && hit(r, rectOf(it.k, it.o)));
+}
+function overlaps() {
+  const its = itemsOf(), out = [];
+  for (let i = 0; i < its.length; i++) for (let j = i + 1; j < its.length; j++)
+    if (hit(rectOf(its[i].k, its[i].o), rectOf(its[j].k, its[j].o))) out.push(`${its[i].o.name} und ${its[j].o.name}`);
+  return out;
+}
+/* Setzt Tische und Elemente ohne Position auf den ersten freien Platz (von oben links). */
+function autoPlace(tische, objekte, raum, all) {
+  if (all) tische.forEach(t => { t.x = null; t.y = null; });
+  const W = raum.breite * M, taken = [], todo = [];
+  for (const o of objekte) (o.x != null && o.y != null ? taken.push(rectOf('o', o)) : todo.push(['o', o]));
+  for (const t of tische) (t.x != null && t.y != null ? taken.push(rectOf('t', t)) : todo.push(['t', t]));
+  for (const [k, o] of todo) {
+    const b = rectOf(k, o, 0, 0), pad = k === 't' ? Math.max(0, (HEAD_W - b.w) / 2) : 0;
+    const x0 = Math.ceil((10 - b.x + pad) / 10) * 10, y0 = Math.ceil((10 - (k === 't' ? 0 : b.y)) / 10) * 10;
+    let spot = null;
+    if (b.w + pad * 2 + 20 <= W) search: for (let y = y0; y < 3000; y += 10)
+      for (let x = x0; x + b.x + b.w + pad + 10 <= W; x += 10) {
+        const r = { x: x + b.x - 10, y: y + b.y - 10, w: b.w + 20, h: b.h + 20 };
+        if (!taken.some(q => hit(r, q))) { spot = { x, y }; break search; }
+      }
+    if (!spot) { const bottom = Math.max(0, ...taken.map(q => q.y + q.h)) + 10; spot = { x: x0, y: Math.max(y0, Math.ceil((bottom - b.y) / 10) * 10) }; }
+    o.x = spot.x; o.y = spot.y; taken.push({ x: spot.x + b.x, y: spot.y + b.y, w: b.w, h: b.h });
   }
 }
-function roomTable(t, dia, n) {
-  dia.querySelector('.tshape').dataset.move = t.id;
-  return el('div', { class: 'rtable', style: { left: t.x + 'px', top: t.y + 'px' } },
-    el('div', { class: 'rlabel', 'data-move': t.id, title: 'Zum Verschieben ziehen', text: `${t.name} · ${n}/${t.plaetze}` }), dia);
+/* Vergrößert den Raum bei Bedarf und schiebt alles ins Innere. */
+function ensureRoom(tische, objekte, raum) {
+  const s = { tische, objekte };
+  let right = 0, bottom = 0;
+  for (const { k, o } of itemsOf(s)) {
+    const r = rectOf(k, o), pad = k === 't' ? Math.max(0, (HEAD_W - r.w) / 2) : 0;
+    right = Math.max(right, r.x + r.w + pad); bottom = Math.max(bottom, r.y + r.h);
+  }
+  raum.breite = Math.min(80, Math.max(raum.breite, Math.ceil((right + 10) / M * 2) / 2));
+  raum.laenge = Math.min(80, Math.max(raum.laenge, Math.ceil((bottom + 10) / M * 2) / 2));
+  for (const { k, o } of itemsOf(s)) {
+    const b = boundsOf(k, o, raum);
+    if (b) { o.x = Math.round(clamp(o.x, b.minX, b.maxX)); o.y = Math.round(clamp(o.y, b.minY, b.maxY)); }
+  }
+}
+function rotateItem(k, o, d) {
+  const old = { x: o.x, y: o.y, rot: o.rot || 0 }, r0 = rectOf(k, o);
+  o.rot = (((old.rot + d) % 360) + 360) % 360;
+  const r1 = rectOf(k, o);
+  o.x = Math.round(o.x + (r0.x + r0.w / 2) - (r1.x + r1.w / 2)); o.y = Math.round(o.y + (r0.y + r0.h / 2) - (r1.y + r1.h / 2));
+  const b = boundsOf(k, o);
+  if (b) { o.x = Math.round(clamp(o.x, b.minX, b.maxX)); o.y = Math.round(clamp(o.y, b.minY, b.maxY)); }
+  if (!b || collides(k, o, o.x, o.y)) {
+    Object.assign(o, old);
+    toast(!b ? 'Gedreht passt das nicht mehr in den Raum.' : 'Gedreht wäre dort nicht genug Platz.');
+    return false;
+  }
+  return true;
+}
+function roomTable(t, dia, n, L) {
+  dia.querySelector('.tshape').dataset.move = 't:' + t.id;
+  const rb = (d, sym, lbl) => el('button', { type: 'button', class: 'rb', 'data-rotid': t.id, 'data-rotd': d, title: lbl, 'aria-label': `${t.name}: ${lbl}`, text: sym });
+  return el('div', { class: 'rtable', style: { left: t.x + 'px', top: t.y + 'px', width: L.w + 'px' } },
+    el('div', { class: 'rhead' },
+      el('div', { class: 'rlabel', 'data-move': 't:' + t.id, title: `${t.name} – zum Verschieben ziehen`, text: t.name }),
+      rb(-15, '↺', 'Um 15° nach links drehen'), rb(15, '↻', 'Um 15° nach rechts drehen'), rb(90, '90°', 'Um 90° drehen')),
+    dia);
+}
+function roomObject(o) {
+  const rot = o.rot || 0;
+  return el('div', { class: `robj o-${o.typ}`, 'data-move': 'o:' + o.id, title: `${o.name} – ziehen zum Verschieben, antippen zum Bearbeiten`,
+    style: { left: o.x + 'px', top: o.y + 'px', width: o.breite * M + 'px', height: o.tiefe * M + 'px', transform: rot ? `rotate(${rot}deg)` : null } },
+    el('span', { style: { transform: rot ? `rotate(${-rot}deg)` : null } }, el('b', { text: o.name }), el('small', { text: `${o.breite} × ${o.tiefe} m` })));
 }
 
 /* ---------- Darstellung ---------- */
@@ -442,12 +593,14 @@ function renderPlanner() {
       el('i', { text: g.typ === 'kind' ? `Kind ${g.alter}` : 'Erw.' }), el('span', { text: g.name })))
     : [el('p', { class: 'empty', text: state.gaeste.length ? 'Alle Gäste haben einen Platz.' : 'Noch keine Gäste. Füge oben den ersten Gast hinzu und ziehe ihn auf einen Platz.' })]));
 
+  const room = mode === 'saal';
   const nodes = state.tische.map(t => {
-    const L = layout(t.form, t.plaetze), occ = t.belegung.filter(Boolean);
+    const rot = room ? t.rot || 0 : 0, L = layoutR(t.form, t.plaetze, rot), occ = t.belegung.filter(Boolean);
     const k = occ.filter(id => guest(id).typ === 'kind').length;
     const dia = el('div', { class: 'diagram', style: { width: L.w + 'px', height: L.h + 'px' } },
-      el('div', { class: 'tshape', text: `${occ.length}/${t.plaetze}`,
-        style: { left: L.table.x + 'px', top: L.table.y + 'px', width: L.table.w + 'px', height: L.table.h + 'px', borderRadius: L.table.r } }));
+      el('div', { class: 'tshape',
+        style: { left: L.table.x + 'px', top: L.table.y + 'px', width: L.table.w + 'px', height: L.table.h + 'px', borderRadius: L.table.r, transform: rot ? `rotate(${rot}deg)` : null } },
+        el('span', { text: `${occ.length}/${t.plaetze}`, style: { display: 'inline-block', transform: rot ? `rotate(${-rot}deg)` : null } })));
     L.seats.forEach((p, i) => {
       const g = t.belegung[i] && guest(t.belegung[i]);
       dia.append(el('button', {
@@ -460,23 +613,25 @@ function renderPlanner() {
         el('span', { class: 'tok' }, g ? initials(g.name) : String(i + 1), g && g.typ === 'kind' ? el('em', { text: String(g.alter) }) : null),
         g ? el('span', { class: 'nm', text: g.name }) : null));
     });
-    if (mode === 'saal') return roomTable(t, dia, occ.length);
+    if (room) return roomTable(t, dia, occ.length, L);
     return el('article', { class: 'tcard' },
       el('header', null, el('h3', { text: t.name }),
         el('small', { text: `${SHAPES[t.form]} · ${occ.length}/${t.plaetze}` + (k ? ` · ${k} ${k === 1 ? 'Kind' : 'Kinder'}` : '') })),
       el('div', { class: 'scroll' }, dia));
   });
-  const room = mode === 'saal';
   $('tables').className = room ? 'room' : '';
   if (room) {
-    let W = 900, H = 520;
-    for (const t of state.tische) { const L = layout(t.form, t.plaetze); W = Math.max(W, t.x + L.w + 40); H = Math.max(H, t.y + L.h + 80); }
-    $('tables').replaceChildren(el('div', { class: 'roomin', style: { width: W + 'px', height: H + 'px' } }, ...nodes));
+    $('tables').replaceChildren(el('div', { class: 'roomin', style: { width: state.raum.breite * M + 'px', height: state.raum.laenge * M + 'px' } },
+      ...state.objekte.map(roomObject), ...nodes));
+    const bad = overlaps();
+    $('room-status').textContent = bad.length ? `Überschneidungen: ${bad.slice(0, 4).join('; ')}${bad.length > 4 ? ' …' : ''}. Verschiebe die Teile auseinander.` : 'Keine Überschneidungen.';
+    $('room-status').classList.toggle('warn', bad.length > 0);
+    $('room-w').value = state.raum.breite; $('room-l').value = state.raum.laenge;
   } else $('tables').replaceChildren(...nodes);
   $('vm-saal').checked = room; $('vm-karten').checked = !room;
-  $('btn-autoplace').hidden = !room;
-  $('mode-hint').hidden = !room;
-  $('mode-hint').textContent = 'Ziehe einen Tisch am Namensschild oder an der Tischplatte an die gewünschte Stelle. Gäste setzt du wie gewohnt per Drag-and-Drop auf die Plätze.';
+  $('btn-autoplace').hidden = !room; $('roomtools').hidden = !room;
+  $('mode-hint').hidden = !room; $('room-status').hidden = !room;
+  $('mode-hint').textContent = 'Ein Kästchen entspricht 1 m. Ziehe Tische am Namensschild oder an der Tischplatte, drehe sie mit ↺ ↻ und 90°. Elemente wie Tanzfläche oder Bühne ziehst du ebenfalls; antippen öffnet Größe und Drehung. Nichts darf sich überlappen. Gäste setzt du wie gewohnt auf die Plätze.';
 }
 
 function renderSelbar() {
@@ -532,10 +687,10 @@ function applySetup() {
   const old = new Map(state.tische.map(t => [t.id, t])), before = seatedIds().size;
   state.tische = draft.map((d, i) => {
     const o = d.id && old.get(d.id), n = clamp(int(d.plaetze, 8), 1, MAX_SEATS);
-    return { id: d.id || uid('t'), name: String(d.name).trim() || `Tisch ${i + 1}`, form: d.form, plaetze: n, x: o ? o.x : null, y: o ? o.y : null,
+    return { id: d.id || uid('t'), name: String(d.name).trim() || `Tisch ${i + 1}`, form: d.form, plaetze: n, x: o ? o.x : null, y: o ? o.y : null, rot: o ? o.rot || 0 : 0,
       belegung: Array.from({ length: n }, (_, k) => (o && o.belegung[k]) || null) };
   });
-  autoPlace(state.tische);
+  autoPlace(state.tische, state.objekte, state.raum); ensureRoom(state.tische, state.objekte, state.raum);
   const lost = before - seatedIds().size;
   view = 'planner'; commit();
   if (lost) toast(`${lost} ${lost === 1 ? 'Gast ist' : 'Gäste sind'} zurück in der Gästeliste.`);
@@ -601,16 +756,21 @@ $('sel-edit').addEventListener('click', openEdit);
 $('sel-unseat').addEventListener('click', () => { unseat(selected); commit(); });
 $('sel-clear').addEventListener('click', () => { selected = null; render(); });
 
-/* ---------- Tische im Saal verschieben ---------- */
-let mv = null;
-for (const r of document.querySelectorAll('[name="vm"]'))
-  r.addEventListener('change', () => { mode = r.value; render(); });
-$('btn-autoplace').addEventListener('click', () => { autoPlace(state.tische, true); commit(); toast('Tische automatisch angeordnet.'); });
+/* ---------- Saal: verschieben, drehen, Raum, Elemente ---------- */
+let mv = null, editObj = null;
+const snap = v => Math.round(v / 10) * 10;
+for (const r of document.querySelectorAll('[name="vm"]')) r.addEventListener('change', () => { mode = r.value; render(); });
+for (const [v, d] of Object.entries(OBJ)) $('obj-type').append(el('option', { value: v, text: d.label }));
+$('btn-autoplace').addEventListener('click', () => {
+  autoPlace(state.tische, state.objekte, state.raum, true); ensureRoom(state.tische, state.objekte, state.raum);
+  commit(); toast('Tische automatisch angeordnet.');
+});
 document.addEventListener('pointerdown', e => {
   const h = e.target.closest('[data-move]');
   if (!h || e.button > 0 || view !== 'planner' || mode !== 'saal') return;
-  const t = state.tische.find(x => x.id === h.dataset.move); if (!t) return;
-  mv = { t, el: h.closest('.rtable'), sx: e.clientX, sy: e.clientY, moved: false };
+  const key = h.dataset.move, k = key[0];
+  const o = (k === 't' ? state.tische : state.objekte).find(x => x.id === key.slice(2)); if (!o) return;
+  mv = { k, o, el: h.closest('.rtable, .robj'), sx: e.clientX, sy: e.clientY, b: boundsOf(k, o), moved: false };
   e.preventDefault();
 });
 document.addEventListener('pointermove', e => {
@@ -618,19 +778,74 @@ document.addEventListener('pointermove', e => {
   const dx = e.clientX - mv.sx, dy = e.clientY - mv.sy;
   if (!mv.moved && Math.hypot(dx, dy) < 4) return;
   if (!mv.moved) { mv.moved = true; mv.el.classList.add('moving'); document.body.classList.add('dragging'); }
-  mv.nx = Math.max(0, Math.round((mv.t.x + dx) / 10) * 10);
-  mv.ny = Math.max(0, Math.round((mv.t.y + dy) / 10) * 10);
+  if (!mv.b) return;
+  mv.nx = clamp(snap(mv.o.x + dx), mv.b.minX, mv.b.maxX); mv.ny = clamp(snap(mv.o.y + dy), mv.b.minY, mv.b.maxY);
   mv.el.style.left = mv.nx + 'px'; mv.el.style.top = mv.ny + 'px';
+  mv.el.classList.toggle('bad', collides(mv.k, mv.o, mv.nx, mv.ny));
 });
 document.addEventListener('pointerup', () => {
   if (!mv) return;
   const m = mv; mv = null; document.body.classList.remove('dragging');
-  if (m.moved) { m.t.x = m.nx; m.t.y = m.ny; commit(); }
+  if (!m.moved) { if (m.k === 'o') openObj(m.o.id); return; }
+  if (!m.b) return render();
+  if (collides(m.k, m.o, m.nx, m.ny)) { render(); toast('Dort ist kein Platz frei. Das Teil ist zurückgesprungen.'); return; }
+  m.o.x = Math.round(m.nx); m.o.y = Math.round(m.ny); commit();
 });
 document.addEventListener('pointercancel', () => {
   if (!mv) return;
-  mv.el.style.left = mv.t.x + 'px'; mv.el.style.top = mv.t.y + 'px'; mv.el.classList.remove('moving');
-  document.body.classList.remove('dragging'); mv = null;
+  document.body.classList.remove('dragging'); mv = null; render();
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-rotid]'); if (!b) return;
+  const t = state.tische.find(x => x.id === b.dataset.rotid);
+  if (t && rotateItem('t', t, +b.dataset.rotd)) commit();
+});
+
+function setRoom() {
+  const next = {
+    breite: clamp(Math.round(Number($('room-w').value) * 2) / 2 || state.raum.breite, 6, 80),
+    laenge: clamp(Math.round(Number($('room-l').value) * 2) / 2 || state.raum.laenge, 6, 80),
+  };
+  for (const { k, o } of itemsOf()) {
+    const b = boundsOf(k, o, next);
+    if (!b || o.x < b.minX - 1 || o.x > b.maxX + 1 || o.y < b.minY - 1 || o.y > b.maxY + 1) {
+      render(); toast(`„${o.name}“ läge außerhalb des kleineren Raums. Verschiebe es zuerst.`); return;
+    }
+  }
+  state.raum = next; commit();
+}
+$('room-w').addEventListener('change', setRoom);
+$('room-l').addEventListener('change', setRoom);
+$('btn-addobj').addEventListener('click', () => {
+  const typ = $('obj-type').value, d = OBJ[typ], n = state.objekte.filter(o => o.typ === typ).length;
+  if (state.objekte.length >= 60) return toast('Es sind höchstens 60 Elemente möglich.');
+  state.objekte.push({ id: uid('o'), typ, name: d.label + (n ? ' ' + (n + 1) : ''), breite: d.b, tiefe: d.t, rot: 0, x: null, y: null });
+  autoPlace(state.tische, state.objekte, state.raum); ensureRoom(state.tische, state.objekte, state.raum);
+  commit(); toast(`${d.label} hinzugefügt. Ziehe es an die richtige Stelle.`);
+});
+function openObj(id) {
+  const o = state.objekte.find(x => x.id === id); if (!o) return;
+  editObj = o; $('o-name').value = o.name; $('o-w').value = o.breite; $('o-h').value = o.tiefe; $('o-rot').value = o.rot || 0;
+  $('obj-dlg').showModal();
+}
+$('o-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const o = editObj; if (!o) return;
+  const old = { name: o.name, breite: o.breite, tiefe: o.tiefe, rot: o.rot, x: o.x, y: o.y };
+  const half = v => clamp(Math.round(Number(v) * 2) / 2 || 1, 0.5, 40);
+  o.name = $('o-name').value.trim() || old.name; o.breite = half($('o-w').value); o.tiefe = half($('o-h').value);
+  o.rot = ((Math.round(Number($('o-rot').value) || 0) % 360) + 360) % 360;
+  const r0 = rectOf('o', Object.assign({}, old, { id: o.id }));
+  const r1 = rectOf('o', o);
+  o.x = Math.round(old.x + (r0.x + r0.w / 2) - (r1.x + r1.w / 2)); o.y = Math.round(old.y + (r0.y + r0.h / 2) - (r1.y + r1.h / 2));
+  const b = boundsOf('o', o);
+  if (b) { o.x = Math.round(clamp(o.x, b.minX, b.maxX)); o.y = Math.round(clamp(o.y, b.minY, b.maxY)); }
+  if (!b || collides('o', o, o.x, o.y)) { Object.assign(o, old); toast(!b ? 'Das passt nicht in den Raum.' : 'Mit dieser Größe wäre dort nicht genug Platz.'); return; }
+  $('obj-dlg').close(); commit();
+});
+$('o-cancel').addEventListener('click', () => $('obj-dlg').close());
+$('o-del').addEventListener('click', () => {
+  state.objekte = state.objekte.filter(o => o !== editObj); editObj = null; $('obj-dlg').close(); commit();
 });
 
 /* ---------- Namensliste importieren ---------- */
